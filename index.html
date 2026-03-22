@@ -174,11 +174,12 @@ const WDEFS=[
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
   {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
   {id:"focus",   label:"Focus",   icon:"⏱",visible:true},
-  {id:"mood",    label:"Mood",    icon:"◑",visible:true},
+  {id:"embed",   label:"Embed",   icon:"⧉",visible:true},
+  {id:"projects",label:"Projects",icon:"⊞",visible:true},
 ];
-const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1,radar:1,focus:1,mood:1};
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1,radar:1,focus:1,embed:1,projects:1};
 const TASK_TAGS={urgent:"#f87171",research:"#38bdf8",personal:"#a78bfa",music:"#f97316",creative:"#f472b6",admin:"#6ee7b7"};
-const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa",radar:"#38bdf8",focus:T.pink,mood:"#34d399"});
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa",radar:"#38bdf8",focus:T.pink,embed:T.textMd,projects:T.mint});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
 const GCOLS=16,GROW_H=96,GGAP=8;
@@ -192,7 +193,8 @@ const DEFAULT_LAYOUT={
   entropy: {col:1, row:12,cS:4,rS:5},
   radar:   {col:5, row:12,cS:4,rS:5},
   focus:   {col:9, row:12,cS:4,rS:5},
-  mood:    {col:13,row:12,cS:4,rS:5},
+  embed:   {col:13,row:7, cS:4,rS:5},
+  projects:{col:13,row:12,cS:4,rS:5},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -1769,76 +1771,221 @@ function FocusTimerWidget({tasks,pageMode}){
   </div>;
 }
 
-// ── MOOD WIDGET ─────────────────────────────────────
-const MOOD_OPTIONS=[{emoji:"🤩",label:"Great",val:5},{emoji:"😊",label:"Good",val:4},{emoji:"😐",label:"Meh",val:3},{emoji:"😔",label:"Low",val:2},{emoji:"😤",label:"Rough",val:1}];
-function MoodWidget({pageMode}){
+// ── EMBED WIDGET ─────────────────────────────────────
+function EmbedWidget({pageMode}){
   const T=useT();
-  const [log,setLog]=useState(()=>lg("plo3_mood",[]));
-  const [note,setNote]=useState("");
-  const todayStr=toStr(new Date());
-  const todayEntry=log.find(e=>e.date===todayStr);
+  const [url,setUrl]=useState(()=>lg("plo3_embed_url",""));
+  const [draft,setDraft]=useState("");
+  const [editing,setEditing]=useState(false);
 
-  useEffect(()=>ls("plo3_mood",log),[log]);
+  useEffect(()=>ls("plo3_embed_url",url),[url]);
 
-  function pick(val){
-    const entry={date:todayStr,val,note:note.trim()};
-    setLog(p=>[entry,...p.filter(e=>e.date!==todayStr)]);
-    setNote("");
+  function normalise(raw){
+    let u=raw.trim();
+    if(u&&!/^https?:\/\//i.test(u)) u="https://"+u;
+    return u;
   }
-  function updateNote(e){
-    if(!todayEntry) return;
-    setLog(p=>p.map(x=>x.date===todayStr?{...x,note:e.target.value}:x));
+  function save(){
+    const u=normalise(draft);
+    setUrl(u);setEditing(false);setDraft("");
   }
 
-  const history=(pageMode?log:log).slice(0,pageMode?30:14);
-  const moodColor={5:"#fbbf24",4:"#34d399",3:T.textLt,2:T.blue,1:"#f87171"};
-
-  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
-    {/* Today check-in */}
-    <div style={{textAlign:"center"}}>
-      <div style={{fontSize:10,fontWeight:700,color:T.textLt,fontFamily:F,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>
-        {todayEntry?"Today's mood":"How are you today?"}
+  if(!url||editing){
+    return <div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
+      <div style={{fontSize:28,lineHeight:1}}>⧉</div>
+      <div style={{fontSize:11,color:T.textLt,fontFamily:F,textAlign:"center",lineHeight:1.5}}>
+        {editing?"Update the URL to embed":"Paste any URL to embed it here"}
       </div>
-      <div style={{display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap"}}>
-        {MOOD_OPTIONS.map(m=>(
-          <button key={m.val} onClick={()=>pick(m.val)} title={m.label}
-            style={{fontSize:pageMode?22:18,background:"transparent",border:"none",cursor:"pointer",padding:"4px",borderRadius:8,
-              outline:todayEntry?.val===m.val?`2px solid ${moodColor[m.val]}`:"none",
-              filter:todayEntry&&todayEntry.val!==m.val?"grayscale(0.7) opacity(0.5)":"none",
-              transition:"filter 0.15s,outline 0.1s"}}>
-            {m.emoji}
-          </button>
+      <div style={{width:"100%",display:"flex",gap:6}}>
+        <input autoFocus value={draft} onChange={e=>setDraft(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape"){setEditing(false);setDraft("");}}}
+          placeholder="https://…"
+          style={{flex:1,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:6,padding:"6px 10px",fontSize:11,fontFamily:F,color:T.textHi,outline:"none"}}/>
+        <button onClick={save}
+          style={{background:T.mint+"22",border:`1px solid ${T.mint}44`,borderRadius:6,padding:"6px 12px",fontSize:11,fontFamily:F,color:T.mint,cursor:"pointer",fontWeight:700}}>
+          Set
+        </button>
+        {editing&&<button onClick={()=>{setEditing(false);setDraft("");}}
+          style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:6,padding:"6px 10px",fontSize:11,fontFamily:F,color:T.textMd,cursor:"pointer"}}>
+          ✕
+        </button>}
+      </div>
+      {editing&&url&&<button onClick={()=>{setUrl("");setEditing(false);setDraft("");}}
+        style={{background:"transparent",border:"none",fontSize:10,fontFamily:F,color:T.textLt,cursor:"pointer",textDecoration:"underline"}}>
+        Remove embed
+      </button>}
+    </div>;
+  }
+
+  const hostname=()=>{try{return new URL(url).hostname;}catch{return url;}};
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",position:"relative"}}>
+    <iframe src={url} title="Embedded content" allow="fullscreen"
+      style={{flex:1,width:"100%",border:"none",borderRadius:6,background:T.cardAlt}}/>
+    <button onClick={()=>{setDraft(url);setEditing(true);}} title="Change URL"
+      style={{position:"absolute",top:6,right:6,background:T.bg+"cc",border:`1px solid ${T.border}`,borderRadius:5,
+        padding:"3px 8px",fontSize:9,fontFamily:F,color:T.textMd,cursor:"pointer",letterSpacing:"0.04em",backdropFilter:"blur(4px)"}}>
+      ⧉ {hostname()}
+    </button>
+  </div>;
+}
+
+// ── PROJECTS WIDGET ─────────────────────────────────
+const PROJ_COLS=["Backlog","In Progress","Done"];
+const PROJ_COL_ICONS=["◌","◎","◉"];
+const PROJ_TAGS=["Music","Photo","3D","DIY","Writing","Other"];
+const PROJ_TAG_COLS={"Music":"#a78bfa","Photo":"#38bdf8","3D":"#34d399","DIY":"#fbbf24","Writing":"#f87171","Other":"#94a3b8"};
+
+function ProjectsWidget({pageMode}){
+  const T=useT();
+  const [projects,setProjects]=useState(()=>lg("plo3_projects",[]));
+  const [addCol,setAddCol]=useState(null); // column index being added to
+  const [newTitle,setNewTitle]=useState("");
+  const [newTag,setNewTag]=useState("Other");
+  const [editId,setEditId]=useState(null);
+  const [editTitle,setEditTitle]=useState("");
+
+  useEffect(()=>ls("plo3_projects",projects),[projects]);
+
+  function addProject(colIdx){
+    if(!newTitle.trim()) return;
+    const p={id:Date.now().toString(),title:newTitle.trim(),tag:newTag,col:colIdx,createdAt:toStr(new Date())};
+    setProjects(prev=>[...prev,p]);
+    setNewTitle("");setNewTag("Other");setAddCol(null);
+  }
+  function moveProject(id,colIdx){
+    setProjects(prev=>prev.map(p=>p.id===id?{...p,col:colIdx}:p));
+  }
+  function deleteProject(id){
+    setProjects(prev=>prev.filter(p=>p.id!==id));
+  }
+  function saveEdit(id){
+    if(!editTitle.trim()){setEditId(null);return;}
+    setProjects(prev=>prev.map(p=>p.id===id?{...p,title:editTitle.trim()}:p));
+    setEditId(null);setEditTitle("");
+  }
+
+  // Compact widget view: counts per column
+  if(!pageMode){
+    return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
+        {PROJ_COLS.map((col,ci)=>{
+          const count=projects.filter(p=>p.col===ci).length;
+          return <div key={ci} style={{flex:1,background:T.cardAlt,borderRadius:8,padding:"10px 8px",textAlign:"center"}}>
+            <div style={{fontSize:18,lineHeight:1,marginBottom:4}}>{PROJ_COL_ICONS[ci]}</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:F,color:T.textHi,lineHeight:1}}>{count}</div>
+            <div style={{fontSize:9,color:T.textLt,fontFamily:F,letterSpacing:"0.05em",marginTop:3,textTransform:"uppercase"}}>{col}</div>
+          </div>;
+        })}
+      </div>
+      {/* Recent items */}
+      <div style={{flex:1,overflowY:"auto"}}>
+        {projects.filter(p=>p.col!==2).slice(0,6).map(p=>(
+          <div key={p.id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${T.border}22`}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:PROJ_TAG_COLS[p.tag]||T.textLt,flexShrink:0}}/>
+            <span style={{fontSize:11,fontFamily:F,color:T.textMd,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.title}</span>
+            <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>{PROJ_COL_ICONS[p.col]}</span>
+          </div>
         ))}
+        {projects.filter(p=>p.col!==2).length===0&&(
+          <div style={{fontSize:11,color:T.textLt,fontFamily:F,textAlign:"center",marginTop:12}}>No active projects</div>
+        )}
       </div>
-      {todayEntry&&<input value={todayEntry.note||""} onChange={updateNote} placeholder="One-line note…"
-        style={{marginTop:6,width:"100%",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,outline:"none",fontSize:11,fontFamily:F,color:T.textMd,textAlign:"center",padding:"3px 0"}}/>}
-    </div>
-    {/* History */}
-    {history.length>0&&<div style={{flex:1,overflowY:"auto"}}>
-      <div style={{fontSize:9,color:T.textLt,fontFamily:F,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:5}}>Recent</div>
-      {pageMode
-        ?<div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {history.map(e=>(
-              <div key={e.date} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 6px",borderRadius:6,background:T.cardAlt}}>
-                <span style={{fontSize:16}}>{MOOD_OPTIONS.find(m=>m.val===e.val)?.emoji||"◑"}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{e.date}</span>
-                  {e.note&&<div style={{fontSize:11,color:T.textMd,fontFamily:F,lineHeight:1.3}}>{e.note}</div>}
+    </div>;
+  }
+
+  // Full kanban in page mode
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{display:"flex",gap:8,flex:1,overflowX:"auto"}}>
+      {PROJ_COLS.map((col,ci)=>{
+        const colProjs=projects.filter(p=>p.col===ci);
+        return <div key={ci} style={{flex:1,minWidth:160,display:"flex",flexDirection:"column",gap:6}}>
+          {/* Column header */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:6,borderBottom:`1px solid ${T.border}`}}>
+            <span style={{fontSize:11,fontWeight:700,fontFamily:F,color:T.textHi,letterSpacing:"0.04em"}}>
+              {PROJ_COL_ICONS[ci]} {col}
+            </span>
+            <span style={{fontSize:10,color:T.textLt,fontFamily:F,background:T.cardAlt,borderRadius:10,padding:"1px 6px"}}>{colProjs.length}</span>
+          </div>
+          {/* Cards */}
+          <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:5}}>
+            {colProjs.map(p=>(
+              <div key={p.id} style={{background:T.cardAlt,borderRadius:8,padding:"8px 10px",position:"relative",
+                borderLeft:`3px solid ${PROJ_TAG_COLS[p.tag]||T.textLt}`}}>
+                {editId===p.id
+                  ? <input autoFocus value={editTitle} onChange={e=>setEditTitle(e.target.value)}
+                      onKeyDown={e=>{if(e.key==="Enter")saveEdit(p.id);if(e.key==="Escape"){setEditId(null);setEditTitle("");}}}
+                      onBlur={()=>saveEdit(p.id)}
+                      style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,
+                        outline:"none",fontSize:12,fontFamily:F,color:T.textHi,padding:"2px 0"}}/>
+                  : <div style={{fontSize:12,fontFamily:F,color:T.textHi,lineHeight:1.4,marginBottom:4,paddingRight:16,cursor:"text"}}
+                      onDoubleClick={()=>{setEditId(p.id);setEditTitle(p.title);}}>
+                      {p.title}
+                    </div>
+                }
+                <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
+                  <span style={{fontSize:9,fontFamily:F,color:PROJ_TAG_COLS[p.tag]||T.textLt,fontWeight:600}}>{p.tag}</span>
+                  <span style={{flex:1}}/>
+                  {/* Move left */}
+                  {ci>0&&<button onClick={()=>moveProject(p.id,ci-1)} title={`Move to ${PROJ_COLS[ci-1]}`}
+                    style={{background:"transparent",border:"none",cursor:"pointer",fontSize:10,color:T.textLt,padding:"0 2px",lineHeight:1}}>
+                    ←
+                  </button>}
+                  {/* Move right */}
+                  {ci<PROJ_COLS.length-1&&<button onClick={()=>moveProject(p.id,ci+1)} title={`Move to ${PROJ_COLS[ci+1]}`}
+                    style={{background:"transparent",border:"none",cursor:"pointer",fontSize:10,color:T.textLt,padding:"0 2px",lineHeight:1}}>
+                    →
+                  </button>}
+                  {/* Delete */}
+                  <button onClick={()=>deleteProject(p.id)} title="Delete"
+                    style={{background:"transparent",border:"none",cursor:"pointer",fontSize:10,color:T.textLt,padding:"0 2px",lineHeight:1}}>
+                    ✕
+                  </button>
                 </div>
-                <div style={{width:4,height:4,borderRadius:"50%",background:moodColor[e.val]}}/>
               </div>
             ))}
           </div>
-        :<div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-            {history.map(e=>(
-              <div key={e.date} title={`${e.date}${e.note?" — "+e.note:""}`}
-                style={{fontSize:14,cursor:"default",lineHeight:1}}>
-                {MOOD_OPTIONS.find(m=>m.val===e.val)?.emoji||"◑"}
+          {/* Add button / input */}
+          {addCol===ci
+            ? <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                <input autoFocus value={newTitle} onChange={e=>setNewTitle(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter")addProject(ci);if(e.key==="Escape")setAddCol(null);}}
+                  placeholder="Project name…"
+                  style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:6,padding:"6px 8px",
+                    fontSize:11,fontFamily:F,color:T.textHi,outline:"none"}}/>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {PROJ_TAGS.map(tag=>(
+                    <button key={tag} onClick={()=>setNewTag(tag)}
+                      style={{fontSize:9,fontFamily:F,padding:"2px 6px",borderRadius:10,cursor:"pointer",fontWeight:newTag===tag?700:400,
+                        background:newTag===tag?PROJ_TAG_COLS[tag]+"33":"transparent",
+                        border:`1px solid ${newTag===tag?PROJ_TAG_COLS[tag]:T.border}`,
+                        color:newTag===tag?PROJ_TAG_COLS[tag]:T.textLt}}>
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:5}}>
+                  <button onClick={()=>addProject(ci)}
+                    style={{flex:1,background:T.mint+"22",border:`1px solid ${T.mint}44`,borderRadius:6,padding:"5px",
+                      fontSize:10,fontFamily:F,color:T.mint,cursor:"pointer",fontWeight:700}}>
+                    Add
+                  </button>
+                  <button onClick={()=>{setAddCol(null);setNewTitle("");}}
+                    style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:6,padding:"5px 10px",
+                      fontSize:10,fontFamily:F,color:T.textMd,cursor:"pointer"}}>
+                    ✕
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
-      }
-    </div>}
+            : <button onClick={()=>{setAddCol(ci);setNewTitle("");setNewTag("Other");}}
+                style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:6,padding:"6px",
+                  fontSize:10,fontFamily:F,color:T.textLt,cursor:"pointer",width:"100%",textAlign:"center"}}>
+                + Add project
+              </button>
+          }
+        </div>;
+      })}
+    </div>
   </div>;
 }
 
@@ -2530,13 +2677,15 @@ function App(){
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
       case "focus":    return <FocusTimerWidget tasks={tasks} pageMode={pageMode}/>;
-      case "mood":     return <MoodWidget pageMode={pageMode}/>;
+      case "embed":    return <EmbedWidget pageMode={pageMode}/>;
+      case "projects": return <ProjectsWidget pageMode={pageMode}/>;
+
       default: return null;
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy",radar:"Radar",focus:"Focus",mood:"Mood"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦",radar:"🔭",focus:"⏱",mood:"◑"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy",radar:"Radar",focus:"Focus",embed:"Embed",projects:"Projects"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦",radar:"🔭",focus:"⏱",embed:"⧉",projects:"⊞"};
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
