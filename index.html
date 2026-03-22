@@ -473,7 +473,7 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
 }
 
 // ── CALENDAR ───────────────────────────────────────
-function CalendarWidget({tasks,trips,goals,pageMode}){
+function CalendarWidget({tasks,trips,goals,completions,pageMode}){
   const T=useT();
   const now=new Date(),todayStr=toStr(now);
   const [month,setMonth]=useState(now.getMonth());
@@ -562,21 +562,65 @@ function CalendarWidget({tasks,trips,goals,pageMode}){
       ))}
     </div>
   </>;
+  // ── Heat map (last 91 days) ──────────────────────
+  const heatDates=Array.from({length:91},(_,i)=>{const d=new Date(now);d.setDate(now.getDate()-90+i);return toStr(d);});
+  const countByDate={};
+  Object.entries(completions||{}).forEach(([k,v])=>{if(v){const date=k.split("_").pop();countByDate[date]=(countByDate[date]||0)+1;}});
+  const maxCount=Math.max(1,...Object.values(countByDate));
+  const totalDone=Object.values(countByDate).reduce((a,b)=>a+b,0);
+  const activeDays=Object.keys(countByDate).filter(d=>d>=heatDates[0]&&d<=heatDates[90]).length;
+  const heatMap=<Card>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+      <span style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,letterSpacing:"0.06em",textTransform:"uppercase"}}>90-day activity</span>
+      <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{totalDone} completions · {activeDays} active days</span>
+    </div>
+    <div style={{display:"flex",gap:3,overflowX:"auto"}}>
+      {Array.from({length:13},(_,week)=>(
+        <div key={week} style={{display:"flex",flexDirection:"column",gap:3}}>
+          {Array.from({length:7},(_,day)=>{
+            const idx=week*7+day;
+            if(idx>=91) return <div key={day} style={{width:11,height:11}}/>;
+            const ds=heatDates[idx];
+            const count=countByDate[ds]||0;
+            const isToday=ds===todayStr;
+            const intensity=count===0?0:Math.min(1,count/maxCount);
+            const bg=count===0?T.border:`rgba(74,222,128,${0.18+intensity*0.82})`;
+            return <div key={day} title={`${ds}: ${count} task${count!==1?"s":""} completed`} style={{
+              width:11,height:11,borderRadius:2,
+              background:bg,
+              outline:isToday?`2px solid ${T.mint}`:undefined,
+              outlineOffset:1,
+              transition:"background 0.15s",
+            }}/>;
+          })}
+        </div>
+      ))}
+    </div>
+    <div style={{display:"flex",gap:5,marginTop:7,alignItems:"center",justifyContent:"flex-end"}}>
+      <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>Less</span>
+      {[0,0.25,0.5,0.75,1].map(i=><div key={i} style={{width:10,height:10,borderRadius:2,background:i===0?T.border:`rgba(74,222,128,${0.18+i*0.82})`}}/>)}
+      <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>More</span>
+    </div>
+  </Card>;
+
   if(!pageMode) return cal;
   const mT=tasks.filter(t=>!t.completed&&t.deadline&&t.deadline.startsWith(ms));
   const mTr=trips.filter(t=>t.startDate.startsWith(ms)||t.endDate.startsWith(ms));
-  return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.6rem",alignItems:"start"}}>
-    <Card>{cal}</Card>
-    <div style={{display:"flex",flexDirection:"column",gap:7}}>
-      <Card>
-        <div style={{fontSize:10,fontWeight:700,color:T.yellow,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Tasks this month</div>
-        {mT.length===0?<Empty msg="None"/>:mT.map(t=><div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><span style={{fontSize:12,fontFamily:F}}>{t.title}</span><span style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.deadline}</span></div>)}
-      </Card>
-      <Card>
-        <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Trips this month</div>
-        {mTr.length===0?<Empty msg="None"/>:mTr.map(t=><div key={t.id} style={{padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><div style={{fontSize:12,fontFamily:F,fontWeight:600}}>{t.destination}</div><div style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.startDate}→{t.endDate}</div></div>)}
-      </Card>
+  return <div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.6rem",alignItems:"start"}}>
+      <Card>{cal}</Card>
+      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+        <Card>
+          <div style={{fontSize:10,fontWeight:700,color:T.yellow,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Tasks this month</div>
+          {mT.length===0?<Empty msg="None"/>:mT.map(t=><div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><span style={{fontSize:12,fontFamily:F}}>{t.title}</span><span style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.deadline}</span></div>)}
+        </Card>
+        <Card>
+          <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Trips this month</div>
+          {mTr.length===0?<Empty msg="None"/>:mTr.map(t=><div key={t.id} style={{padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><div style={{fontSize:12,fontFamily:F,fontWeight:600}}>{t.destination}</div><div style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.startDate}→{t.endDate}</div></div>)}
+        </Card>
+      </div>
     </div>
+    {heatMap}
   </div>;
 }
 
@@ -633,7 +677,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
 }
 
 // ── WAKULI ─────────────────────────────────────────
-function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
+function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
   const T=useT();
   const todayStr=toStr(new Date());
   const [filter,setFilter]=useState("active");
@@ -653,12 +697,12 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
   function toggleDone(id){
     const task=tasks.find(t=>t.id===id);
     if(task?.recurring&&!task.completed){
-      const daysAdd=task.recurring==="weekly"?7:30;
+      const daysAdd=task.recurring==="daily"?1:task.recurring==="weekly"?7:30;
       const newTask={...task,id:uid(),deadline:toStr(addDays(fromStr(task.deadline),daysAdd)),completed:false};
       setTasks(p=>[...p.map(t=>t.id===id?{...t,completed:true}:t),newTask]);
     }else{setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed}:t));}
   }
-  function del(id){setTasks(p=>p.filter(t=>t.id!==id));}
+  function del(id){const t=tasks.find(x=>x.id===id);if(t&&pushUndo)pushUndo({type:"DELETE_TASK",payload:t});setTasks(p=>p.filter(t=>t.id!==id));}
   const Row=({task,highlight})=>{
     const u=urgency(task.deadline),isOver=!task.completed&&task.deadline<todayStr;
     const pcs=PC(T);
@@ -724,7 +768,7 @@ function dg(dest){
   const P=[["#1a0d05","#0d0800"],["#1a0510","#0d0208"],["#051a1a","#020d0d"],["#1a0518","#0d020c"],["#051a08","#020d04"]];
   return P[Math.abs(h)%P.length];
 }
-function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTripSugg,loadingSugg,pageMode}){
+function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTripSugg,loadingSugg,pushUndo,pageMode}){
   const T=useT();
   const [expanded,setExpanded]=useState(null);
   const [packInput,setPackInput]=useState({});
@@ -735,7 +779,7 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
     return a.startDate.localeCompare(b.startDate);
   });
   const shown=pageMode?sorted:sorted.filter(t=>t.endDate>=todayStr).slice(0,3);
-  const del=id=>setTrips(p=>p.filter(t=>t.id!==id));
+  const del=id=>{const t=trips.find(x=>x.id===id);if(t&&pushUndo)pushUndo({type:"DELETE_TRIP",payload:t});setTrips(p=>p.filter(t=>t.id!==id));}
   const setPhase=(id,phase)=>setTrips(p=>p.map(t=>t.id===id?{...t,phase}:t));
   const addPack=id=>{
     const v=packInput[id]?.trim();if(!v)return;
@@ -956,11 +1000,19 @@ function BingoCard({bingo,setBingo,pageMode}){
 }
 
 // ── GOALS ──────────────────────────────────────────
-function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo}){
+function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,apiKey}){
   const T=useT();
+  const [coaching,setCoaching]=useState(null); // goal id being coached
   const updProg=(id,v)=>setGoals(p=>p.map(g=>g.id===id?{...g,progress:+v,lastTouched:new Date().toISOString()}:g));
   const toggle=id=>setGoals(p=>p.map(g=>g.id===id?{...g,completed:!g.completed}:g));
-  const del=id=>setGoals(p=>p.filter(g=>g.id!==id));
+  const del=id=>{const g=goals.find(x=>x.id===id);if(g&&pushUndo)pushUndo({type:"DELETE_GOAL",payload:g});setGoals(p=>p.filter(g=>g.id!==id));};
+  const toggleMilestone=(gid,mid)=>setGoals(p=>p.map(g=>{
+    if(g.id!==gid) return g;
+    const ms=g.milestones||[];
+    const updated=ms.map(m=>m.id===mid?{...m,done:!m.done}:m);
+    const autoProg=Math.round(updated.filter(m=>m.done).length/Math.max(1,updated.length)*100);
+    return{...g,milestones:updated,progress:autoProg,lastTouched:new Date().toISOString()};
+  }));
   const active=goals.filter(g=>!g.completed),done=goals.filter(g=>g.completed);
   function isDormant(g){
     if(g.completed) return false;
@@ -982,6 +1034,9 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo}){
           const dormant=isDormant(g);
           const prog=g.progress||0;
           const progColor=prog<25?T.textLt:prog<75?T.yellow:T.mint;
+          const ms=g.milestones||[];
+          const hasMilestones=ms.length>0;
+          const msDone=ms.filter(m=>m.done).length;
           return <div key={g.id} className="goal-card" style={{padding:"9px 10px",borderRadius:9,background:T.cardAlt,border:`1px solid ${dormant?T.textLt+"22":T.borderSft}`,opacity:dormant?0.75:1}}>
             <div style={{display:"flex",gap:7,alignItems:"flex-start"}}>
               <button onClick={()=>toggle(g.id)} style={{width:13,height:13,borderRadius:"50%",border:`1.5px solid ${T.mint}`,background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,padding:0}}/>
@@ -991,17 +1046,31 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo}){
                 {g.targetDate&&<div style={{fontSize:11,color:T.textLt,marginTop:3,fontFamily:F}}>→ {g.targetDate}</div>}
                 {dormant&&<Badge label="💤 Dormant" color={T.textMd}/>}
               </div>
-              <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+              <div style={{display:"flex",gap:2,alignItems:"center"}}>
+                {pageMode&&apiKey&&<button onClick={()=>setCoaching(g.id)} title="Goal Coach AI" style={{background:"transparent",border:"none",cursor:"pointer",fontSize:11,color:T.textLt,padding:"1px 3px"}}>🎯</button>}
+                <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+              </div>
             </div>
+            {/* Milestones */}
+            {hasMilestones&&<div style={{marginTop:7,display:"flex",flexDirection:"column",gap:3}}>
+              {(pageMode?ms:ms.slice(0,3)).map(m=>(
+                <button key={m.id} onClick={()=>toggleMilestone(g.id,m.id)}
+                  style={{display:"flex",alignItems:"center",gap:5,background:"transparent",border:"none",cursor:"pointer",padding:"2px 0",textAlign:"left",width:"100%"}}>
+                  <span style={{width:10,height:10,borderRadius:2,flexShrink:0,border:`1.5px solid ${m.done?T.mint:T.textLt}`,background:m.done?T.mint:"transparent",display:"inline-block"}}/>
+                  <span style={{fontSize:10,fontFamily:F,color:m.done?T.textMd:T.text,textDecoration:m.done?"line-through":"none",lineHeight:1.3}}>{m.title}</span>
+                </button>
+              ))}
+              {!pageMode&&ms.length>3&&<div style={{fontSize:9,color:T.textLt,fontFamily:F}}>+{ms.length-3} more</div>}
+            </div>}
             <div style={{marginTop:8}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>Progress</span>
+                <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>{hasMilestones?`${msDone}/${ms.length} milestones`:"Progress"}</span>
                 <span style={{fontSize:9,color:progColor,fontWeight:700,fontFamily:F}}>{prog}%</span>
               </div>
               <div style={{position:"relative",height:4,background:T.border,borderRadius:2,marginBottom:3,overflow:"hidden"}}>
                 <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${prog}%`,borderRadius:2,background:`linear-gradient(90deg,${T.blue},${T.mint})`,transition:"width 0.55s cubic-bezier(.4,0,.2,1)",boxShadow:prog>0?`0 0 6px ${alpha(T.mint,.45)}`:undefined}}/>
               </div>
-              <input type="range" min={0} max={100} value={prog} onChange={e=>updProg(g.id,e.target.value)} style={{width:"100%",cursor:"pointer",margin:0,accentColor:T.mint}}/>
+              {!hasMilestones&&<input type="range" min={0} max={100} value={prog} onChange={e=>updProg(g.id,e.target.value)} style={{width:"100%",cursor:"pointer",margin:0,accentColor:T.mint}}/>}
             </div>
           </div>;
         })}
@@ -1016,6 +1085,7 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo}){
         </div>
       </div>}
     </>}
+    {coaching&&<GoalCoachModal goal={goals.find(g=>g.id===coaching)} onClose={()=>setCoaching(null)} apiKey={apiKey}/>}
   </>;
 }
 
@@ -1095,7 +1165,7 @@ function TaskModal({data,setTasks,onClose}){
         {["low","medium","high"].map(p=><button key={p} onClick={()=>sP(p)} style={{flex:1,padding:"5px 0",borderRadius:6,cursor:"pointer",background:pri===p?pcs[p]+"18":"transparent",border:`1px solid ${pri===p?pcs[p]:T.border}`,color:pri===p?pcs[p]:T.textMd,fontFamily:F,fontSize:11,fontWeight:pri===p?700:400,transition:"all 0.1s"}}>{p}</button>)}
       </div>
     </div>
-    <div><Lbl>Recurring</Lbl><div style={{display:"flex",gap:5}}>{[null,"weekly","monthly"].map(r=><Btn key={String(r)} small active={recur===r} onClick={()=>sR(r)}>{r||"None"}</Btn>)}</div></div>
+    <div><Lbl>Recurring</Lbl><div style={{display:"flex",gap:5}}>{[null,"daily","weekly","monthly"].map(r=><Btn key={String(r)} small active={recur===r} onClick={()=>sR(r)}>{r||"None"}</Btn>)}</div></div>
     <div><Lbl>Time Block</Lbl><div style={{display:"flex",gap:5}}>{[null,"am","pm"].map(b=><Btn key={String(b)} small active={tb===b} onClick={()=>sTb(b)}>{b||"Anytime"}</Btn>)}</div></div>
     <div><Lbl>Tags</Lbl>
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
@@ -1135,18 +1205,45 @@ function TripModal({data,setTrips,onClose}){
   </ModalShell>;
 }
 function GoalModal({data,setGoals,onClose}){
+  const T=useT();
   const [title,sT]=useState(data?.title||"");
   const [desc,sD]=useState(data?.description||"");
   const [date,sDt]=useState(data?.targetDate||"");
+  const [milestones,setMs]=useState(data?.milestones||[]);
+  const [mInput,setMI]=useState("");
+  function addMs(){
+    if(!mInput.trim()) return;
+    setMs(p=>[...p,{id:uid(),title:mInput.trim(),done:false}]);
+    setMI("");
+  }
   function save(){
     if(!title.trim()) return;
-    const e={id:data?.id||uid(),title:title.trim(),description:desc.trim(),targetDate:date,progress:data?.progress||0,completed:data?.completed||false,lastTouched:null};
+    const autoProg=milestones.length>0?Math.round(milestones.filter(m=>m.done).length/milestones.length*100):data?.progress||0;
+    const e={id:data?.id||uid(),title:title.trim(),description:desc.trim(),targetDate:date,progress:autoProg,milestones,completed:data?.completed||false,lastTouched:null};
     setGoals(p=>data?.id?p.map(g=>g.id===data.id?e:g):[...p,e]);onClose();
   }
   return <ModalShell title={data?.id?"Edit Goal":"New Goal"} onClose={onClose} onSave={save}>
     <div><Lbl>Goal</Lbl><Inp autoFocus value={title} onChange={e=>sT(e.target.value)} placeholder="What do you want to achieve?"/></div>
     <div><Lbl>Description</Lbl><Txta value={desc} onChange={e=>sD(e.target.value)} placeholder="Why it matters..."/></div>
     <div><Lbl>Target date</Lbl><Inp type="date" value={date} onChange={e=>sDt(e.target.value)}/></div>
+    <div>
+      <Lbl>Milestones</Lbl>
+      <div style={{display:"flex",gap:5,marginBottom:6}}>
+        <Inp value={mInput} onChange={e=>setMI(e.target.value)} placeholder="Add a milestone…"
+          onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addMs();}}}/>
+        <Btn small onClick={addMs}>+</Btn>
+      </div>
+      {milestones.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {milestones.map(m=>(
+          <div key={m.id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 7px",borderRadius:6,background:T.cardAlt,border:`1px solid ${T.border}`}}>
+            <button onClick={()=>setMs(p=>p.map(x=>x.id===m.id?{...x,done:!x.done}:x))}
+              style={{width:12,height:12,borderRadius:3,flexShrink:0,border:`1.5px solid ${T.mint}`,background:m.done?T.mint:"transparent",cursor:"pointer",padding:0}}/>
+            <span style={{flex:1,fontSize:11,fontFamily:F,textDecoration:m.done?"line-through":"none",color:m.done?T.textMd:T.text}}>{m.title}</span>
+            <button onClick={()=>setMs(p=>p.filter(x=>x.id!==m.id))} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:13,padding:0}}>×</button>
+          </div>
+        ))}
+      </div>}
+    </div>
   </ModalShell>;
 }
 function ApiKeyModal({current,onClose,onSave}){
@@ -1480,6 +1577,87 @@ Respond ONLY with valid JSON (no markdown):
       <Btn small primary onClick={()=>generate()}>Generate today's activity</Btn>
     </div>}
   </div>;
+}
+
+// ── GOAL COACH MODAL ───────────────────────────────
+function GoalCoachModal({goal,onClose,apiKey}){
+  const T=useT();
+  const cacheKey=`plo3_coach_${goal.id}`;
+  const [data,setData]=useState(()=>lg(cacheKey,null));
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
+  const todayStr=toStr(new Date());
+  const stale=!data||data.date!==todayStr;
+
+  async function generate(){
+    if(loading)return;
+    setLoading(true);setErr("");
+    const ms=(goal.milestones||[]);
+    const msDone=ms.filter(m=>m.done).length;
+    const msLeft=ms.filter(m=>!m.done);
+    const daysLeft=goal.targetDate?Math.ceil((fromStr(goal.targetDate)-new Date())/86400000):null;
+    const prompt=`You are a direct, thoughtful goal coach. Today is ${todayStr}.
+
+Goal: "${goal.title}"
+${goal.description?`Description: ${goal.description}`:""}
+Progress: ${goal.progress||0}%
+Target date: ${goal.targetDate||"not set"}${daysLeft!==null?` (${daysLeft} days away)`:""}
+${ms.length>0?`Milestones: ${msDone}/${ms.length} done. Remaining: ${msLeft.map(m=>m.title).join(", ") || "none"}`:"No milestones set."}
+
+Write a concise, honest coaching note. Be direct — say what's true, not what's comfortable.
+
+Structure your response as valid JSON only (no markdown):
+{
+  "pace": "one sentence assessing if they're on track — be honest about the math",
+  "insight": "one observation about what might be holding them back, or what's going well",
+  "nextAction": "one specific, concrete action they can take this week — no vague advice"
+}`;
+
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:350,messages:[{role:"user",content:prompt}]})
+      });
+      if(!r.ok)throw new Error(`API ${r.status}`);
+      const j=await r.json();
+      const raw=j.content[0].text.trim().replace(/^```json\n?/,"").replace(/\n?```$/,"");
+      const d=JSON.parse(raw);
+      const nd={date:todayStr,coaching:d};
+      setData(nd);ls(cacheKey,nd);
+    }catch(e){setErr("Could not generate: "+e.message);}
+    finally{setLoading(false);}
+  }
+
+  useEffect(()=>{if(stale&&apiKey&&!loading)generate();},[]);// eslint-disable-line
+
+  const c=data?.coaching;
+  return <ModalShell title={`🎯 Goal Coach — ${goal.title}`} onClose={onClose} wide>
+    {loading&&<div style={{textAlign:"center",padding:"16px 0",fontSize:12,color:T.textMd,fontFamily:F,animation:"softPulse 1.8s ease infinite"}}>🎯 Analysing your goal…</div>}
+    {err&&<div style={{fontSize:11,color:"#f87171",fontFamily:F,textAlign:"center"}}>{err}<br/><Btn small onClick={generate} style={{marginTop:6}}>Retry</Btn></div>}
+    {c&&<>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{borderLeft:`3px solid ${T.yellow}`,paddingLeft:12}}>
+          <div style={{fontSize:9,fontWeight:700,color:T.yellow,fontFamily:F,letterSpacing:"0.06em",marginBottom:4}}>◎ PACE</div>
+          <div style={{fontSize:12,color:T.text,fontFamily:F,lineHeight:1.65}}>{c.pace}</div>
+        </div>
+        <div style={{borderLeft:`3px solid ${T.mint}`,paddingLeft:12}}>
+          <div style={{fontSize:9,fontWeight:700,color:T.mint,fontFamily:F,letterSpacing:"0.06em",marginBottom:4}}>✦ INSIGHT</div>
+          <div style={{fontSize:12,color:T.text,fontFamily:F,lineHeight:1.65}}>{c.insight}</div>
+        </div>
+        <div style={{borderLeft:`3px solid ${T.blue}`,paddingLeft:12}}>
+          <div style={{fontSize:9,fontWeight:700,color:T.blue,fontFamily:F,letterSpacing:"0.06em",marginBottom:4}}>→ THIS WEEK</div>
+          <div style={{fontSize:12,color:T.text,fontFamily:F,lineHeight:1.65,fontWeight:600}}>{c.nextAction}</div>
+        </div>
+      </div>
+      <div style={{textAlign:"center",marginTop:4}}>
+        <Btn small onClick={generate} style={{fontSize:10}}>↻ Regenerate</Btn>
+      </div>
+    </>}
+    {!loading&&!err&&!c&&<div style={{textAlign:"center",padding:"8px 0"}}>
+      <Btn primary onClick={generate}>🎯 Analyse this goal</Btn>
+    </div>}
+  </ModalShell>;
 }
 
 // ── RESEARCH RADAR WIDGET ──────────────────────────
@@ -1863,6 +2041,20 @@ function App(){
   const isSunday=new Date().getDay()===0;
   const syncTimerRef=useRef(null);
   const syncReadyRef=useRef(false); // prevents push before initial load
+  const undoStackRef=useRef([]);
+  const [undoToast,setUndoToast]=useState(null);
+  const pushUndo=action=>{undoStackRef.current=[...undoStackRef.current.slice(-9),action];};
+  function doUndo(){
+    const action=undoStackRef.current.pop();
+    if(!action) return;
+    const label=action.payload.title||action.payload.destination||"item";
+    if(action.type==="DELETE_TASK") setTasks(p=>[action.payload,...p]);
+    if(action.type==="DELETE_TRIP") setTrips(p=>[action.payload,...p]);
+    if(action.type==="DELETE_GOAL") setGoals(p=>[action.payload,...p]);
+    setUndoToast(`↩ Restored: ${label}`);
+    clearTimeout(undoStackRef._t);
+    undoStackRef._t=setTimeout(()=>setUndoToast(null),2500);
+  }
 
   const [page,setPage]=useState(null);
   const [customizing,setCustomizing]=useState(false);
@@ -1934,6 +2126,7 @@ function App(){
       const tag=e.target.tagName;
       if(tag==="INPUT"||tag==="TEXTAREA"){if(e.key==="Escape"){e.target.blur();}return;}
       if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();setSearchOpen(true);return;}
+      if((e.ctrlKey||e.metaKey)&&e.key==="z"){e.preventDefault();doUndo();return;}
       if(modal||searchOpen||focusDay) return;
       if(e.key==="n") setModal({type:"task"});
       if(e.key==="t") setModal({type:"trip"});
@@ -2059,11 +2252,11 @@ function App(){
 
   function widgetBody(id,pageMode=false){
     switch(id){
-      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} pageMode={pageMode}/>;
-      case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pageMode={pageMode}/>;
+      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode}/>;
+      case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode}/>;
-      case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pageMode={pageMode}/>;
-      case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo}/>;
+      case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
+      case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
       case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
@@ -2223,6 +2416,8 @@ function App(){
           syncReadyRef.current=true;
         }}
       />}
+      {/* UNDO TOAST */}
+      {undoToast&&<div className="fade-up" style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:T.card,border:`1px solid ${T.mint}44`,borderRadius:10,padding:"8px 20px",fontSize:12,fontFamily:F,color:T.text,zIndex:600,boxShadow:"0 4px 24px rgba(0,0,0,.5)",whiteSpace:"nowrap",pointerEvents:"none"}}>{undoToast}</div>}
     </div>
   </TC.Provider>;
 }
