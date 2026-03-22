@@ -2094,28 +2094,23 @@ function ResearchRadarWidget({apiKey,pageMode}){
 Suggest ONE real, published scientific paper or article that is:
 - Genuinely fascinating — something that shifts how you think about the world
 - From ANY field EXCEPT political science, international relations, nationalism, or ethnic conflict (the reader studies those every day)
-- Preferably published between 2018 and 2025
-- Something the reader can actually find and read online (prefer papers with an arXiv ID, or papers in open-access journals, or well-known papers with a clear DOI)
+- Preferably published between 2015 and 2024
+- A paper whose TITLE you are completely certain of — do not guess or approximate it
 
 The reader's background and interests (to tailor surprise-factor): photography, music production, 3D/design, bossa nova and jazz, DIY electronics, Indian heritage, lives in the Netherlands. They're intellectually curious across science, cognition, history, ecology, physics, neuroscience, linguistics, complexity theory, etc.
 
-Rules:
-- Suggest a REAL paper you are confident exists — do not fabricate titles, authors, or IDs
-- If the paper is on arXiv, provide the numeric ID only (e.g. "2301.07041") — not the full URL
-- If it has a DOI (e.g. "10.1038/s41586-021-03819-2"), provide that
-- If neither, provide a google_query string (title + first author) that will find it
+CRITICAL rules:
+- Only suggest a paper whose exact title you are fully confident about
+- Do NOT include any DOIs, arXiv IDs, or author names — these are too easy to hallucinate and will not be shown
 - The "why" field should be 2–3 sentences of genuine intellectual excitement — not a dry abstract summary
+- The link will be auto-generated as a Google Scholar search on the title, so accuracy of the title is everything
 
 Respond ONLY with valid JSON (no markdown):
 {
-  "title": "Full paper title",
-  "authors": "Lastname et al.",
+  "title": "Exact paper title — must be accurate",
   "year": 2022,
-  "field": "e.g. Cognitive Neuroscience",
-  "why": "2–3 sentences on why this is genuinely interesting and what insight it offers",
-  "arxiv_id": "2301.07041 or null",
-  "doi": "10.xxxx/xxxx or null",
-  "google_query": "fallback search string or null"
+  "field": "e.g. Cognitive Neuroscience"
+  "why": "2–3 sentences on why this is genuinely interesting and what insight it offers"
 }`;
 
     try{
@@ -2134,11 +2129,8 @@ Respond ONLY with valid JSON (no markdown):
     finally{setLoading(false);}
   }
 
-  // Build the read link from whatever identifier is available
+  // Always use Scholar search on title — the only link that can't hallucinate
   function readLink(s){
-    if(s.arxiv_id) return `https://arxiv.org/abs/${s.arxiv_id}`;
-    if(s.doi)      return `https://doi.org/${s.doi}`;
-    if(s.google_query) return `https://scholar.google.com/scholar?q=${encodeURIComponent(s.google_query)}`;
     return `https://scholar.google.com/scholar?q=${encodeURIComponent(s.title)}`;
   }
 
@@ -2179,9 +2171,6 @@ Respond ONLY with valid JSON (no markdown):
         borderLeft:"3px solid #38bdf8",paddingLeft:10}}>
         {s.title}
       </div>
-
-      {/* Authors */}
-      <div style={{fontSize:10,color:T.textLt,fontFamily:F,paddingLeft:10}}>{s.authors}</div>
 
       {/* Why it's interesting */}
       <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.7,flex:1,overflowY:"auto"}}>
