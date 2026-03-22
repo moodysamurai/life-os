@@ -4,6 +4,13 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Pratham's Life OS</title>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#4ade80"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Life OS"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -155,9 +162,11 @@ const WDEFS=[
   {id:"goals",   label:"Goals",   icon:"◉",visible:true},
   {id:"notes",   label:"Notes",   icon:"◫",visible:true},
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
+  {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
 ];
-const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1};
-const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa"});
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1,radar:1};
+const TASK_TAGS={urgent:"#f87171",research:"#38bdf8",personal:"#a78bfa",music:"#f97316",creative:"#f472b6",admin:"#6ee7b7"};
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa",radar:"#38bdf8"});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
 const GCOLS=16,GROW_H=96,GGAP=8;
@@ -168,7 +177,8 @@ const DEFAULT_LAYOUT={
   trips:   {col:1, row:7, cS:6,rS:5},
   goals:   {col:7, row:7, cS:5,rS:5},
   notes:   {col:12,row:7, cS:5,rS:4},
-  entropy: {col:12,row:12,cS:5,rS:5},
+  entropy: {col:1, row:12,cS:5,rS:5},
+  radar:   {col:6, row:12,cS:5,rS:5},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -627,10 +637,12 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
   const T=useT();
   const todayStr=toStr(new Date());
   const [filter,setFilter]=useState("active");
+  const [tagFilter,setTagFilter]=useState(null);
   const active=tasks.filter(t=>!t.completed).sort((a,b)=>a.deadline.localeCompare(b.deadline));
   const done=tasks.filter(t=>t.completed);
   const overdue=active.filter(t=>t.deadline<todayStr);
-  const shown=pageMode?(filter==="active"?active:filter==="overdue"?overdue:done):active.slice(0,7);
+  const byStatus=pageMode?(filter==="active"?active:filter==="overdue"?overdue:done):active;
+  const shown=(tagFilter?byStatus.filter(t=>(t.tags||[]).includes(tagFilter)):byStatus).slice(0,pageMode?9999:7);
   const focusTask=active[0];
   const urgency=dl=>{
     if(dl<todayStr) return{label:"Overdue",color:T.pink};
@@ -657,6 +669,7 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
           <span style={{fontSize:12,fontWeight:500,lineHeight:1.3,fontFamily:F,textDecoration:task.completed?"line-through":"none",color:task.completed?T.textMd:T.text}}>{task.title}</span>
           {highlight&&<Badge label="Focus" color={T.mint}/>}
           {task.recurring&&<Badge label={task.recurring} color={T.blue}/>}
+          {(task.tags||[]).map(tag=><Badge key={tag} label={tag} color={TASK_TAGS[tag]||T.textMd}/>)}
         </div>
         {task.notes&&<div style={{fontSize:10,color:T.textMd,marginTop:1,lineHeight:1.3,fontFamily:F}}>{task.notes}</div>}
         <div style={{display:"flex",gap:5,marginTop:3,alignItems:"center"}}>
@@ -671,18 +684,32 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
     </div>;
   };
   return <>
-    {pageMode&&<div style={{display:"flex",gap:4,marginBottom:9,alignItems:"center",flexWrap:"wrap"}}>
-      {[["active","Active"],["overdue","Overdue"],["done","Done"]].map(([v,l])=>(
-        <Btn key={v} small active={filter===v} onClick={()=>setFilter(v)}>
-          {l}{v==="overdue"&&overdue.length>0?<span style={{marginLeft:4,background:T.pink,color:T.bg,borderRadius:8,padding:"0 4px",fontSize:9,fontWeight:700}}>{overdue.length}</span>:null}
-        </Btn>
-      ))}
-      <div style={{flex:1}}/><Btn small primary onClick={onAddTask}>+ Task</Btn>
+    {pageMode&&<div style={{marginBottom:9}}>
+      <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
+        {[["active","Active"],["overdue","Overdue"],["done","Done"]].map(([v,l])=>(
+          <Btn key={v} small active={filter===v} onClick={()=>setFilter(v)}>
+            {l}{v==="overdue"&&overdue.length>0?<span style={{marginLeft:4,background:T.pink,color:T.bg,borderRadius:8,padding:"0 4px",fontSize:9,fontWeight:700}}>{overdue.length}</span>:null}
+          </Btn>
+        ))}
+        <div style={{flex:1}}/><Btn small primary onClick={onAddTask}>+ Task</Btn>
+      </div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:9,color:T.textLt,fontFamily:F,textTransform:"uppercase",letterSpacing:"0.06em"}}>Filter:</span>
+        <button onClick={()=>setTagFilter(null)} style={{padding:"2px 8px",borderRadius:100,border:`1px solid ${!tagFilter?T.mint:T.border}`,background:!tagFilter?T.mintX:"transparent",color:!tagFilter?T.mint:T.textMd,cursor:"pointer",fontSize:10,fontFamily:F,fontWeight:!tagFilter?700:400}}>All</button>
+        {Object.entries(TASK_TAGS).map(([tag,color])=>(
+          <button key={tag} onClick={()=>setTagFilter(tagFilter===tag?null:tag)}
+            style={{padding:"2px 8px",borderRadius:100,border:`1px solid ${tagFilter===tag?color:T.border}`,
+              background:tagFilter===tag?color+"22":"transparent",color:tagFilter===tag?color:T.textMd,
+              cursor:"pointer",fontSize:10,fontFamily:F,fontWeight:tagFilter===tag?700:400}}>
+            {tag}
+          </button>
+        ))}
+      </div>
     </div>}
     <div style={{display:"flex",flexDirection:"column",gap:4}}>
       {!pageMode&&focusTask&&<Row task={focusTask} highlight={true}/>}
-      {shown.filter(t=>!(!pageMode&&t.id===focusTask?.id)).map(t=><Row key={t.id} task={t} highlight={false}/>)}
-      {shown.length===0&&<Empty msg={filter==="overdue"?"No overdue 🎉":filter==="done"?"Nothing done yet":"All clear"}/>}
+      {shown.filter(t=>!(t.id===focusTask?.id&&!pageMode)).map(t=><Row key={t.id} task={t} highlight={false}/>)}
+      {shown.length===0&&<Empty msg={tagFilter?`No ${tagFilter} tasks`:filter==="overdue"?"No overdue 🎉":filter==="done"?"Nothing done yet":"All clear"}/>}
       {!pageMode&&active.length>7&&<div style={{fontSize:10,color:T.textMd,textAlign:"center",fontFamily:F,paddingTop:2}}>+{active.length-7} more</div>}
     </div>
     {!pageMode&&done.length>0&&<div style={{marginTop:7,paddingTop:7,borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textLt,fontFamily:F}}>{done.length} completed</div>}
@@ -1052,10 +1079,11 @@ function TaskModal({data,setTasks,onClose}){
   const [notes,sN]=useState(data?.notes||"");
   const [recur,sR]=useState(data?.recurring||null);
   const [tb,sTb]=useState(data?.timeBlock||null);
+  const [tags,sTags]=useState(data?.tags||[]);
   const T=useT(),pcs=PC(T);
   function save(){
     if(!title.trim()) return;
-    const e={id:data?.id||uid(),title:title.trim(),deadline:dl,priority:pri,notes:notes.trim(),completed:data?.completed||false,recurring:recur,timeBlock:tb};
+    const e={id:data?.id||uid(),title:title.trim(),deadline:dl,priority:pri,notes:notes.trim(),completed:data?.completed||false,recurring:recur,timeBlock:tb,tags};
     setTasks(p=>isE?p.map(t=>t.id===data.id?e:t):[...p,e]);onClose();
   }
   return <ModalShell title={isE?"Edit Task":"New Task"} onClose={onClose} onSave={save}>
@@ -1069,6 +1097,18 @@ function TaskModal({data,setTasks,onClose}){
     </div>
     <div><Lbl>Recurring</Lbl><div style={{display:"flex",gap:5}}>{[null,"weekly","monthly"].map(r=><Btn key={String(r)} small active={recur===r} onClick={()=>sR(r)}>{r||"None"}</Btn>)}</div></div>
     <div><Lbl>Time Block</Lbl><div style={{display:"flex",gap:5}}>{[null,"am","pm"].map(b=><Btn key={String(b)} small active={tb===b} onClick={()=>sTb(b)}>{b||"Anytime"}</Btn>)}</div></div>
+    <div><Lbl>Tags</Lbl>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        {Object.entries(TASK_TAGS).map(([tag,color])=>(
+          <button key={tag} onClick={()=>sTags(p=>p.includes(tag)?p.filter(t=>t!==tag):[...p,tag])}
+            style={{padding:"3px 10px",borderRadius:100,border:`1px solid ${tags.includes(tag)?color:T.border}`,
+              background:tags.includes(tag)?color+"28":"transparent",color:tags.includes(tag)?color:T.textMd,
+              cursor:"pointer",fontSize:10,fontFamily:F,fontWeight:tags.includes(tag)?700:400,transition:"all 0.12s"}}>
+            {tag}
+          </button>
+        ))}
+      </div>
+    </div>
     <div><Lbl>Notes</Lbl><Txta value={notes} onChange={e=>sN(e.target.value)} placeholder="Context, links..."/></div>
   </ModalShell>;
 }
@@ -1442,6 +1482,117 @@ Respond ONLY with valid JSON (no markdown):
   </div>;
 }
 
+// ── RESEARCH RADAR WIDGET ──────────────────────────
+const RADAR_CATS={
+  theory:     {color:"#38bdf8",icon:"🔭"},
+  empirical:  {color:"#34d399",icon:"📊"},
+  methodology:{color:"#f97316",icon:"🛠"},
+  book:       {color:"#a78bfa",icon:"📚"},
+  debate:     {color:"#f472b6",icon:"⚡"},
+  concept:    {color:"#fbbf24",icon:"💡"},
+};
+function ResearchRadarWidget({apiKey,pageMode}){
+  const T=useT();
+  const [data,setData]=useState(()=>lg("plo3_radar",null));
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
+  const todayStr=toStr(new Date());
+  const stale=!data||data.date!==todayStr;
+
+  async function generate(force=false){
+    if(!apiKey){setErr("Add a Claude API key (🔑) to enable research suggestions.");return;}
+    if(loading)return;
+    setLoading(true);setErr("");
+    const prompt=`You are an expert research guide for a political science and international relations scholar. Today is ${todayStr} (${new Date().toLocaleDateString("en-GB",{weekday:"long",month:"long",day:"numeric"})}).
+
+About this researcher:
+- Masters in International Relations (Global Conflict) — Leiden University (completed)
+- Current Masters in Political Science (Nationalism, Ethnic Conflict, and Development) — Leiden University
+- Research interests: Nationalism theory, ethnic conflict, state-building, post-colonial politics, South Asian politics (especially India), globalisation and development
+- Background: International Law & Political Science (BA, 5 years), Delhi, India
+- Intellectual style: theoretically rigorous but appreciates empirical depth; interested in both mainstream IR and critical approaches
+
+Generate ONE focused research item for today — a specific concept, debate, scholar, paper, or methodological approach they should explore.
+
+Rules:
+- Be specific: name actual scholars, journals, books, or frameworks (e.g. "Read Rogers Brubaker's 'Ethnicity Without Groups' — specifically ch.2 on groupism")
+- Relevance: connect to nationalism, ethnic conflict, development, or IR theory
+- Variety: rotate through concepts, empirical debates, methodologies, key texts
+- Include a brief hook explaining why this is intellectually important or timely
+
+Respond ONLY with valid JSON (no markdown):
+{"title":"...","detail":"...","hook":"...","type":"theory|empirical|methodology|book|debate|concept","readtime":"~X min"}`;
+
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:450,messages:[{role:"user",content:prompt}]})
+      });
+      if(!r.ok)throw new Error(`API ${r.status}`);
+      const j=await r.json();
+      const raw=j.content[0].text.trim().replace(/^```json\n?/,"").replace(/\n?```$/,"");
+      const s=JSON.parse(raw);
+      const nd={date:todayStr,item:s,saved:false};
+      setData(nd);ls("plo3_radar",nd);
+    }catch(e){setErr("Could not generate: "+e.message);}
+    finally{setLoading(false);}
+  }
+
+  function toggleSave(){
+    const nd={...data,saved:!data.saved};setData(nd);ls("plo3_radar",nd);
+  }
+
+  useEffect(()=>{if(stale&&apiKey&&!loading)generate();},[]);// eslint-disable-line
+
+  const s=data?.item;
+  const cat=s?RADAR_CATS[s.type]||RADAR_CATS.concept:null;
+
+  if(!apiKey) return <div style={{padding:"18px 12px",textAlign:"center"}}>
+    <div style={{fontSize:24,marginBottom:8}}>🔭</div>
+    <div style={{fontSize:12,color:T.textMd,fontFamily:F,lineHeight:1.6}}>Add a Claude API key (🔑 in header)<br/>to unlock daily research suggestions.</div>
+  </div>;
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+    {loading&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10}}>
+      <div style={{fontSize:22,animation:"spin 1.4s linear infinite"}}>🔭</div>
+      <div style={{fontSize:11,color:T.textMd,fontFamily:F}}>Scanning research landscape…</div>
+    </div>}
+    {!loading&&err&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
+      <div style={{fontSize:11,color:"#f87171",fontFamily:F,textAlign:"center",lineHeight:1.5}}>{err}</div>
+      <Btn small onClick={()=>generate(true)}>Retry</Btn>
+    </div>}
+    {!loading&&!err&&s&&<>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{background:cat.color+"22",color:cat.color,border:`1px solid ${cat.color}44`,borderRadius:6,padding:"2px 9px",fontSize:10,fontWeight:700,fontFamily:F,letterSpacing:"0.04em"}}>
+          {cat.icon} {s.type}
+        </span>
+        <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{s.readtime}</span>
+      </div>
+      <div style={{
+        fontSize:pageMode?16:13,fontWeight:800,fontFamily:F,lineHeight:1.35,
+        letterSpacing:"-0.3px",color:T.text,
+        borderLeft:`3px solid ${cat.color}`,paddingLeft:10,
+      }}>{s.title}</div>
+      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.65,flex:1}}>
+        {s.detail}
+      </div>
+      {s.hook&&<div style={{fontSize:pageMode?11:10,color:cat.color,fontFamily:F,fontStyle:"italic",lineHeight:1.5,opacity:0.85}}>
+        "{s.hook}"
+      </div>}
+      <div style={{display:"flex",gap:6,marginTop:4}}>
+        <Btn small onClick={toggleSave} style={{flex:1,justifyContent:"center",
+          ...(data.saved?{background:cat.color+"22",color:cat.color,borderColor:cat.color+"66"}:{})
+        }}>{data.saved?"★ Saved":"☆ Save"}</Btn>
+        <Btn small onClick={()=>generate(true)} title="New suggestion" style={{fontSize:12}}>↻</Btn>
+      </div>
+    </>}
+    {!loading&&!err&&!s&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <Btn small primary onClick={()=>generate()}>Generate today's reading</Btn>
+    </div>}
+  </div>;
+}
+
 // ── GIST SYNC ──────────────────────────────────────
 const GIST_FILE="pratham-life-os.json";
 async function gistFetch(token,id){
@@ -1487,6 +1638,148 @@ function applyGistData(data,setters){
   if(data.scratchpads) setScratchpads(data.scratchpads);
   if(data.bingo)       setBingo(data.bingo);
   // photos intentionally excluded — base64 images are too large for Gist (causes truncated JSON)
+}
+
+// ── WEEKLY REVIEW MODAL ────────────────────────────
+function WeeklyReviewModal({onClose,tasks,completions,goals,trips,apiKey}){
+  const T=useT();
+  const [digest,setDigest]=useState(()=>lg("plo3_weekly_digest",null));
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
+
+  // Week bounds: Mon–Sun
+  const today=new Date();
+  const todayStr=toStr(today);
+  const dow=today.getDay(); // 0=Sun
+  const daysFromMon=dow===0?6:dow-1;
+  const weekDates=Array.from({length:7},(_,i)=>{
+    const d=new Date(today);d.setDate(today.getDate()-daysFromMon+i);return toStr(d);
+  });
+  const weekStart=weekDates[0],weekEnd=weekDates[6];
+
+  // Compute stats
+  const completedThisWeek=Object.entries(completions)
+    .filter(([k,v])=>v&&weekDates.includes(k.split("_").pop()))
+    .map(([k])=>k.split("_")[0]);
+  const uniqueCompletedIds=[...new Set(completedThisWeek)];
+  const completedTasks=tasks.filter(t=>uniqueCompletedIds.includes(t.id));
+
+  const overdueTasks=tasks.filter(t=>!t.done&&t.deadline&&t.deadline<todayStr);
+  const activeTasks=tasks.filter(t=>!t.done);
+  const activeGoals=goals.filter(g=>!g.completed);
+  const avgGoalProg=activeGoals.length
+    ?Math.round(activeGoals.reduce((a,g)=>a+(g.progress||0),0)/activeGoals.length):0;
+  const weekTrips=trips.filter(t=>t.startDate<=weekEnd&&t.endDate>=weekStart);
+  const isSunday=today.getDay()===0;
+
+  const digestStale=!digest||digest.weekStart!==weekStart;
+
+  async function generateDigest(){
+    if(!apiKey){setErr("Add a Claude API key (🔑) to generate the AI digest.");return;}
+    if(loading)return;
+    setLoading(true);setErr("");
+    const completedList=completedTasks.map(t=>`• ${t.title}${t.deadline?` (by ${t.deadline})`:""}`).join("\n")||"(none logged)";
+    const overdueList=overdueTasks.map(t=>`• ${t.title} — due ${t.deadline}`).join("\n")||"(none)";
+    const goalList=activeGoals.map(g=>`• ${g.title} — ${g.progress||0}%`).join("\n")||"(none)";
+    const tripList=weekTrips.map(t=>`• ${t.destination} (${t.startDate}–${t.endDate})`).join("\n")||"(none)";
+
+    const prompt=`You are a thoughtful weekly review guide for Pratham, a 24-year-old political science researcher (nationalism, ethnic conflict, IR) at Leiden University. Originally from Delhi, India. Also into photography, music production, bossa nova.
+
+Week of ${weekStart} to ${weekEnd}:
+
+COMPLETED THIS WEEK (${completedTasks.length} tasks):
+${completedList}
+
+OVERDUE TASKS (${overdueTasks.length}):
+${overdueList}
+
+ACTIVE GOALS (${activeGoals.length}, avg ${avgGoalProg}% progress):
+${goalList}
+
+TRIPS THIS WEEK: ${tripList}
+
+Write a warm, honest weekly review. Be concise but not cold. Structure as:
+1. "◎ Week in Brief" — 2-3 sentences on the overall shape of the week
+2. "✦ Highlights" — 1-2 specific things that went well (reference actual tasks/goals)
+3. "⚡ Watch List" — 1-2 items needing attention (overdue or stalling goals), with a gentle suggestion
+4. "→ One Focus for Next Week" — one clear, actionable priority
+
+Tone: like a thoughtful mentor who knows him well. No bullet points in the brief. Keep total response under 280 words.
+
+Respond ONLY with valid JSON (no markdown):
+{"brief":"...","highlights":"...","watchList":"...","nextFocus":"..."}`;
+
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})
+      });
+      if(!r.ok)throw new Error(`API ${r.status}`);
+      const j=await r.json();
+      const raw=j.content[0].text.trim().replace(/^```json\n?/,"").replace(/\n?```$/,"");
+      const d=JSON.parse(raw);
+      const nd={weekStart,digest:d};
+      setDigest(nd);ls("plo3_weekly_digest",nd);
+    }catch(e){setErr("Could not generate: "+e.message);}
+    finally{setLoading(false);}
+  }
+
+  const d=digest?.digest;
+  const Sec=({icon,label,text,color})=><div style={{borderLeft:`3px solid ${color||T.mint}`,paddingLeft:12}}>
+    <div style={{fontSize:10,fontWeight:700,fontFamily:F,color:color||T.mint,letterSpacing:"0.06em",marginBottom:4}}>{icon} {label}</div>
+    <div style={{fontSize:12,color:T.textMd,fontFamily:F,lineHeight:1.65}}>{text}</div>
+  </div>;
+
+  return <ModalShell title={`◑ Weekly Review — week of ${weekStart}`} onClose={onClose} wide>
+    {/* Stats row */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+      {[
+        {label:"Completed",val:completedTasks.length,color:T.mint},
+        {label:"Overdue",val:overdueTasks.length,color:overdueTasks.length?"#f87171":T.textLt},
+        {label:"Active Goals",val:activeGoals.length,color:T.blue},
+        {label:"Avg Progress",val:`${avgGoalProg}%`,color:T.yellow},
+      ].map(({label,val,color})=>(
+        <div key={label} style={{background:T.cardAlt,borderRadius:10,padding:"10px 12px",textAlign:"center",border:`1px solid ${T.border}`}}>
+          <div style={{fontSize:20,fontWeight:800,fontFamily:F,color,lineHeight:1}}>{val}</div>
+          <div style={{fontSize:9,color:T.textLt,fontFamily:F,marginTop:3,letterSpacing:"0.04em"}}>{label}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Completed tasks list */}
+    {completedTasks.length>0&&<div>
+      <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,letterSpacing:"0.06em",marginBottom:6}}>✓ COMPLETED THIS WEEK</div>
+      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+        {completedTasks.slice(0,8).map(t=>(
+          <div key={t.id} style={{fontSize:11,color:T.textMd,fontFamily:F,display:"flex",alignItems:"center",gap:6}}>
+            <span style={{color:T.mint,fontSize:10}}>✓</span>{t.title}
+            {(t.tags||[]).map(tag=><span key={tag} style={{fontSize:9,background:TASK_TAGS[tag]+"22",color:TASK_TAGS[tag],border:`1px solid ${TASK_TAGS[tag]}44`,borderRadius:4,padding:"1px 5px"}}>{tag}</span>)}
+          </div>
+        ))}
+        {completedTasks.length>8&&<div style={{fontSize:10,color:T.textLt,fontFamily:F}}>+{completedTasks.length-8} more</div>}
+      </div>
+    </div>}
+
+    {/* AI Digest */}
+    {!d&&!loading&&<div style={{textAlign:"center",padding:"8px 0"}}>
+      <Btn primary onClick={generateDigest}>{apiKey?"✦ Generate AI Digest":"🔑 Add API Key for Digest"}</Btn>
+      {!isSunday&&<div style={{fontSize:10,color:T.textLt,fontFamily:F,marginTop:6}}>Best used on Sundays — but anytime works!</div>}
+    </div>}
+    {loading&&<div style={{textAlign:"center",padding:"12px 0",fontSize:12,color:T.textMd,fontFamily:F,animation:"softPulse 1.8s ease infinite"}}>
+      ✦ Reflecting on your week…
+    </div>}
+    {err&&<div style={{fontSize:11,color:"#f87171",fontFamily:F,textAlign:"center"}}>{err}</div>}
+    {d&&<>
+      <Sec icon="◎" label="WEEK IN BRIEF" text={d.brief} color={T.mint}/>
+      <Sec icon="✦" label="HIGHLIGHTS" text={d.highlights} color={T.yellow}/>
+      <Sec icon="⚡" label="WATCH LIST" text={d.watchList} color="#f87171"/>
+      <Sec icon="→" label="ONE FOCUS FOR NEXT WEEK" text={d.nextFocus} color={T.blue}/>
+      <div style={{textAlign:"center"}}>
+        <Btn small onClick={generateDigest} style={{fontSize:10}}>↻ Regenerate</Btn>
+      </div>
+    </>}
+  </ModalShell>;
 }
 
 function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onConnect}){
@@ -1546,6 +1839,10 @@ function App(){
     return s?WDEFS.map(d=>({...d,...(s.find(w=>w.id===d.id)||{})})):WDEFS;
   });
   const [layout,setLayout]=useState(()=>{const s=lg("plo3_layout",null);return s?{...DEFAULT_LAYOUT,...s}:DEFAULT_LAYOUT;});
+  const [minimised,setMinimised]=useState(()=>new Set(lg("plo3_minimised",[])));
+  const toggleMin=id=>setMinimised(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
+  const [isMobile,setIsMobile]=useState(()=>window.innerWidth<768);
+  useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
   const [tasks,setTasks]=useState(()=>lg("plo3_tasks",[]));
   const [trips,setTrips]=useState(()=>lg("plo3_trips",[]));
   const [goals,setGoals]=useState(()=>lg("plo3_goals",[]));
@@ -1562,6 +1859,8 @@ function App(){
   const [syncGistId,setSyncGistId]=useState(()=>lg("plo3_sync_gist",""));
   const [syncStatus,setSyncStatus]=useState("idle"); // idle|loading|ok|err
   const [showSyncModal,setShowSyncModal]=useState(false);
+  const [showWeeklyReview,setShowWeeklyReview]=useState(false);
+  const isSunday=new Date().getDay()===0;
   const syncTimerRef=useRef(null);
   const syncReadyRef=useRef(false); // prevents push before initial load
 
@@ -1589,6 +1888,7 @@ function App(){
   useEffect(()=>ls("plo3_palette",palette),[palette]);
   useEffect(()=>ls("plo3_widgets",widgets),[widgets]);
   useEffect(()=>ls("plo3_layout",layout),[layout]);
+  useEffect(()=>ls("plo3_minimised",[...minimised]),[minimised]);
   useEffect(()=>ls("plo3_tasks",tasks),[tasks]);
   useEffect(()=>ls("plo3_trips",trips),[trips]);
   useEffect(()=>ls("plo3_goals",goals),[goals]);
@@ -1766,12 +2066,13 @@ function App(){
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo}/>;
       case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
+      case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
       default: return null;
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy",radar:"Radar"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦",radar:"🔭"};
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
@@ -1784,28 +2085,31 @@ function App(){
               <span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
               <span style={{fontFamily:F,fontSize:13,fontWeight:700,letterSpacing:"-0.3px"}}>Life OS</span>
             </button>
-            <div style={{display:"flex",gap:1,flexWrap:"wrap"}}>
+            {!isMobile&&<div style={{display:"flex",gap:1,flexWrap:"wrap"}}>
               {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}>{WICON[w.id]} {WLABEL[w.id]}</button>;})}
-            </div>
+            </div>}
           </div>
-          <div style={{display:"flex",gap:4,alignItems:"center"}}>
-            <button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}>⌕ <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>
-            <div style={{display:"flex",alignItems:"center",gap:5,padding:"2px 7px",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7}} title="Page zoom">
+          <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+            {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}>⌕ <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
+            {!isMobile&&<div style={{display:"flex",alignItems:"center",gap:5,padding:"2px 7px",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7}} title="Page zoom">
               <span style={{fontSize:9,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
               <input type="range" min={0.7} max={1.35} step={0.05} value={zoom}
                 onChange={e=>setZoom(+e.target.value)}
                 style={{width:52,cursor:"pointer",accentColor:T.mint,margin:0}}/>
               <span style={{fontSize:12,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
-            </div>
+            </div>}
             <Btn small onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} style={{fontSize:11}}>{theme==="dark"?"☀️":"🌙"}</Btn>
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}>{apiKey?"🔑✓":"🔑"}</Btn>
             <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               {syncStatus==="loading"?"⟳":syncGistId?"☁✓":"☁"}
             </Btn>
+            <Btn small onClick={()=>setShowWeeklyReview(true)} title="Weekly Review" style={{position:"relative",fontSize:11}}>
+              ◑{isSunday&&<span style={{position:"absolute",top:1,right:1,width:5,height:5,borderRadius:"50%",background:T.mint,pointerEvents:"none"}}/>}
+            </Btn>
             <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}>⊞</Btn>
-            <Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>
-            <Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>
-            <Btn small primary onClick={exportICS} style={{fontSize:10}}>📅</Btn>
+            {!isMobile&&<Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>}
+            {!isMobile&&<Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>}
+            {!isMobile&&<Btn small primary onClick={exportICS} style={{fontSize:10}}>📅</Btn>}
           </div>
         </div>
       </header>
@@ -1820,7 +2124,7 @@ function App(){
       {customizing&&<CustomizePanel widgets={widgets} setWidgets={setWidgets} onResetLayout={()=>setLayout(DEFAULT_LAYOUT)} onClose={()=>setCustomizing(false)} onOpenColors={()=>setShowColorPanel(true)}/>}
 
       {/* CONTENT */}
-      <main style={{padding:"0.55rem 1.5rem"}}>
+      <main style={{padding:isMobile?"0.55rem 0.75rem":"0.55rem 1.5rem"}}>
         {page?(
           <div key={page} className="fade-up">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
@@ -1839,42 +2143,53 @@ function App(){
             <div style={{fontFamily:F,fontSize:14}}>No widgets visible — click ⊞ to customize</div>
           </div>
         ):(
-          <div ref={gridRef} style={{display:"grid",gridTemplateColumns:`repeat(${GCOLS},1fr)`,gridAutoRows:`${GROW_H}px`,gap:`${GGAP}px`,position:"relative",cursor:activeDragId?"grabbing":activeResizeId?"none":"default"}}>
+          <div ref={gridRef} style={isMobile
+            ?{display:"flex",flexDirection:"column",gap:`${GGAP}px`,position:"relative"}
+            :{display:"grid",gridTemplateColumns:`repeat(${GCOLS},1fr)`,gridAutoRows:`${GROW_H}px`,gap:`${GGAP}px`,position:"relative",cursor:activeDragId?"grabbing":activeResizeId?"none":"default"}}>
             {/* Drop ghost shown while dragging */}
-            {ghostDisplay&&<div style={{gridColumn:`${ghostDisplay.col}/span ${ghostDisplay.cS}`,gridRow:`${ghostDisplay.row}/span ${ghostDisplay.rS}`,borderRadius:10,background:T.mint,opacity:0.14,border:`2px dashed ${T.mint}`,pointerEvents:"none",zIndex:5}}/>}
+            {!isMobile&&ghostDisplay&&<div style={{gridColumn:`${ghostDisplay.col}/span ${ghostDisplay.cS}`,gridRow:`${ghostDisplay.row}/span ${ghostDisplay.rS}`,borderRadius:10,background:T.mint,opacity:0.14,border:`2px dashed ${T.mint}`,pointerEvents:"none",zIndex:5}}/>}
             {visible.map((w,wi)=>{
               const l=layout[w.id]||DEFAULT_LAYOUT[w.id]||{col:1,row:1,cS:2,rS:4};
               const isHov=hoveredWidget===w.id;
               const isDrag=activeDragId===w.id;
               const isRes=activeResizeId===w.id;
+              const isMin=minimised.has(w.id);
               const delayClass=["fade-up","fade-up-d1","fade-up-d2","fade-up-d3"][Math.min(wi,3)];
+              const mobileH=isMin?"auto":`${l.rS*GROW_H+(l.rS-1)*GGAP}px`;
               return <div
                 key={w.id}
                 className={delayClass}
                 draggable={false}
                 onDragStart={e=>e.preventDefault()}
-                style={{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${l.rS}`,position:"relative",minHeight:0,
-                  opacity:isDrag?0.38:1,transition:isDrag||isRes?"none":"opacity 0.15s",zIndex:isDrag||isRes?10:1}}
-                onMouseEnter={()=>setHoveredWidget(w.id)}
-                onMouseLeave={()=>!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
+                style={isMobile
+                  ?{position:"relative",width:"100%",height:mobileH,minHeight:0}
+                  :{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${isMin?1:l.rS}`,position:"relative",minHeight:0,
+                    opacity:isDrag?0.38:1,transition:isDrag||isRes?"none":"opacity 0.15s",zIndex:isDrag||isRes?10:1}}
+                onMouseEnter={()=>!isMobile&&setHoveredWidget(w.id)}
+                onMouseLeave={()=>!isMobile&&!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
-                <Card lift={false} style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",
-                  boxShadow:isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 8px 32px rgba(0,0,0,.45)`:isHov?`0 4px 16px rgba(0,0,0,.25)`:"none",transition:"box-shadow 0.18s"}}>
+                <Card lift={false} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",
+                  boxShadow:!isMobile&&(isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 8px 32px rgba(0,0,0,.45)`:isHov?`0 4px 16px rgba(0,0,0,.25)`:"none"),transition:"box-shadow 0.18s"}}>
                   <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
-                    <div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
+                    {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
                       style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
-                        userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>
+                        userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>}
                     <div style={{flex:1,minWidth:0}}><WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&setPage(w.id)} action={addAction(w.id)}/></div>
+                    <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
+                      style={{background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
+                        padding:"2px 6px",opacity:isMobile?0.6:isHov||isMin?0.7:0,transition:"opacity 0.15s",flexShrink:0,lineHeight:1}}>
+                      {isMin?"▽":"△"}
+                    </button>
                   </div>
-                  <div style={{flex:1,overflow:"auto",minHeight:0}}>{widgetBody(w.id,false)}</div>
+                  {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0}}>{widgetBody(w.id,false)}</div>}
                 </Card>
-                {(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')}
+                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')}
                   style={{position:"absolute",right:0,top:"18%",bottom:"18%",width:5,cursor:"col-resize",zIndex:20,
                     background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 3px 3px 0",touchAction:"none"}}/>}
-                {(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'v')}
+                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'v')}
                   style={{position:"absolute",bottom:0,left:"18%",right:"18%",height:5,cursor:"row-resize",zIndex:20,
                     background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 0 3px 3px",touchAction:"none"}}/>}
-                {(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'hv')}
+                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'hv')}
                   style={{position:"absolute",right:0,bottom:0,width:13,height:13,cursor:"nwse-resize",zIndex:21,
                     background:T.mint,opacity:isRes?1:0.7,borderRadius:"0 0 3px 0",touchAction:"none"}}/>}
               </div>;
@@ -1882,7 +2197,9 @@ function App(){
           </div>
         )}
         <div style={{marginTop:14,textAlign:"center",fontSize:9,color:T.textLt,fontFamily:F,letterSpacing:"0.03em"}}>
-          / or space → capture &nbsp;·&nbsp; n/t/g → new task/trip/goal &nbsp;·&nbsp; ⌘K → search &nbsp;·&nbsp; Esc → back &nbsp;·&nbsp; ⠿ drag header to move · drag edges/corner to resize
+          {isMobile
+            ?"tap ▽ to collapse widgets · tap widget title to expand"
+            :"/ or space → capture · n/t/g → new task/trip/goal · ⌘K → search · Esc → back · ⠿ drag header to move · drag edges/corner to resize"}
         </div>
       </main>
 
@@ -1894,6 +2211,7 @@ function App(){
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
       {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} notes={notes} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
       {showColorPanel&&<ColorCustomizePanel palette={palette} onApply={p=>{setPalette(p);setShowColorPanel(false);}} onClose={()=>setShowColorPanel(false)}/>}
+      {showWeeklyReview&&<WeeklyReviewModal onClose={()=>setShowWeeklyReview(false)} tasks={tasks} completions={completions} goals={goals} trips={trips} apiKey={apiKey}/>}
       {showSyncModal&&<SyncModal
         onClose={()=>setShowSyncModal(false)}
         syncToken={syncToken} setSyncToken={setSyncToken}
@@ -1910,6 +2228,13 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("/life-os/sw.js").catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
