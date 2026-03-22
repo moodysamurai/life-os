@@ -101,15 +101,39 @@ const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1};
 const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
-const GCOLS=6,GROW_H=64,GGAP=7;
+const GCOLS=8,GROW_H=64,GGAP=6;
 const DEFAULT_LAYOUT={
-  calendar:{col:1,row:1,cS:2,rS:6},
-  wakuli:  {col:3,row:1,cS:2,rS:5},
-  kanban:  {col:5,row:1,cS:2,rS:6},
-  trips:   {col:1,row:7,cS:2,rS:5},
-  goals:   {col:3,row:6,cS:2,rS:5},
-  notes:   {col:5,row:7,cS:2,rS:4},
+  calendar:{col:1,row:1,cS:3,rS:6},
+  wakuli:  {col:4,row:1,cS:3,rS:5},
+  kanban:  {col:7,row:1,cS:2,rS:6},
+  trips:   {col:1,row:7,cS:3,rS:5},
+  goals:   {col:4,row:6,cS:3,rS:5},
+  notes:   {col:7,row:7,cS:2,rS:4},
 };
+
+// ── COLLISION RESOLUTION ───────────────────────────
+function rectOverlaps(a,b){
+  return !(a.col+a.cS<=b.col||b.col+b.cS<=a.col||a.row+a.rS<=b.row||b.row+b.rS<=a.row);
+}
+function resolveCollisions(layoutMap,movedId){
+  const L={};for(const k of Object.keys(layoutMap))L[k]={...layoutMap[k]};
+  const ids=Object.keys(L);
+  let dirty=true,pass=0;
+  while(dirty&&pass<40){
+    dirty=false;pass++;
+    const sorted=ids.filter(id=>id!==movedId).sort((a,b)=>L[a].row-L[b].row||L[a].col-L[b].col);
+    for(const id of sorted){
+      for(const oid of ids){
+        if(id===oid)continue;
+        if(rectOverlaps(L[id],L[oid])){
+          const newRow=L[oid].row+L[oid].rS;
+          if(newRow>L[id].row){L[id]={...L[id],row:newRow};dirty=true;}
+        }
+      }
+    }
+  }
+  return L;
+}
 
 function lg(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
 function ls(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
@@ -1079,9 +1103,12 @@ function App(){
   // ── 2D layout state ──
   const gridRef=useRef(null);
   const [hoveredWidget,setHoveredWidget]=useState(null);
-  const [dragging,setDragging]=useState(null);   // {id, ghostTarget:{col,row}|null}
-  const [resizing,setResizing]=useState(null);   // {id, type:'h'|'v'|'hv', startMouse, startLayout}
-  const draggingRef=useRef(null);
+  const [ghostDisplay,setGhostDisplay]=useState(null);    // {col,row,cS,rS}
+  const [activeDragId,setActiveDragId]=useState(null);
+  const [activeResizeId,setActiveResizeId]=useState(null);
+  const dragRef=useRef(null);    // {id,cS,rS}
+  const ghostRef=useRef(null);   // mirrors ghostDisplay for mouseup handler
+  const resizeRef=useRef(null);  // {id,type,startMouse,startLayout}
 
   useEffect(()=>ls("plo3_theme",theme),[theme]);
   useEffect(()=>ls("plo3_palette",palette),[palette]);
@@ -1112,7 +1139,7 @@ function App(){
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey);
   },[modal,searchOpen,focusDay]);
 
-  // ── 2D drag + resize handlers ──
+  // ── 2D drag + resize handlers (ref-based, single registration) ──
   function mouseToCell(e){
     if(!gridRef.current)return{col:1,row:1};
     const rect=gridRef.current.getBoundingClientRect();
@@ -1124,58 +1151,52 @@ function App(){
   }
   function startDrag(e,id){
     e.preventDefault();e.stopPropagation();
-    const st={id,ghostTarget:null};
-    draggingRef.current=st;
-    setDragging({...st});
+    setLayout(p=>{const l=p[id]||DEFAULT_LAYOUT[id];dragRef.current={id,cS:l.cS,rS:l.rS};return p;});
+    setActiveDragId(id);setGhostDisplay(null);ghostRef.current=null;
   }
-  useEffect(()=>{
-    if(!dragging)return;
-    function onMove(e){
-      const cell=mouseToCell(e);
-      const l=layout[dragging.id]||DEFAULT_LAYOUT[dragging.id];
-      const col=Math.max(1,Math.min(GCOLS-l.cS+1,cell.col));
-      const row=Math.max(1,cell.row);
-      draggingRef.current={...draggingRef.current,ghostTarget:{col,row}};
-      setDragging(p=>({...p,ghostTarget:{col,row}}));
-    }
-    function onUp(){
-      const gt=draggingRef.current?.ghostTarget;
-      if(gt) setLayout(p=>({...p,[draggingRef.current.id]:{...p[draggingRef.current.id],...gt}}));
-      draggingRef.current=null;
-      setDragging(null);
-    }
-    window.addEventListener("mousemove",onMove);
-    window.addEventListener("mouseup",onUp);
-    return()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-  },[dragging]);
   function startResize(e,id,type){
     e.preventDefault();e.stopPropagation();
-    const l=layout[id]||DEFAULT_LAYOUT[id];
-    setResizing({id,type,startMouse:{x:e.clientX,y:e.clientY},startLayout:{...l}});
+    setLayout(p=>{const l=p[id]||DEFAULT_LAYOUT[id];resizeRef.current={id,type,startMouse:{x:e.clientX,y:e.clientY},startLayout:{...l}};return p;});
+    setActiveResizeId(id);
   }
   useEffect(()=>{
-    if(!resizing)return;
     function onMove(e){
-      if(!gridRef.current)return;
-      const rect=gridRef.current.getBoundingClientRect();
-      const cellW=(rect.width-(GCOLS-1)*GGAP)/GCOLS;
-      const dx=e.clientX-resizing.startMouse.x;
-      const dy=e.clientY-resizing.startMouse.y;
-      const dC=Math.round(dx/(cellW+GGAP));
-      const dR=Math.round(dy/(GROW_H+GGAP));
-      const sl=resizing.startLayout;
-      setLayout(p=>{
-        const l={...sl};
-        if(resizing.type==='h'||resizing.type==='hv') l.cS=Math.max(1,Math.min(GCOLS-sl.col+1,sl.cS+dC));
-        if(resizing.type==='v'||resizing.type==='hv') l.rS=Math.max(2,sl.rS+dR);
-        return{...p,[resizing.id]:l};
-      });
+      if(dragRef.current){
+        const {id,cS,rS}=dragRef.current;
+        const cell=mouseToCell(e);
+        const col=Math.max(1,Math.min(GCOLS-cS+1,cell.col));
+        const row=Math.max(1,cell.row);
+        const g={col,row,cS,rS};
+        ghostRef.current=g;setGhostDisplay(g);
+      } else if(resizeRef.current&&gridRef.current){
+        const rect=gridRef.current.getBoundingClientRect();
+        const cellW=(rect.width-(GCOLS-1)*GGAP)/GCOLS;
+        const {id,type,startMouse,startLayout:sl}=resizeRef.current;
+        const dC=Math.round((e.clientX-startMouse.x)/(cellW+GGAP));
+        const dR=Math.round((e.clientY-startMouse.y)/(GROW_H+GGAP));
+        setLayout(p=>{
+          const l={...sl};
+          if(type==='h'||type==='hv') l.cS=Math.max(1,Math.min(GCOLS-sl.col+1,sl.cS+dC));
+          if(type==='v'||type==='hv') l.rS=Math.max(2,sl.rS+dR);
+          return resolveCollisions({...p,[id]:l},id);
+        });
+      }
     }
-    function onUp(){setResizing(null);}
+    function onUp(){
+      if(dragRef.current){
+        const {id}=dragRef.current;
+        const g=ghostRef.current;
+        dragRef.current=null;ghostRef.current=null;
+        setActiveDragId(null);setGhostDisplay(null);
+        if(g) setLayout(p=>resolveCollisions({...p,[id]:{...p[id],col:g.col,row:g.row}},id));
+      } else if(resizeRef.current){
+        resizeRef.current=null;setActiveResizeId(null);
+      }
+    }
     window.addEventListener("mousemove",onMove);
     window.addEventListener("mouseup",onUp);
     return()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-  },[resizing]);
+  },[]);
 
   async function getTripSugg(trip){
     if(!apiKey){setModal({type:"apikey"});return;}
@@ -1234,7 +1255,7 @@ function App(){
   const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫"};
 
   return <TC.Provider value={T}>
-    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:resizing?"none":"auto"}}>
+    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto"}}>
 
       {/* HEADER */}
       <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
@@ -1289,45 +1310,42 @@ function App(){
             <div style={{fontFamily:F,fontSize:14}}>No widgets visible — click ⊞ to customize</div>
           </div>
         ):(
-          <div ref={gridRef} style={{display:"grid",gridTemplateColumns:`repeat(${GCOLS},1fr)`,gridAutoRows:`${GROW_H}px`,gap:`${GGAP}px`,position:"relative",cursor:dragging?"grabbing":resizing?"none":"default"}}>
-            {/* Drop ghost */}
-            {dragging?.ghostTarget&&(()=>{const l=layout[dragging.id]||DEFAULT_LAYOUT[dragging.id];return<div style={{gridColumn:`${dragging.ghostTarget.col}/span ${l.cS}`,gridRow:`${dragging.ghostTarget.row}/span ${l.rS}`,borderRadius:10,background:T.mint,opacity:0.13,border:`2px dashed ${T.mint}`,pointerEvents:"none",zIndex:5,transition:"grid-column 0.08s,grid-row 0.08s"}}/>;})()}
+          <div ref={gridRef} style={{display:"grid",gridTemplateColumns:`repeat(${GCOLS},1fr)`,gridAutoRows:`${GROW_H}px`,gap:`${GGAP}px`,position:"relative",cursor:activeDragId?"grabbing":activeResizeId?"none":"default"}}>
+            {/* Drop ghost shown while dragging */}
+            {ghostDisplay&&<div style={{gridColumn:`${ghostDisplay.col}/span ${ghostDisplay.cS}`,gridRow:`${ghostDisplay.row}/span ${ghostDisplay.rS}`,borderRadius:10,background:T.mint,opacity:0.14,border:`2px dashed ${T.mint}`,pointerEvents:"none",zIndex:5}}/>}
             {visible.map(w=>{
               const l=layout[w.id]||DEFAULT_LAYOUT[w.id]||{col:1,row:1,cS:2,rS:4};
               const isHov=hoveredWidget===w.id;
-              const isDrag=dragging?.id===w.id;
-              const isRes=resizing?.id===w.id;
+              const isDrag=activeDragId===w.id;
+              const isRes=activeResizeId===w.id;
               return <div
                 key={w.id}
+                draggable={false}
+                onDragStart={e=>e.preventDefault()}
                 style={{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${l.rS}`,position:"relative",minHeight:0,
-                  opacity:isDrag?0.42:1,transition:isDrag||isRes?"none":"opacity 0.15s",zIndex:isDrag||isRes?10:1}}
+                  opacity:isDrag?0.38:1,transition:isDrag||isRes?"none":"opacity 0.15s",zIndex:isDrag||isRes?10:1}}
                 onMouseEnter={()=>setHoveredWidget(w.id)}
-                onMouseLeave={()=>!resizing&&!dragging&&setHoveredWidget(null)}
+                onMouseLeave={()=>!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
                 <Card style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",
                   boxShadow:isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 8px 32px rgba(0,0,0,.45)`:"none",transition:"box-shadow 0.15s"}}>
-                  {/* Header row with drag handle */}
                   <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
                     <div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
-                      style={{cursor:isDrag?"grabbing":"grab",padding:"2px 4px",color:T.textLt,fontSize:12,
-                        userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0}}>⠿</div>
+                      style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
+                        userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>
                     <div style={{flex:1,minWidth:0}}><WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&setPage(w.id)} action={addAction(w.id)}/></div>
                   </div>
-                  {/* Scrollable content */}
                   <div style={{flex:1,overflow:"auto",minHeight:0}}>{widgetBody(w.id,false)}</div>
                 </Card>
-                {/* Right resize handle */}
                 {(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')}
                   style={{position:"absolute",right:0,top:"18%",bottom:"18%",width:5,cursor:"col-resize",zIndex:20,
-                    background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 3px 3px 0"}}/>}
-                {/* Bottom resize handle */}
+                    background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 3px 3px 0",touchAction:"none"}}/>}
                 {(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'v')}
                   style={{position:"absolute",bottom:0,left:"18%",right:"18%",height:5,cursor:"row-resize",zIndex:20,
-                    background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 0 3px 3px"}}/>}
-                {/* Corner resize handle */}
+                    background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 0 3px 3px",touchAction:"none"}}/>}
                 {(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'hv')}
                   style={{position:"absolute",right:0,bottom:0,width:13,height:13,cursor:"nwse-resize",zIndex:21,
-                    background:T.mint,opacity:isRes?1:0.7,borderRadius:"0 0 3px 0"}}/>}
+                    background:T.mint,opacity:isRes?1:0.7,borderRadius:"0 0 3px 0",touchAction:"none"}}/>}
               </div>;
             })}
           </div>
