@@ -170,31 +170,27 @@ const WDEFS=[
   {id:"kanban",  label:"Week",    icon:"▦",visible:true},
   {id:"trips",   label:"Trips",   icon:"◎",visible:true},
   {id:"goals",   label:"Goals",   icon:"◉",visible:true},
-  {id:"notes",   label:"Notes",   icon:"◫",visible:true},
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
   {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
-  {id:"focus",   label:"Focus",   icon:"⏱",visible:true},
   {id:"embed",   label:"Embed",   icon:"⧉",visible:true},
   {id:"projects",label:"Projects",icon:"⊞",visible:true},
 ];
-const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1,radar:1,focus:1,embed:1,projects:1};
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,entropy:1,radar:1,embed:1,projects:1};
 const TASK_TAGS={urgent:"#f87171",research:"#38bdf8",personal:"#a78bfa",music:"#f97316",creative:"#f472b6",admin:"#6ee7b7"};
-const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa",radar:"#38bdf8",focus:T.pink,embed:T.textMd,projects:T.mint});
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,entropy:"#a78bfa",radar:"#38bdf8",embed:T.textMd,projects:T.mint});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
 const GCOLS=16,GROW_H=96,GGAP=8;
 const DEFAULT_LAYOUT={
   calendar:{col:1, row:1, cS:5,rS:6},
-  wakuli:  {col:6, row:1, cS:5,rS:5},
+  wakuli:  {col:6, row:1, cS:5,rS:6},
   kanban:  {col:11,row:1, cS:6,rS:6},
-  trips:   {col:1, row:7, cS:6,rS:5},
-  goals:   {col:7, row:7, cS:5,rS:5},
-  notes:   {col:12,row:7, cS:5,rS:4},
-  entropy: {col:1, row:12,cS:4,rS:5},
-  radar:   {col:5, row:12,cS:4,rS:5},
-  focus:   {col:9, row:12,cS:4,rS:5},
-  embed:   {col:13,row:7, cS:4,rS:5},
-  projects:{col:13,row:12,cS:4,rS:5},
+  trips:   {col:1, row:7, cS:5,rS:5},
+  goals:   {col:6, row:7, cS:6,rS:5},
+  embed:   {col:12,row:7, cS:5,rS:5},
+  entropy: {col:1, row:12,cS:5,rS:5},
+  radar:   {col:6, row:12,cS:6,rS:5},
+  projects:{col:12,row:12,cS:5,rS:5},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -361,7 +357,7 @@ function ModalShell({title,children,onClose,onSave,wide}){
 }
 
 // ── SEARCH MODAL ───────────────────────────────────
-function SearchModal({tasks,trips,goals,notes,onClose,setModal,setPage}){
+function SearchModal({tasks,trips,goals,onClose,setModal,setPage}){
   const T=useT();
   const [q,sQ]=useState("");
   const lower=q.toLowerCase();
@@ -369,14 +365,13 @@ function SearchModal({tasks,trips,goals,notes,onClose,setModal,setPage}){
     ...tasks.filter(t=>t.title.toLowerCase().includes(lower)).map(t=>({kind:"Task",label:t.title,sub:t.deadline,color:T.yellow,action:()=>{setModal({type:"task",data:t});onClose();}})),
     ...trips.filter(t=>t.destination.toLowerCase().includes(lower)).map(t=>({kind:"Trip",label:t.destination,sub:`${t.startDate}→${t.endDate}`,color:T.mint,action:()=>{setPage("trips");onClose();}})),
     ...goals.filter(g=>g.title.toLowerCase().includes(lower)).map(g=>({kind:"Goal",label:g.title,sub:`${g.progress||0}%`,color:T.blue,action:()=>{setPage("goals");onClose();}})),
-    ...(notes||[]).filter(n=>(n.content||"").toLowerCase().includes(lower)).map(n=>({kind:"Note",label:n.content.slice(0,60),sub:"",color:T.pink,action:()=>{setPage("notes");onClose();}})),
   ].slice(0,8);
 
   return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"12vh"}}>
     <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:13,width:"100%",maxWidth:460,boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
       <div style={{padding:"10px 12px",display:"flex",gap:8,alignItems:"center",borderBottom:`1px solid ${T.border}`}}>
         <span style={{color:T.textMd,fontSize:14}}>⌕</span>
-        <input autoFocus value={q} onChange={e=>sQ(e.target.value)} onKeyDown={e=>e.key==="Escape"&&onClose()} placeholder="Search tasks, trips, goals, notes..." style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:13,color:T.text,fontFamily:F}}/>
+        <input autoFocus value={q} onChange={e=>sQ(e.target.value)} onKeyDown={e=>e.key==="Escape"&&onClose()} placeholder="Search tasks, trips, goals..." style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:13,color:T.text,fontFamily:F}}/>
         <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>esc</span>
       </div>
       {q.length>=2&&<div style={{padding:"6px 0",maxHeight:300,overflowY:"auto"}}>
@@ -1822,11 +1817,19 @@ function EmbedWidget({pageMode}){
   return <div style={{height:"100%",display:"flex",flexDirection:"column",position:"relative"}}>
     <iframe src={url} title="Embedded content" allow="fullscreen"
       style={{flex:1,width:"100%",border:"none",borderRadius:6,background:T.cardAlt}}/>
-    <button onClick={()=>{setDraft(url);setEditing(true);}} title="Change URL"
-      style={{position:"absolute",top:6,right:6,background:T.bg+"cc",border:`1px solid ${T.border}`,borderRadius:5,
-        padding:"3px 8px",fontSize:9,fontFamily:F,color:T.textMd,cursor:"pointer",letterSpacing:"0.04em",backdropFilter:"blur(4px)"}}>
-      ⧉ {hostname()}
-    </button>
+    {/* Overlay controls */}
+    <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4}}>
+      <button onClick={()=>{setDraft(url);setEditing(true);}} title="Change URL"
+        style={{background:T.bg+"dd",border:`1px solid ${T.border}`,borderRadius:5,
+          padding:"3px 8px",fontSize:9,fontFamily:F,color:T.textMd,cursor:"pointer",letterSpacing:"0.03em",backdropFilter:"blur(6px)"}}>
+        ⧉ {hostname()}
+      </button>
+      <button onClick={()=>{setUrl("");setDraft("");setEditing(false);}} title="Reset embed"
+        style={{background:T.bg+"dd",border:`1px solid ${T.border}`,borderRadius:5,
+          padding:"3px 7px",fontSize:9,fontFamily:F,color:T.textLt,cursor:"pointer",backdropFilter:"blur(6px)"}}>
+        ✕
+      </button>
+    </div>
   </div>;
 }
 
@@ -2071,112 +2074,135 @@ Structure your response as valid JSON only (no markdown):
 }
 
 // ── RESEARCH RADAR WIDGET ──────────────────────────
-const RADAR_CATS={
-  theory:     {color:"#38bdf8",icon:"🔭"},
-  empirical:  {color:"#34d399",icon:"📊"},
-  methodology:{color:"#f97316",icon:"🛠"},
-  book:       {color:"#a78bfa",icon:"📚"},
-  debate:     {color:"#f472b6",icon:"⚡"},
-  concept:    {color:"#fbbf24",icon:"💡"},
-};
+
 function ResearchRadarWidget({apiKey,pageMode}){
   const T=useT();
-  const [data,setData]=useState(()=>lg("plo3_radar",null));
+  // Cache key rotates weekly so you get a fresh paper each week, not every reload
+  const weekKey=`plo3_radar_${Math.floor(Date.now()/604800000)}`;
+  const [data,setData]=useState(()=>lg(weekKey,null));
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState("");
-  const todayStr=toStr(new Date());
-  const stale=!data||data.date!==todayStr;
 
-  async function generate(force=false){
-    if(!apiKey){setErr("Add a Claude API key (🔑) to enable research suggestions.");return;}
+  async function generate(){
+    if(!apiKey){setErr("Add a Claude API key (🔑) to enable.");return;}
     if(loading)return;
     setLoading(true);setErr("");
-    const prompt=`You are an expert research guide for a political science and international relations scholar. Today is ${todayStr} (${new Date().toLocaleDateString("en-GB",{weekday:"long",month:"long",day:"numeric"})}).
 
-About this researcher:
-- Masters in International Relations (Global Conflict) — Leiden University (completed)
-- Current Masters in Political Science (Nationalism, Ethnic Conflict, and Development) — Leiden University
-- Research interests: Nationalism theory, ethnic conflict, state-building, post-colonial politics, South Asian politics (especially India), globalisation and development
-- Background: International Law & Political Science (BA, 5 years), Delhi, India
-- Intellectual style: theoretically rigorous but appreciates empirical depth; interested in both mainstream IR and critical approaches
+    const todayStr=toStr(new Date());
+    const prompt=`You are a science journalist who loves surfacing genuinely surprising, mind-expanding research for curious people. Today is ${todayStr}.
 
-Generate ONE focused research item for today — a specific concept, debate, scholar, paper, or methodological approach they should explore.
+Suggest ONE real, published scientific paper or article that is:
+- Genuinely fascinating — something that shifts how you think about the world
+- From ANY field EXCEPT political science, international relations, nationalism, or ethnic conflict (the reader studies those every day)
+- Preferably published between 2018 and 2025
+- Something the reader can actually find and read online (prefer papers with an arXiv ID, or papers in open-access journals, or well-known papers with a clear DOI)
+
+The reader's background and interests (to tailor surprise-factor): photography, music production, 3D/design, bossa nova and jazz, DIY electronics, Indian heritage, lives in the Netherlands. They're intellectually curious across science, cognition, history, ecology, physics, neuroscience, linguistics, complexity theory, etc.
 
 Rules:
-- Be specific: name actual scholars, journals, books, or frameworks (e.g. "Read Rogers Brubaker's 'Ethnicity Without Groups' — specifically ch.2 on groupism")
-- Relevance: connect to nationalism, ethnic conflict, development, or IR theory
-- Variety: rotate through concepts, empirical debates, methodologies, key texts
-- Include a brief hook explaining why this is intellectually important or timely
+- Suggest a REAL paper you are confident exists — do not fabricate titles, authors, or IDs
+- If the paper is on arXiv, provide the numeric ID only (e.g. "2301.07041") — not the full URL
+- If it has a DOI (e.g. "10.1038/s41586-021-03819-2"), provide that
+- If neither, provide a google_query string (title + first author) that will find it
+- The "why" field should be 2–3 sentences of genuine intellectual excitement — not a dry abstract summary
 
 Respond ONLY with valid JSON (no markdown):
-{"title":"...","detail":"...","hook":"...","type":"theory|empirical|methodology|book|debate|concept","readtime":"~X min"}`;
+{
+  "title": "Full paper title",
+  "authors": "Lastname et al.",
+  "year": 2022,
+  "field": "e.g. Cognitive Neuroscience",
+  "why": "2–3 sentences on why this is genuinely interesting and what insight it offers",
+  "arxiv_id": "2301.07041 or null",
+  "doi": "10.xxxx/xxxx or null",
+  "google_query": "fallback search string or null"
+}`;
 
     try{
       const r=await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
         headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:450,messages:[{role:"user",content:prompt}]})
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:500,messages:[{role:"user",content:prompt}]})
       });
       if(!r.ok)throw new Error(`API ${r.status}`);
       const j=await r.json();
       const raw=j.content[0].text.trim().replace(/^```json\n?/,"").replace(/\n?```$/,"");
       const s=JSON.parse(raw);
-      const nd={date:todayStr,item:s,saved:false};
-      setData(nd);ls("plo3_radar",nd);
-    }catch(e){setErr("Could not generate: "+e.message);}
+      const nd={weekKey,item:s};
+      setData(nd);ls(weekKey,nd);
+    }catch(e){setErr("Could not fetch paper: "+e.message);}
     finally{setLoading(false);}
   }
 
-  function toggleSave(){
-    const nd={...data,saved:!data.saved};setData(nd);ls("plo3_radar",nd);
+  // Build the read link from whatever identifier is available
+  function readLink(s){
+    if(s.arxiv_id) return `https://arxiv.org/abs/${s.arxiv_id}`;
+    if(s.doi)      return `https://doi.org/${s.doi}`;
+    if(s.google_query) return `https://scholar.google.com/scholar?q=${encodeURIComponent(s.google_query)}`;
+    return `https://scholar.google.com/scholar?q=${encodeURIComponent(s.title)}`;
   }
 
-  useEffect(()=>{if(stale&&apiKey&&!loading)generate();},[]);// eslint-disable-line
+  useEffect(()=>{if(!data&&apiKey&&!loading)generate();},[]);// eslint-disable-line
 
   const s=data?.item;
-  const cat=s?RADAR_CATS[s.type]||RADAR_CATS.concept:null;
 
   if(!apiKey) return <div style={{padding:"18px 12px",textAlign:"center"}}>
-    <div style={{fontSize:24,marginBottom:8}}>🔭</div>
-    <div style={{fontSize:12,color:T.textMd,fontFamily:F,lineHeight:1.6}}>Add a Claude API key (🔑 in header)<br/>to unlock daily research suggestions.</div>
+    <div style={{fontSize:26,marginBottom:8}}>🔭</div>
+    <div style={{fontSize:12,color:T.textMd,fontFamily:F,lineHeight:1.6}}>Add a Claude API key (🔑 in header)<br/>to unlock your weekly paper pick.</div>
   </div>;
 
-  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
     {loading&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10}}>
-      <div style={{fontSize:22,animation:"spin 1.4s linear infinite"}}>🔭</div>
-      <div style={{fontSize:11,color:T.textMd,fontFamily:F}}>Scanning research landscape…</div>
+      <div style={{fontSize:24,animation:"spin 1.4s linear infinite"}}>🔭</div>
+      <div style={{fontSize:11,color:T.textMd,fontFamily:F}}>Finding something interesting…</div>
     </div>}
+
     {!loading&&err&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
       <div style={{fontSize:11,color:"#f87171",fontFamily:F,textAlign:"center",lineHeight:1.5}}>{err}</div>
-      <Btn small onClick={()=>generate(true)}>Retry</Btn>
+      <Btn small onClick={generate}>Retry</Btn>
     </div>}
+
     {!loading&&!err&&s&&<>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{background:cat.color+"22",color:cat.color,border:`1px solid ${cat.color}44`,borderRadius:6,padding:"2px 9px",fontSize:10,fontWeight:700,fontFamily:F,letterSpacing:"0.04em"}}>
-          {cat.icon} {s.type}
+      {/* Field + year badge */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+        <span style={{background:"#38bdf822",color:"#38bdf8",border:"1px solid #38bdf844",borderRadius:6,
+          padding:"2px 9px",fontSize:10,fontWeight:700,fontFamily:F,letterSpacing:"0.04em",
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"75%"}}>
+          🔭 {s.field}
         </span>
-        <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{s.readtime}</span>
+        <span style={{fontSize:10,color:T.textLt,fontFamily:F,flexShrink:0}}>{s.year}</span>
       </div>
-      <div style={{
-        fontSize:pageMode?16:13,fontWeight:800,fontFamily:F,lineHeight:1.35,
-        letterSpacing:"-0.3px",color:T.text,
-        borderLeft:`3px solid ${cat.color}`,paddingLeft:10,
-      }}>{s.title}</div>
-      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.65,flex:1}}>
-        {s.detail}
+
+      {/* Title */}
+      <div style={{fontSize:pageMode?15:12,fontWeight:800,fontFamily:F,lineHeight:1.4,
+        letterSpacing:"-0.2px",color:T.text,
+        borderLeft:"3px solid #38bdf8",paddingLeft:10}}>
+        {s.title}
       </div>
-      {s.hook&&<div style={{fontSize:pageMode?11:10,color:cat.color,fontFamily:F,fontStyle:"italic",lineHeight:1.5,opacity:0.85}}>
-        "{s.hook}"
-      </div>}
-      <div style={{display:"flex",gap:6,marginTop:4}}>
-        <Btn small onClick={toggleSave} style={{flex:1,justifyContent:"center",
-          ...(data.saved?{background:cat.color+"22",color:cat.color,borderColor:cat.color+"66"}:{})
-        }}>{data.saved?"★ Saved":"☆ Save"}</Btn>
-        <Btn small onClick={()=>generate(true)} title="New suggestion" style={{fontSize:12}}>↻</Btn>
+
+      {/* Authors */}
+      <div style={{fontSize:10,color:T.textLt,fontFamily:F,paddingLeft:10}}>{s.authors}</div>
+
+      {/* Why it's interesting */}
+      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.7,flex:1,overflowY:"auto"}}>
+        {s.why}
+      </div>
+
+      {/* Bottom row: read link + refresh */}
+      <div style={{display:"flex",gap:6,alignItems:"center",marginTop:2}}>
+        <a href={readLink(s)} target="_blank" rel="noopener noreferrer"
+          style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,
+            background:"#38bdf822",border:"1px solid #38bdf844",borderRadius:7,
+            padding:"7px 10px",textDecoration:"none",color:"#38bdf8",
+            fontSize:11,fontFamily:F,fontWeight:700}}>
+          Read paper →
+        </a>
+        <Btn small onClick={generate} title="Get a different paper" style={{fontSize:12,padding:"6px 10px"}}>↻</Btn>
       </div>
     </>}
+
     {!loading&&!err&&!s&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <Btn small primary onClick={()=>generate()}>Generate today's reading</Btn>
+      <Btn small primary onClick={generate}>Find this week's paper</Btn>
     </div>}
   </div>;
 }
@@ -2662,7 +2688,6 @@ function App(){
     if(id==="wakuli"||id==="kanban") return <Btn small primary onClick={()=>setModal({type:"task"})}>+ Task</Btn>;
     if(id==="trips") return <Btn small primary onClick={()=>setModal({type:"trip"})}>+ Trip</Btn>;
     if(id==="goals") return <Btn small primary onClick={()=>setModal({type:"goal"})}>+ Goal</Btn>;
-    if(id==="notes") return <Btn small primary onClick={()=>{const n={id:uid(),content:"",updatedAt:new Date().toISOString()};setNotes(p=>[n,...p]);}}>+ Note</Btn>;
     return null;
   }
 
@@ -2673,10 +2698,9 @@ function App(){
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
-      case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
+
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
-      case "focus":    return <FocusTimerWidget tasks={tasks} pageMode={pageMode}/>;
       case "embed":    return <EmbedWidget pageMode={pageMode}/>;
       case "projects": return <ProjectsWidget pageMode={pageMode}/>;
 
@@ -2684,8 +2708,8 @@ function App(){
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy",radar:"Radar",focus:"Focus",embed:"Embed",projects:"Projects"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦",radar:"🔭",focus:"⏱",embed:"⧉",projects:"⊞"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",entropy:"Entropy",radar:"Radar",embed:"Embed",projects:"Projects"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",entropy:"✦",radar:"🔭",embed:"⧉",projects:"⊞"};
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
@@ -2822,7 +2846,7 @@ function App(){
       {modal?.type==="goal"   &&<GoalModal   data={modal.data} setGoals={setGoals} onClose={()=>setModal(null)}/>}
       {modal?.type==="apikey" &&<ApiKeyModal current={apiKey} onClose={()=>setModal(null)} onSave={k=>{setApiKey(k);setModal(null);}}/>}
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
-      {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} notes={notes} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
+      {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
       {showColorPanel&&<ColorCustomizePanel palette={palette} onApply={p=>{setPalette(p);setShowColorPanel(false);}} onClose={()=>setShowColorPanel(false)}/>}
       {showWeeklyReview&&<WeeklyReviewModal onClose={()=>setShowWeeklyReview(false)} tasks={tasks} completions={completions} goals={goals} trips={trips} apiKey={apiKey}/>}
       {showSyncModal&&<SyncModal
