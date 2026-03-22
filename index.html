@@ -21,6 +21,53 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .theme-dark input[type=date]{color-scheme:dark;}
 .wwidget:hover .rhandle{opacity:1!important;}
 .rhandle{opacity:0;transition:opacity .15s;}
+
+/* ── ANIMATIONS ─────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes modalPop{from{opacity:0;transform:scale(.955) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes overlayIn{from{opacity:0}to{opacity:1}}
+@keyframes progressFill{from{width:0}to{width:var(--prog-w)}}
+@keyframes softPulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+.fade-up{animation:fadeUp .26s cubic-bezier(.22,1,.36,1) both}
+.fade-up-d1{animation:fadeUp .26s .05s cubic-bezier(.22,1,.36,1) both}
+.fade-up-d2{animation:fadeUp .26s .10s cubic-bezier(.22,1,.36,1) both}
+.fade-up-d3{animation:fadeUp .26s .15s cubic-bezier(.22,1,.36,1) both}
+.modal-pop{animation:modalPop .22s cubic-bezier(.34,1.18,.64,1) both}
+.overlay-in{animation:overlayIn .18s ease both}
+
+/* ── CARD LIFT ──────────────────────────────────── */
+.card-lift{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.card-lift:hover{transform:translateY(-2px)}
+
+/* ── TRIP IMAGE ZOOM ────────────────────────────── */
+.trip-card .trip-thumb{transition:transform .45s ease,filter .3s ease;width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.trip-card:hover .trip-thumb{transform:scale(1.055);filter:brightness(1.07)}
+
+/* ── NAV BUTTONS ────────────────────────────────── */
+.nav-btn{transition:background .14s,color .14s,transform .12s,box-shadow .14s !important}
+.nav-btn:hover{transform:translateY(-1px) !important}
+.nav-btn:active{transform:scale(.95) !important}
+
+/* ── GOAL CARDS ─────────────────────────────────── */
+.goal-card{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,opacity .18s ease}
+.goal-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.22)}
+
+/* ── KANBAN DAY CELLS ───────────────────────────── */
+.day-cell{transition:background .16s ease,border-color .16s ease,transform .14s ease}
+.day-cell:hover{transform:translateY(-1px)}
+
+/* ── WIDGET HEADER BUTTON ───────────────────────── */
+.whead-btn{transition:opacity .15s,transform .15s,color .15s !important}
+.whead-btn:hover{opacity:.78 !important;transform:translateX(2px) !important}
+
+/* ── TASK ROW ───────────────────────────────────── */
+.task-row{transition:background .14s ease,transform .12s ease}
+.task-row:hover{transform:translateX(2px)}
+
+/* ── BADGE HOVER ────────────────────────────────── */
+.badge-hover{transition:transform .14s ease,filter .14s ease}
+.badge-hover:hover{transform:scale(1.06);filter:brightness(1.15)}
 </style>
 </head>
 <body>
@@ -187,9 +234,9 @@ function parseCapture(raw){
 }
 
 // ── SHARED UI ──────────────────────────────────────
-function Card({children,style={}}){
+function Card({children,style={},lift=true}){
   const T=useT();
-  return <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:11,padding:"0.8rem",...style}}>{children}</div>;
+  return <div className={lift?"card-lift":undefined} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:11,padding:"0.8rem",...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
   const T=useT();const[h,sH]=useState(false);
@@ -197,15 +244,21 @@ function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}
   const bg=active?ac:danger?T.pink:primary?T.mint:ghost?"transparent":T.cardAlt;
   const co=active||primary||danger?T.bg:color?color:T.text;
   const bo=active||primary?ac:danger?T.pink:color?color:T.border;
+  const glow=(primary||active)&&h?`0 3px 12px ${alpha(ac,.38)}`:"none";
   return <button onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{
     padding:small?"3px 8px":"6px 13px",fontSize:small?"11px":"12px",fontFamily:F,fontWeight:600,
     background:bg,color:co,border:`1px solid ${bo}`,borderRadius:7,cursor:"pointer",
-    opacity:h?0.72:1,transition:"opacity 0.1s",whiteSpace:"nowrap",...style,
+    opacity:h&&!primary&&!active?0.76:1,
+    transform:h?"scale(0.97)":"scale(1)",
+    boxShadow:glow,
+    filter:h&&(primary||active||danger)?"brightness(1.08)":"brightness(1)",
+    transition:"opacity .12s,transform .12s,box-shadow .14s,filter .12s,background .14s",
+    whiteSpace:"nowrap",...style,
   }}>{children}</button>;
 }
 function Badge({label,color}){
   const T=useT();const c=color||T.mint;
-  return <span style={{background:c+"18",color:c,border:`1px solid ${c}28`,borderRadius:5,padding:"1px 6px",fontSize:10,fontWeight:700,fontFamily:F,whiteSpace:"nowrap"}}>{label}</span>;
+  return <span className="badge-hover" style={{background:c+"18",color:c,border:`1px solid ${c}28`,borderRadius:5,padding:"1px 6px",fontSize:10,fontWeight:700,fontFamily:F,whiteSpace:"nowrap",display:"inline-block"}}>{label}</span>;
 }
 function Lbl({children}){
   const T=useT();
@@ -232,10 +285,10 @@ function Empty({msg}){
 function WidgetHead({id,title,icon,onPage,action}){
   const T=useT(),wc=WCOL(T);
   return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
-    <button onClick={onPage} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
-      <span style={{fontSize:12,color:wc[id]||T.mint}}>{icon}</span>
+    <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
+      <span style={{fontSize:12,color:wc[id]||T.mint,transition:"transform .2s"}}>{icon}</span>
       <span style={{fontSize:13,fontWeight:700,letterSpacing:"-0.2px",fontFamily:F}}>{title}</span>
-      <span style={{fontSize:8,color:T.textLt,marginLeft:1}}>↗</span>
+      <span style={{fontSize:8,color:T.textLt,marginLeft:1,transition:"opacity .15s"}}>↗</span>
     </button>
     {action}
   </div>;
@@ -244,11 +297,11 @@ function WidgetHead({id,title,icon,onPage,action}){
 // ── MODAL SHELL ────────────────────────────────────
 function ModalShell({title,children,onClose,onSave,wide}){
   const T=useT();
-  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:wide?640:390,maxHeight:"88vh",overflowY:"auto",padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
+  return <div onClick={e=>e.target===e.currentTarget&&onClose()} className="overlay-in" style={{position:"fixed",inset:0,background:T.overlay,zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div className="modal-pop" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:wide?640:390,maxHeight:"88vh",overflowY:"auto",padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.72)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.85rem"}}>
         <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.2px"}}>{title}</span>
-        <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt,lineHeight:1}}>×</button>
+        <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt,lineHeight:1,transition:"color .15s,transform .15s"}} onMouseEnter={e=>e.target.style.transform="rotate(90deg)"} onMouseLeave={e=>e.target.style.transform="rotate(0deg)"}>×</button>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:11}}>{children}</div>
       {onSave&&<div style={{display:"flex",justifyContent:"flex-end",gap:6,marginTop:"0.85rem"}}>
@@ -496,7 +549,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
       {days.map((day,idx)=>{
         const ds=toStr(day),isT=ds===todayStr,isPast=ds<todayStr;
         const dayTasks=tasksForDay(ds);
-        return <div key={ds} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?130:88,background:isT?T.mintX:isPast?T.bg+"44":T.cardAlt,border:`1px solid ${isT?T.mint+"55":T.borderSft}`,opacity:isPast?0.55:1}}>
+        return <div key={ds} className="day-cell" style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?130:88,background:isT?T.mintX:isPast?T.bg+"44":T.cardAlt,border:`1px solid ${isT?T.mint+"55":T.borderSft}`,opacity:isPast?0.55:1}}>
           <div style={{textAlign:"center",marginBottom:5}}>
             <div style={{fontSize:8,color:T.textMd,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
             <div onClick={()=>onFocusDay(day)} title="Focus view" style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F,cursor:"pointer"}}>{day.getDate()}</div>
@@ -548,7 +601,7 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
   const Row=({task,highlight})=>{
     const u=urgency(task.deadline),isOver=!task.completed&&task.deadline<todayStr;
     const pcs=PC(T);
-    return <div style={{display:"flex",gap:7,padding:"7px 8px",borderRadius:8,background:highlight?T.mintX:isOver?T.pinkX:T.cardAlt,border:`1px solid ${highlight?T.mint+"40":isOver?T.pink+"28":T.borderSft}`}}>
+    return <div className="task-row" style={{display:"flex",gap:7,padding:"7px 8px",borderRadius:8,background:highlight?T.mintX:isOver?T.pinkX:T.cardAlt,border:`1px solid ${highlight?T.mint+"40":isOver?T.pink+"28":T.borderSft}`}}>
       <button onClick={()=>toggleDone(task.id)} style={{width:13,height:13,borderRadius:3,flexShrink:0,marginTop:2,border:`1.5px solid ${pcs[task.priority]||T.mint}`,background:task.completed?pcs[task.priority]||T.mint:"transparent",cursor:"pointer",padding:0}}/>
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
@@ -633,9 +686,9 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
       const pl=trip.packingList||[];
       const packed=pl.filter(i=>i.packed).length;
       const phC=phaseColors[autoPhase]||T.border;
-      return <div key={trip.id} style={{borderRadius:11,overflow:"hidden",border:`1px solid ${phC}30`,background:T.cardAlt,boxShadow:pageMode?`0 2px 12px rgba(0,0,0,.25)`:undefined}}>
-        <div style={{height:imgH,position:"relative",background:`linear-gradient(135deg,${bg1},${bg2})`,flexShrink:0}}>
-          <img src={customPhoto||`https://loremflickr.com/640/300/${encodeURIComponent(trip.destination)},travel,city`} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:customPhoto?0.82:0.45}} onError={e=>{e.target.style.display="none";}}/>
+      return <div key={trip.id} className="trip-card card-lift" style={{borderRadius:11,overflow:"hidden",border:`1px solid ${phC}30`,background:T.cardAlt,boxShadow:pageMode?`0 2px 14px rgba(0,0,0,.22)`:undefined}}>
+        <div style={{height:imgH,position:"relative",background:`linear-gradient(135deg,${bg1},${bg2})`,flexShrink:0,overflow:"hidden"}}>
+          <img src={customPhoto||`https://loremflickr.com/640/300/${encodeURIComponent(trip.destination)},travel,city`} alt="" className="trip-thumb" style={{opacity:customPhoto?0.82:0.45}} onError={e=>{e.target.style.display="none";}}/>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,rgba(0,0,0,.78) 100%)",display:"flex",flexDirection:"column",justifyContent:"flex-end",padding:pageMode?"10px 13px":"7px 10px"}}>
             <div style={{color:"white",fontWeight:700,fontSize:pageMode?17:13,fontFamily:F,letterSpacing:"-0.3px",textShadow:"0 1px 4px rgba(0,0,0,.5)"}}>{trip.destination}</div>
             <div style={{color:"rgba(255,255,255,.7)",fontSize:pageMode?10:9,marginTop:2,fontFamily:F,letterSpacing:"0.02em"}}>{trip.startDate} → {trip.endDate}</div>
@@ -707,7 +760,7 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode}){
           const dormant=isDormant(g);
           const prog=g.progress||0;
           const progColor=prog<25?T.textLt:prog<75?T.yellow:T.mint;
-          return <div key={g.id} style={{padding:"9px 10px",borderRadius:9,background:T.cardAlt,border:`1px solid ${dormant?T.textLt+"22":T.borderSft}`,opacity:dormant?0.75:1}}>
+          return <div key={g.id} className="goal-card" style={{padding:"9px 10px",borderRadius:9,background:T.cardAlt,border:`1px solid ${dormant?T.textLt+"22":T.borderSft}`,opacity:dormant?0.75:1}}>
             <div style={{display:"flex",gap:7,alignItems:"flex-start"}}>
               <button onClick={()=>toggle(g.id)} style={{width:13,height:13,borderRadius:"50%",border:`1.5px solid ${T.mint}`,background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,padding:0}}/>
               <div style={{flex:1,minWidth:0}}>
@@ -723,8 +776,8 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode}){
                 <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>Progress</span>
                 <span style={{fontSize:9,color:progColor,fontWeight:700,fontFamily:F}}>{prog}%</span>
               </div>
-              <div style={{position:"relative",height:3,background:T.border,borderRadius:2,marginBottom:3}}>
-                <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${prog}%`,borderRadius:2,background:`linear-gradient(to right,${T.blue},${T.mint})`,transition:"width 0.3s"}}/>
+              <div style={{position:"relative",height:4,background:T.border,borderRadius:2,marginBottom:3,overflow:"hidden"}}>
+                <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${prog}%`,borderRadius:2,background:`linear-gradient(90deg,${T.blue},${T.mint})`,transition:"width 0.55s cubic-bezier(.4,0,.2,1)",boxShadow:prog>0?`0 0 6px ${alpha(T.mint,.45)}`:undefined}}/>
               </div>
               <input type="range" min={0} max={100} value={prog} onChange={e=>updProg(g.id,e.target.value)} style={{width:"100%",cursor:"pointer",margin:0,accentColor:T.mint}}/>
             </div>
@@ -1295,16 +1348,16 @@ function App(){
       {/* CONTENT */}
       <main style={{padding:"0.55rem 1rem",maxWidth:1400,margin:"0 auto"}}>
         {page?(
-          <div>
+          <div key={page} className="fade-up">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
               <div style={{display:"flex",alignItems:"center",gap:7}}>
-                <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,padding:0,display:"flex",alignItems:"center",gap:3}}>← Back</button>
+                <button onClick={()=>setPage(null)} className="nav-btn" style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,padding:0,display:"flex",alignItems:"center",gap:3}}>← Back</button>
                 <span style={{color:T.border,fontSize:10}}>│</span>
                 <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px",color:wc[page]}}>{WICON[page]} {WLABEL[page]}</span>
               </div>
               {addAction(page)}
             </div>
-            <Card style={{padding:"0.9rem"}}>{widgetBody(page,true)}</Card>
+            <Card lift={false} style={{padding:"0.9rem"}}>{widgetBody(page,true)}</Card>
           </div>
         ):visible.length===0?(
           <div style={{textAlign:"center",padding:"60px 0",color:T.textLt}}>
@@ -1315,13 +1368,15 @@ function App(){
           <div ref={gridRef} style={{display:"grid",gridTemplateColumns:`repeat(${GCOLS},1fr)`,gridAutoRows:`${GROW_H}px`,gap:`${GGAP}px`,position:"relative",cursor:activeDragId?"grabbing":activeResizeId?"none":"default"}}>
             {/* Drop ghost shown while dragging */}
             {ghostDisplay&&<div style={{gridColumn:`${ghostDisplay.col}/span ${ghostDisplay.cS}`,gridRow:`${ghostDisplay.row}/span ${ghostDisplay.rS}`,borderRadius:10,background:T.mint,opacity:0.14,border:`2px dashed ${T.mint}`,pointerEvents:"none",zIndex:5}}/>}
-            {visible.map(w=>{
+            {visible.map((w,wi)=>{
               const l=layout[w.id]||DEFAULT_LAYOUT[w.id]||{col:1,row:1,cS:2,rS:4};
               const isHov=hoveredWidget===w.id;
               const isDrag=activeDragId===w.id;
               const isRes=activeResizeId===w.id;
+              const delayClass=["fade-up","fade-up-d1","fade-up-d2","fade-up-d3"][Math.min(wi,3)];
               return <div
                 key={w.id}
+                className={delayClass}
                 draggable={false}
                 onDragStart={e=>e.preventDefault()}
                 style={{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${l.rS}`,position:"relative",minHeight:0,
@@ -1329,8 +1384,8 @@ function App(){
                 onMouseEnter={()=>setHoveredWidget(w.id)}
                 onMouseLeave={()=>!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
-                <Card style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",
-                  boxShadow:isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 8px 32px rgba(0,0,0,.45)`:"none",transition:"box-shadow 0.15s"}}>
+                <Card lift={false} style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",
+                  boxShadow:isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 8px 32px rgba(0,0,0,.45)`:isHov?`0 4px 16px rgba(0,0,0,.25)`:"none",transition:"box-shadow 0.18s"}}>
                   <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
                     <div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
                       style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
