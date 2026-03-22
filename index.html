@@ -68,6 +68,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 /* ── BADGE HOVER ────────────────────────────────── */
 .badge-hover{transition:transform .14s ease,filter .14s ease}
 .badge-hover:hover{transform:scale(1.06);filter:brightness(1.15)}
+
+/* ── BINGO ──────────────────────────────────────── */
+@keyframes cellPop{0%{transform:scale(1)}40%{transform:scale(1.18)}70%{transform:scale(.93)}100%{transform:scale(1)}}
+@keyframes bingoFlash{0%,100%{opacity:1}50%{opacity:.6}}
+@keyframes checkDrop{from{opacity:0;transform:scale(.4) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(0deg)}}
+.bingo-cell{transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .2s ease,border-color .2s ease,background .2s ease}
+.bingo-cell:hover{transform:scale(1.06)}
+.bingo-cell-pop{animation:cellPop .35s cubic-bezier(.34,1.56,.64,1) both}
+.bingo-line-cell{animation:bingoFlash 2s ease infinite}
+.bingo-check{animation:checkDrop .3s cubic-bezier(.34,1.56,.64,1) .05s both}
 </style>
 </head>
 <body>
@@ -740,8 +750,145 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
   </div>;
 }
 
+// ── BINGO CARD ─────────────────────────────────────
+const DEFAULT_BINGO=Array.from({length:16},(_,i)=>({id:`b${i}`,label:"",done:false}));
+
+function BingoCard({bingo,setBingo,pageMode}){
+  const T=useT();
+  const[editIdx,setEditIdx]=useState(null);
+  const[editVal,setEditVal]=useState("");
+  const[poppedIdx,setPoppedIdx]=useState(null);
+
+  // Bingo line detection
+  const LINES=useMemo(()=>[
+    [0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],   // rows
+    [0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],   // cols
+    [0,5,10,15],[3,6,9,12]                             // diagonals
+  ],[]);
+  const completedLines=LINES.filter(l=>l.every(i=>bingo[i]?.done));
+  const lineSet=useMemo(()=>{const s=new Set();completedLines.forEach(l=>l.forEach(i=>s.add(i)));return s;},[completedLines]);
+  const doneCount=bingo.filter(c=>c.done).length;
+
+  function toggleCell(i){
+    setPoppedIdx(i);setTimeout(()=>setPoppedIdx(null),400);
+    setBingo(p=>p.map((c,idx)=>idx===i?{...c,done:!c.done}:c));
+  }
+  function startEdit(e,i){
+    e.stopPropagation();
+    setEditIdx(i);setEditVal(bingo[i].label);
+  }
+  function saveEdit(){
+    if(editIdx===null)return;
+    setBingo(p=>p.map((c,i)=>i===editIdx?{...c,label:editVal}:c));
+    setEditIdx(null);
+  }
+
+  const cellSize=pageMode?null:"100%";
+  const gapPx=pageMode?7:3;
+  const borderR=pageMode?11:6;
+
+  return <div style={{width:"100%"}}>
+    {/* Header row */}
+    {pageMode&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontFamily:F,fontWeight:800,fontSize:16,letterSpacing:"-0.5px"}}>◉ 2026 Bingo</span>
+        {completedLines.length>0&&<span className="badge-hover bingo-line-cell" style={{background:T.mint+"22",color:T.mint,border:`1px solid ${T.mint}44`,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:800,fontFamily:F,letterSpacing:"0.04em"}}>
+          ✦ BINGO×{completedLines.length}
+        </span>}
+      </div>
+      <span style={{fontFamily:F,fontSize:11,color:T.textMd}}>{doneCount} / 16</span>
+    </div>}
+
+    {/* 4×4 grid */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:gapPx,width:"100%"}}>
+      {bingo.map((cell,i)=>{
+        const done=cell.done;
+        const inLine=lineSet.has(i);
+        const isPopped=poppedIdx===i;
+        const isEditing=editIdx===i;
+        return <div key={cell.id}
+          className={`bingo-cell${isPopped?" bingo-cell-pop":""}${inLine?" bingo-line-cell":""}`}
+          onClick={()=>!isEditing&&toggleCell(i)}
+          style={{
+            aspectRatio:"1",borderRadius:borderR,cursor:"pointer",
+            position:"relative",overflow:"hidden",
+            border:`1.5px solid ${inLine?T.mint:done?T.blue+"66":T.border}`,
+            background:done
+              ?inLine?`linear-gradient(135deg,${T.mint}28,${T.blue}38)`:T.cardAlt
+              :T.cardAlt,
+            boxShadow:inLine?`0 0 14px ${T.mint}44,inset 0 0 8px ${T.mint}18`:done?`inset 0 0 5px ${T.blue}22`:"none",
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            padding:pageMode?"7px 5px":"3px 2px",userSelect:"none",
+          }}>
+          {/* Done indicator */}
+          {done&&<div className="bingo-check" style={{
+            position:"absolute",
+            width:pageMode?30:16,height:pageMode?30:16,
+            borderRadius:"50%",
+            background:inLine?`linear-gradient(135deg,${T.mint},${T.blue})`:T.mint+"66",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:pageMode?13:8,color:"#fff",fontWeight:700,zIndex:2,
+            boxShadow:inLine?`0 0 10px ${T.mint}88`:"none",
+            opacity:pageMode?0.92:0.85,
+          }}>✓</div>}
+          {/* Label */}
+          {pageMode&&<div style={{zIndex:3,width:"100%",pointerEvents:isEditing?"auto":"none"}}>
+            {isEditing
+              ?<input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
+                  onBlur={saveEdit} onKeyDown={e=>{if(e.key==="Enter")saveEdit();e.stopPropagation();}}
+                  onClick={e=>e.stopPropagation()}
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",
+                    textAlign:"center",fontSize:10,fontFamily:F,color:T.text,padding:0}}/>
+              :<div onDoubleClick={e=>startEdit(e,i)} style={{
+                  pointerEvents:"auto",textAlign:"center",fontSize:10,fontFamily:F,lineHeight:1.25,
+                  color:done?T.mint:T.textMd,fontWeight:done?700:400,
+                  opacity:done?0.85:1,wordBreak:"break-word",
+                }}>
+                  {cell.label||<span style={{opacity:0.2,fontSize:9}}>Goal {i+1}</span>}
+                </div>}
+          </div>}
+          {/* Widget mode mini label */}
+          {!pageMode&&!done&&cell.label&&<div style={{
+            position:"absolute",bottom:2,left:1,right:1,
+            textAlign:"center",fontSize:6,fontFamily:F,color:T.textLt,
+            lineHeight:1.1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",
+          }}>{cell.label}</div>}
+        </div>;
+      })}
+    </div>
+
+    {/* Progress bar (page mode) */}
+    {pageMode&&<div style={{marginTop:10}}>
+      <div style={{height:4,background:T.border,borderRadius:2,overflow:"hidden"}}>
+        <div style={{
+          height:"100%",borderRadius:2,
+          width:`${(doneCount/16)*100}%`,
+          background:`linear-gradient(90deg,${T.blue},${T.mint})`,
+          transition:"width 0.55s cubic-bezier(.4,0,.2,1)",
+          boxShadow:doneCount>0?`0 0 8px ${T.mint}66`:"none",
+        }}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:T.textLt,fontFamily:F}}>
+        <span>Click to mark done · Double-click label to rename</span>
+        <span style={{color:doneCount===16?T.mint:T.textLt,fontWeight:doneCount===16?700:400}}>
+          {doneCount===16?"🎉 All complete!":Math.round((doneCount/16)*100)+"%"}
+        </span>
+      </div>
+    </div>}
+
+    {/* Widget mode compact progress */}
+    {!pageMode&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
+      <div style={{flex:1,height:3,background:T.border,borderRadius:2,overflow:"hidden",marginRight:6}}>
+        <div style={{height:"100%",width:`${(doneCount/16)*100}%`,borderRadius:2,
+          background:`linear-gradient(90deg,${T.blue},${T.mint})`,transition:"width 0.45s ease"}}/>
+      </div>
+      <span style={{fontSize:9,fontFamily:F,color:T.textMd,flexShrink:0}}>{doneCount}/16</span>
+    </div>}
+  </div>;
+}
+
 // ── GOALS ──────────────────────────────────────────
-function GoalsWidget({goals,setGoals,onAddGoal,pageMode}){
+function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo}){
   const T=useT();
   const updProg=(id,v)=>setGoals(p=>p.map(g=>g.id===id?{...g,progress:+v,lastTouched:new Date().toISOString()}:g));
   const toggle=id=>setGoals(p=>p.map(g=>g.id===id?{...g,completed:!g.completed}:g));
@@ -754,6 +901,13 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode}){
     return(new Date()-new Date(ref))>14*86400000;
   }
   return <>
+    {/* Bingo card — always at top */}
+    {bingo&&<div style={{marginBottom:pageMode?18:10}}>
+      <BingoCard bingo={bingo} setBingo={setBingo} pageMode={pageMode}/>
+    </div>}
+    {/* Divider */}
+    {bingo&&pageMode&&<div style={{borderTop:`1px solid ${T.border}`,marginBottom:14}}/>}
+    {/* Goals list */}
     {goals.length===0?<Empty msg="Set your intentions for 2026"/>:<>
       <div style={{display:"grid",gridTemplateColumns:pageMode?"repeat(auto-fill,minmax(230px,1fr))":"repeat(auto-fill,minmax(190px,1fr))",gap:7}}>
         {active.map(g=>{
@@ -1155,7 +1309,7 @@ async function gistCreate(token){
   const d=await r.json();return d.id;
 }
 function applyGistData(data,setters){
-  const{setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads}=setters;
+  const{setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads,setBingo}=setters;
   if(data.tasks)       setTasks(data.tasks);
   if(data.trips)       setTrips(data.trips);
   if(data.goals)       setGoals(data.goals);
@@ -1163,6 +1317,7 @@ function applyGistData(data,setters){
   if(data.notes)       setNotes(data.notes);
   if(data.photos)      setPhotos(data.photos);
   if(data.scratchpads) setScratchpads(data.scratchpads);
+  if(data.bingo)       setBingo(data.bingo);
 }
 
 function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onConnect}){
@@ -1225,6 +1380,7 @@ function App(){
   const [tasks,setTasks]=useState(()=>lg("plo3_tasks",[]));
   const [trips,setTrips]=useState(()=>lg("plo3_trips",[]));
   const [goals,setGoals]=useState(()=>lg("plo3_goals",[]));
+  const [bingo,setBingo]=useState(()=>lg("plo3_bingo",DEFAULT_BINGO));
   const [completions,setCompletions]=useState(()=>lg("plo3_completions",{}));
   const [notes,setNotes]=useState(()=>lg("plo3_notes",[]));
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
@@ -1266,6 +1422,7 @@ function App(){
   useEffect(()=>ls("plo3_tasks",tasks),[tasks]);
   useEffect(()=>ls("plo3_trips",trips),[trips]);
   useEffect(()=>ls("plo3_goals",goals),[goals]);
+  useEffect(()=>ls("plo3_bingo",bingo),[bingo]);
   useEffect(()=>ls("plo3_completions",completions),[completions]);
   useEffect(()=>ls("plo3_notes",notes),[notes]);
   useEffect(()=>ls("plo3_photos",photos),[photos]);
@@ -1278,7 +1435,7 @@ function App(){
   useEffect(()=>{
     if(!syncToken||!syncGistId){syncReadyRef.current=true;return;}
     setSyncStatus("loading");
-    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads};
+    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads,setBingo};
     gistFetch(syncToken,syncGistId)
       .then(data=>{applyGistData(data,setters);setSyncStatus("ok");})
       .catch(()=>setSyncStatus("err"))
@@ -1291,13 +1448,13 @@ function App(){
     clearTimeout(syncTimerRef.current);
     setSyncStatus("loading");
     syncTimerRef.current=setTimeout(()=>{
-      const payload={tasks,trips,goals,completions,notes,photos,scratchpads};
+      const payload={tasks,trips,goals,bingo,completions,notes,photos,scratchpads};
       gistPush(syncToken,syncGistId,payload)
         .then(()=>setSyncStatus("ok"))
         .catch(()=>setSyncStatus("err"));
     },2500);
     return()=>clearTimeout(syncTimerRef.current);
-  },[tasks,trips,goals,completions,notes,photos,scratchpads]);// eslint-disable-line
+  },[tasks,trips,goals,bingo,completions,notes,photos,scratchpads]);// eslint-disable-line
 
   // Keyboard shortcuts
   useEffect(()=>{
@@ -1421,7 +1578,7 @@ function App(){
       case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pageMode={pageMode}/>;
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pageMode={pageMode}/>;
-      case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode}/>;
+      case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo}/>;
       case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
       default: return null;
     }
@@ -1549,7 +1706,7 @@ function App(){
         syncToken={syncToken} setSyncToken={setSyncToken}
         syncGistId={syncGistId} setSyncGistId={setSyncGistId}
         onConnect={data=>{
-          const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads};
+          const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads,setBingo};
           applyGistData(data,setters);
           setSyncStatus("ok");
           syncReadyRef.current=true;
