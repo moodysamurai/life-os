@@ -783,13 +783,12 @@ function BingoCard({bingo,setBingo,pageMode}){
     setEditIdx(null);
   }
 
-  const cellSize=pageMode?null:"100%";
-  const gapPx=pageMode?7:3;
-  const borderR=pageMode?11:6;
+  const gapPx=pageMode?5:3;
+  const borderR=pageMode?9:6;
 
-  return <div style={{width:"100%"}}>
+  return <div style={{width:"100%",maxWidth:pageMode?380:"100%",margin:pageMode?"0 auto":undefined}}>
     {/* Header row */}
-    {pageMode&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+    {pageMode&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontFamily:F,fontWeight:800,fontSize:16,letterSpacing:"-0.5px"}}>◉ 2026 Bingo</span>
         {completedLines.length>0&&<span className="badge-hover bingo-line-cell" style={{background:T.mint+"22",color:T.mint,border:`1px solid ${T.mint}44`,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:800,fontFamily:F,letterSpacing:"0.04em"}}>
@@ -818,16 +817,16 @@ function BingoCard({bingo,setBingo,pageMode}){
               :T.cardAlt,
             boxShadow:inLine?`0 0 14px ${T.mint}44,inset 0 0 8px ${T.mint}18`:done?`inset 0 0 5px ${T.blue}22`:"none",
             display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-            padding:pageMode?"7px 5px":"3px 2px",userSelect:"none",
+            padding:pageMode?"5px 3px":"3px 2px",userSelect:"none",
           }}>
           {/* Done indicator */}
           {done&&<div className="bingo-check" style={{
             position:"absolute",
-            width:pageMode?30:16,height:pageMode?30:16,
+            width:pageMode?22:16,height:pageMode?22:16,
             borderRadius:"50%",
             background:inLine?`linear-gradient(135deg,${T.mint},${T.blue})`:T.mint+"66",
             display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:pageMode?13:8,color:"#fff",fontWeight:700,zIndex:2,
+            fontSize:pageMode?10:8,color:"#fff",fontWeight:700,zIndex:2,
             boxShadow:inLine?`0 0 10px ${T.mint}88`:"none",
             opacity:pageMode?0.92:0.85,
           }}>✓</div>}
@@ -838,9 +837,9 @@ function BingoCard({bingo,setBingo,pageMode}){
                   onBlur={saveEdit} onKeyDown={e=>{if(e.key==="Enter")saveEdit();e.stopPropagation();}}
                   onClick={e=>e.stopPropagation()}
                   style={{width:"100%",background:"transparent",border:"none",outline:"none",
-                    textAlign:"center",fontSize:10,fontFamily:F,color:T.text,padding:0}}/>
+                    textAlign:"center",fontSize:9,fontFamily:F,color:T.text,padding:0}}/>
               :<div onDoubleClick={e=>startEdit(e,i)} style={{
-                  pointerEvents:"auto",textAlign:"center",fontSize:10,fontFamily:F,lineHeight:1.25,
+                  pointerEvents:"auto",textAlign:"center",fontSize:9,fontFamily:F,lineHeight:1.2,
                   color:done?T.mint:T.textMd,fontWeight:done?700:400,
                   opacity:done?0.85:1,wordBreak:"break-word",
                 }}>
