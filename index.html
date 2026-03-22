@@ -620,7 +620,8 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
     const r=new FileReader();r.onload=ev=>setPhotos(p=>({...p,[tid]:ev.target.result}));r.readAsDataURL(file);
   }
   const phaseColors=PHASE_COLOR(T);
-  return <div style={{display:"flex",flexDirection:"column",gap:7}}>
+  const imgH=pageMode?190:120;
+  return <div style={{display:pageMode?"grid":"flex",gridTemplateColumns:pageMode?"repeat(auto-fill,minmax(255px,1fr))":undefined,flexDirection:pageMode?undefined:"column",gap:pageMode?12:8,alignItems:pageMode?"start":undefined}}>
     {shown.length===0?<Empty msg="Add your first trip"/>:shown.map(trip=>{
       const isExp=expanded===trip.id,sugg=tripSugg[trip.id],loading=loadingSugg===trip.id;
       const isPast=trip.endDate<todayStr;
@@ -631,20 +632,21 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
       const customPhoto=photos[trip.id];
       const pl=trip.packingList||[];
       const packed=pl.filter(i=>i.packed).length;
-      return <div key={trip.id} style={{borderRadius:9,overflow:"hidden",border:`1px solid ${phaseColors[autoPhase]||T.border}22`,background:T.cardAlt}}>
-        <div style={{height:pageMode?88:68,position:"relative",background:`linear-gradient(135deg,${bg1},${bg2})`}}>
-          <img src={customPhoto||(pageMode?`https://loremflickr.com/640/176/${encodeURIComponent(trip.destination)},travel,city`:"")} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:customPhoto?0.75:0.4}} onError={e=>{e.target.style.display="none";}}/>
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 20%,rgba(0,0,0,.7) 100%)",display:"flex",flexDirection:"column",justifyContent:"flex-end",padding:"6px 10px"}}>
-            <div style={{color:"white",fontWeight:700,fontSize:pageMode?15:12,fontFamily:F}}>{trip.destination}</div>
-            <div style={{color:"rgba(255,255,255,.65)",fontSize:9,marginTop:1,fontFamily:F}}>{trip.startDate}→{trip.endDate}</div>
+      const phC=phaseColors[autoPhase]||T.border;
+      return <div key={trip.id} style={{borderRadius:11,overflow:"hidden",border:`1px solid ${phC}30`,background:T.cardAlt,boxShadow:pageMode?`0 2px 12px rgba(0,0,0,.25)`:undefined}}>
+        <div style={{height:imgH,position:"relative",background:`linear-gradient(135deg,${bg1},${bg2})`,flexShrink:0}}>
+          <img src={customPhoto||`https://loremflickr.com/640/300/${encodeURIComponent(trip.destination)},travel,city`} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:customPhoto?0.82:0.45}} onError={e=>{e.target.style.display="none";}}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 30%,rgba(0,0,0,.78) 100%)",display:"flex",flexDirection:"column",justifyContent:"flex-end",padding:pageMode?"10px 13px":"7px 10px"}}>
+            <div style={{color:"white",fontWeight:700,fontSize:pageMode?17:13,fontFamily:F,letterSpacing:"-0.3px",textShadow:"0 1px 4px rgba(0,0,0,.5)"}}>{trip.destination}</div>
+            <div style={{color:"rgba(255,255,255,.7)",fontSize:pageMode?10:9,marginTop:2,fontFamily:F,letterSpacing:"0.02em"}}>{trip.startDate} → {trip.endDate}</div>
           </div>
-          <div style={{position:"absolute",top:5,right:6,display:"flex",gap:3}}>
-            <span style={{background:phaseColors[autoPhase]||T.textMd,color:"#000",borderRadius:5,padding:"2px 6px",fontSize:9,fontWeight:700,fontFamily:F,textTransform:"capitalize",opacity:0.88}}>{autoPhase}</span>
+          <div style={{position:"absolute",top:7,right:7,display:"flex",gap:3}}>
+            <span style={{background:phC,color:"#000",borderRadius:5,padding:"2px 7px",fontSize:9,fontWeight:700,fontFamily:F,textTransform:"capitalize",opacity:0.9,boxShadow:"0 1px 4px rgba(0,0,0,.3)"}}>{autoPhase}</span>
           </div>
-          {!isPast&&!ongoing&&<div style={{position:"absolute",top:5,left:6,background:"rgba(0,0,0,.5)",color:"white",borderRadius:5,padding:"2px 6px",fontSize:9,fontWeight:700,fontFamily:F}}>in {daysUntil}d</div>}
+          {!isPast&&!ongoing&&daysUntil>0&&<div style={{position:"absolute",top:7,left:7,background:"rgba(0,0,0,.55)",backdropFilter:"blur(4px)",color:"white",borderRadius:5,padding:"2px 7px",fontSize:9,fontWeight:700,fontFamily:F}}>in {daysUntil}d</div>}
         </div>
-        <div style={{padding:"7px 9px"}}>
-          {trip.notes&&<p style={{fontSize:10,color:T.textMd,margin:"0 0 6px",lineHeight:1.4,fontFamily:F}}>{trip.notes}</p>}
+        <div style={{padding:pageMode?"10px 12px":"7px 9px"}}>
+          {pageMode&&trip.notes&&<p style={{fontSize:11,color:T.textMd,margin:"0 0 8px",lineHeight:1.5,fontFamily:F}}>{trip.notes}</p>}
           <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:isExp?8:0}}>
             <Btn small onClick={()=>setExpanded(isExp?null:trip.id)}>{isExp?"▲":"▼"} Details</Btn>
             {!isPast&&<Btn small primary onClick={()=>getTripSugg(trip)}>✦ {sugg?"Refresh":"AI Ideas"}</Btn>}
