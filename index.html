@@ -1451,7 +1451,13 @@ async function gistFetch(token,id){
   const d=await r.json();
   const c=d.files[GIST_FILE]?.content;
   if(!c)return {};
-  return JSON.parse(c);
+  try{return JSON.parse(c);}
+  catch(e){
+    // Gist content is truncated/corrupted (usually caused by a previous oversized push).
+    // Return empty so the app loads fine with local data; the auto-push will repair the Gist.
+    console.warn("Gist JSON corrupt — will self-repair on next push:",e.message);
+    return {};
+  }
 }
 async function gistPush(token,id,payload){
   const r=await fetch(`https://api.github.com/gists/${id}`,{
