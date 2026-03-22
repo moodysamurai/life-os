@@ -26,6 +26,9 @@ input[type=range]{-webkit-appearance:none;height:3px;border-radius:2px;outline:n
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;cursor:pointer;}
 .theme-light input[type=date]{color-scheme:light;}
 .theme-dark input[type=date]{color-scheme:dark;}
+.theme-sepia input[type=date]{color-scheme:light;}
+.theme-ocean input[type=date]{color-scheme:dark;}
+.theme-midnight input[type=date]{color-scheme:dark;}
 .wwidget:hover .rhandle{opacity:1!important;}
 .rhandle{opacity:0;transition:opacity .15s;}
 
@@ -102,6 +105,13 @@ function alpha(h,a){const[r,g,b]=h2r(h);return`rgba(${r},${g},${b},${a})`;}
 
 // palette: [0]=Primary [1]=Danger [2]=Text [3]=Surface [4]=Background
 const DEFAULT_PALETTE=["#EE8434","#C95D63","#E5E5E5","#074A37","#06070E"];
+const THEME_PRESETS=[
+  {name:"dark",    label:"Dark",    icon:"🌙", mode:"dark",  palette:DEFAULT_PALETTE},
+  {name:"light",   label:"Light",   icon:"☀️", mode:"light", palette:DEFAULT_PALETTE},
+  {name:"sepia",   label:"Sepia",   icon:"📜", mode:"light", palette:["#b5714a","#c04b5a","#4a2e1e","#c4a882","#f5ede3"]},
+  {name:"ocean",   label:"Ocean",   icon:"🌊", mode:"dark",  palette:["#22d3ee","#f43f5e","#cff4ff","#0e3a5c","#020c18"]},
+  {name:"midnight",label:"Midnight",icon:"✦",  mode:"dark",  palette:["#a78bfa","#f87171","#ede9fe","#1e1b4b","#080510"]},
+];
 
 function buildDark([p1,p2,p3,p4,p5]){
   const sec=lighten(p4,108);
@@ -163,10 +173,12 @@ const WDEFS=[
   {id:"notes",   label:"Notes",   icon:"◫",visible:true},
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
   {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
+  {id:"focus",   label:"Focus",   icon:"⏱",visible:true},
+  {id:"mood",    label:"Mood",    icon:"◑",visible:true},
 ];
-const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1,radar:1};
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1,radar:1,focus:1,mood:1};
 const TASK_TAGS={urgent:"#f87171",research:"#38bdf8",personal:"#a78bfa",music:"#f97316",creative:"#f472b6",admin:"#6ee7b7"};
-const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa",radar:"#38bdf8"});
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa",radar:"#38bdf8",focus:T.pink,mood:"#34d399"});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
 const GCOLS=16,GROW_H=96,GGAP=8;
@@ -177,8 +189,10 @@ const DEFAULT_LAYOUT={
   trips:   {col:1, row:7, cS:6,rS:5},
   goals:   {col:7, row:7, cS:5,rS:5},
   notes:   {col:12,row:7, cS:5,rS:4},
-  entropy: {col:1, row:12,cS:5,rS:5},
-  radar:   {col:6, row:12,cS:5,rS:5},
+  entropy: {col:1, row:12,cS:4,rS:5},
+  radar:   {col:5, row:12,cS:4,rS:5},
+  focus:   {col:9, row:12,cS:4,rS:5},
+  mood:    {col:13,row:12,cS:4,rS:5},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -320,8 +334,17 @@ function WidgetHead({id,title,icon,onPage,action}){
 // ── MODAL SHELL ────────────────────────────────────
 function ModalShell({title,children,onClose,onSave,wide}){
   const T=useT();
+  function handleKey(e){
+    if(e.key==="Escape"){onClose();return;}
+    if(e.key==="Enter"&&onSave){
+      const tag=e.target.tagName;
+      if(tag==="TEXTAREA"||tag==="SELECT") return;
+      if(tag==="BUTTON") return; // let the button handle its own click
+      e.preventDefault();onSave();
+    }
+  }
   return <div onClick={e=>e.target===e.currentTarget&&onClose()} className="overlay-in" style={{position:"fixed",inset:0,background:T.overlay,zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
-    <div className="modal-pop" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:wide?640:390,maxHeight:"88vh",overflowY:"auto",padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.72)"}}>
+    <div className="modal-pop" onKeyDown={handleKey} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:wide?640:390,maxHeight:"88vh",overflowY:"auto",padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.72)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.85rem"}}>
         <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.2px"}}>{title}</span>
         <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt,lineHeight:1,transition:"color .15s,transform .15s"}} onMouseEnter={e=>e.target.style.transform="rotate(90deg)"} onMouseLeave={e=>e.target.style.transform="rotate(0deg)"}>×</button>
@@ -476,6 +499,7 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
 function CalendarWidget({tasks,trips,goals,completions,pageMode}){
   const T=useT();
   const now=new Date(),todayStr=toStr(now);
+  const [calTab,setCalTab]=useState("calendar"); // "calendar" | "timeline"
   const [month,setMonth]=useState(now.getMonth());
   const [year,setYear]=useState(now.getFullYear());
   const dIM=new Date(year,month+1,0).getDate();
@@ -603,24 +627,77 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode}){
     </div>
   </Card>;
 
-  if(!pageMode) return cal;
+  // ── Timeline ────────────────────────────────────
+  function buildTimeline(){
+    const evts=[];
+    tasks.filter(t=>!t.completed&&t.deadline).forEach(t=>evts.push({date:t.deadline,end:t.deadline,type:"task",label:t.title,color:T.yellow,sub:t.recurring?`↺ ${t.recurring}`:"",id:t.id}));
+    trips.forEach(t=>evts.push({date:t.startDate,end:t.endDate,type:"trip",label:t.destination,color:T.mint,sub:`${t.startDate} → ${t.endDate}`,id:t.id}));
+    goals.filter(g=>!g.completed&&g.targetDate).forEach(g=>evts.push({date:g.targetDate,end:g.targetDate,type:"goal",label:g.title,color:T.blue,sub:`${g.progress||0}% complete`,id:g.id}));
+    return evts.sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  const TYPE_ICON={task:"◈",trip:"◎",goal:"◉"};
+  const timeline=<div style={{height:"100%",overflowY:"auto"}}>
+    {(()=>{
+      const evts=buildTimeline();
+      if(!evts.length) return <div style={{padding:"24px 0",textAlign:"center",color:T.textLt,fontSize:12,fontFamily:F}}>No upcoming events</div>;
+      let lastMonth="";
+      return evts.map((ev,i)=>{
+        const m=ev.date.slice(0,7);
+        const showMonth=m!==lastMonth;if(showMonth)lastMonth=m;
+        const isPast=ev.date<todayStr;
+        const isToday=ev.date===todayStr;
+        return <div key={ev.id+i}>
+          {showMonth&&<div style={{fontSize:9,fontWeight:700,color:T.textLt,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase",padding:"12px 0 5px",borderBottom:`1px solid ${T.border}`,marginBottom:6}}>{MFULL[parseInt(m.slice(5,7))-1]} {m.slice(0,4)}</div>}
+          <div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"6px 0",opacity:isPast?0.5:1}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:0,flexShrink:0}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:isToday?T.mint:ev.color,marginTop:4,flexShrink:0,boxShadow:isToday?`0 0 0 3px ${T.mint}33`:undefined}}/>
+              {i<evts.length-1&&<div style={{width:1,height:18,background:T.border,marginTop:2}}/>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+                <span style={{fontSize:9,color:ev.color,fontFamily:F,fontWeight:700}}>{TYPE_ICON[ev.type]}</span>
+                <span style={{fontSize:12,fontFamily:F,fontWeight:600,color:T.text}}>{ev.label}</span>
+                {isToday&&<span style={{fontSize:9,background:T.mint+"22",color:T.mint,padding:"1px 5px",borderRadius:4,fontFamily:F,fontWeight:700}}>today</span>}
+              </div>
+              {ev.sub&&<div style={{fontSize:10,color:T.textMd,fontFamily:F,marginTop:1}}>{ev.sub}</div>}
+            </div>
+            <span style={{fontSize:10,color:isToday?T.mint:T.textLt,fontFamily:F,flexShrink:0,fontWeight:isToday?700:400}}>{ev.date}</span>
+          </div>
+        </div>;
+      });
+    })()}
+  </div>;
+
+  const tabBar=<div style={{display:"flex",gap:1,marginBottom:8,background:T.cardAlt,borderRadius:7,padding:2}}>
+    {[["calendar","◷ Calendar"],["timeline","⌇ Timeline"]].map(([id,label])=>(
+      <button key={id} onClick={()=>setCalTab(id)}
+        style={{flex:1,padding:"4px 0",borderRadius:5,background:calTab===id?T.card:"transparent",border:"none",cursor:"pointer",fontFamily:F,fontSize:11,fontWeight:calTab===id?700:400,color:calTab===id?T.text:T.textLt,transition:"all 0.12s"}}>
+        {label}
+      </button>
+    ))}
+  </div>;
+
+  if(!pageMode) return calTab==="timeline"?<>{tabBar}{timeline}</>:cal;
   const mT=tasks.filter(t=>!t.completed&&t.deadline&&t.deadline.startsWith(ms));
   const mTr=trips.filter(t=>t.startDate.startsWith(ms)||t.endDate.startsWith(ms));
   return <div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.6rem",alignItems:"start"}}>
-      <Card>{cal}</Card>
-      <div style={{display:"flex",flexDirection:"column",gap:7}}>
-        <Card>
-          <div style={{fontSize:10,fontWeight:700,color:T.yellow,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Tasks this month</div>
-          {mT.length===0?<Empty msg="None"/>:mT.map(t=><div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><span style={{fontSize:12,fontFamily:F}}>{t.title}</span><span style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.deadline}</span></div>)}
-        </Card>
-        <Card>
-          <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Trips this month</div>
-          {mTr.length===0?<Empty msg="None"/>:mTr.map(t=><div key={t.id} style={{padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><div style={{fontSize:12,fontFamily:F,fontWeight:600}}>{t.destination}</div><div style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.startDate}→{t.endDate}</div></div>)}
-        </Card>
-      </div>
-    </div>
-    {heatMap}
+    {tabBar}
+    {calTab==="timeline"
+      ?<Card style={{minHeight:340}}>{timeline}</Card>
+      :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.6rem",alignItems:"start"}}>
+        <Card>{cal}</Card>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          <Card>
+            <div style={{fontSize:10,fontWeight:700,color:T.yellow,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Tasks this month</div>
+            {mT.length===0?<Empty msg="None"/>:mT.map(t=><div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><span style={{fontSize:12,fontFamily:F}}>{t.title}</span><span style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.deadline}</span></div>)}
+          </Card>
+          <Card>
+            <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Trips this month</div>
+            {mTr.length===0?<Empty msg="None"/>:mTr.map(t=><div key={t.id} style={{padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><div style={{fontSize:12,fontFamily:F,fontWeight:600}}>{t.destination}</div><div style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.startDate}→{t.endDate}</div></div>)}
+          </Card>
+        </div>
+      </div>}
+    {calTab!=="timeline"&&heatMap}
   </div>;
 }
 
@@ -682,7 +759,15 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
   const todayStr=toStr(new Date());
   const [filter,setFilter]=useState("active");
   const [tagFilter,setTagFilter]=useState(null);
-  const active=tasks.filter(t=>!t.completed).sort((a,b)=>a.deadline.localeCompare(b.deadline));
+  const [dragId,setDragId]=useState(null);
+  const [dragOverId,setDragOverId]=useState(null);
+  // Sort: by manualPos if set, else by deadline
+  const active=tasks.filter(t=>!t.completed).sort((a,b)=>{
+    if(a.manualPos!=null&&b.manualPos!=null) return a.manualPos-b.manualPos;
+    if(a.manualPos!=null) return -1;
+    if(b.manualPos!=null) return 1;
+    return a.deadline.localeCompare(b.deadline);
+  });
   const done=tasks.filter(t=>t.completed);
   const overdue=active.filter(t=>t.deadline<todayStr);
   const byStatus=pageMode?(filter==="active"?active:filter==="overdue"?overdue:done):active;
@@ -703,10 +788,37 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
     }else{setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed}:t));}
   }
   function del(id){const t=tasks.find(x=>x.id===id);if(t&&pushUndo)pushUndo({type:"DELETE_TASK",payload:t});setTasks(p=>p.filter(t=>t.id!==id));}
+  function handleDrop(overId){
+    if(!dragId||dragId===overId){setDragId(null);setDragOverId(null);return;}
+    const fromIdx=active.findIndex(t=>t.id===dragId);
+    const toIdx=active.findIndex(t=>t.id===overId);
+    if(fromIdx===-1||toIdx===-1){setDragId(null);setDragOverId(null);return;}
+    const reordered=[...active];
+    const [moved]=reordered.splice(fromIdx,1);
+    reordered.splice(toIdx,0,moved);
+    const updatedIds=new Set(reordered.map(t=>t.id));
+    setTasks(p=>[
+      ...reordered.map((t,i)=>({...t,manualPos:i})),
+      ...p.filter(t=>!updatedIds.has(t.id))
+    ]);
+    setDragId(null);setDragOverId(null);
+  }
   const Row=({task,highlight})=>{
     const u=urgency(task.deadline),isOver=!task.completed&&task.deadline<todayStr;
     const pcs=PC(T);
-    return <div className="task-row" style={{display:"flex",gap:7,padding:"7px 8px",borderRadius:8,background:highlight?T.mintX:isOver?T.pinkX:T.cardAlt,border:`1px solid ${highlight?T.mint+"40":isOver?T.pink+"28":T.borderSft}`}}>
+    const isDragging=dragId===task.id;
+    const isDragOver=dragOverId===task.id&&dragId!==task.id;
+    return <div className="task-row"
+      draggable={!task.completed}
+      onDragStart={()=>{if(!task.completed)setDragId(task.id);}}
+      onDragOver={e=>{e.preventDefault();if(dragId&&dragId!==task.id&&!task.completed)setDragOverId(task.id);}}
+      onDragLeave={()=>setDragOverId(null)}
+      onDrop={()=>handleDrop(task.id)}
+      onDragEnd={()=>{setDragId(null);setDragOverId(null);}}
+      style={{display:"flex",gap:7,padding:"7px 8px",borderRadius:8,cursor:task.completed?"default":"grab",
+        background:isDragOver?T.mintX:highlight?T.mintX:isOver?T.pinkX:T.cardAlt,
+        border:`1px solid ${isDragOver?T.mint:highlight?T.mint+"40":isOver?T.pink+"28":T.borderSft}`,
+        opacity:isDragging?0.4:1,transition:"opacity 0.15s,background 0.1s,border-color 0.1s"}}>
       <button onClick={()=>toggleDone(task.id)} style={{width:13,height:13,borderRadius:3,flexShrink:0,marginTop:2,border:`1.5px solid ${pcs[task.priority]||T.mint}`,background:task.completed?pcs[task.priority]||T.mint:"transparent",cursor:"pointer",padding:0}}/>
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
@@ -719,6 +831,7 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
         <div style={{display:"flex",gap:5,marginTop:3,alignItems:"center"}}>
           <span style={{fontSize:10,color:u.color,fontFamily:F}}>{u.label}</span>
           {task.priority&&<Badge label={task.priority} color={pcs[task.priority]||T.mint}/>}
+          {task.manualPos!=null&&<span style={{fontSize:9,color:T.textLt,fontFamily:F}}>⠿</span>}
         </div>
       </div>
       <div style={{display:"flex",gap:2,alignItems:"flex-start"}}>
@@ -1579,6 +1692,156 @@ Respond ONLY with valid JSON (no markdown):
   </div>;
 }
 
+// ── FOCUS TIMER WIDGET ─────────────────────────────
+const FOCUS_PRESETS=[{label:"25 min",min:25},{label:"45 min",min:45},{label:"15 min",min:15},{label:"5 min",min:5}];
+function FocusTimerWidget({tasks,pageMode}){
+  const T=useT();
+  const [preset,setPreset]=useState(0);
+  const [secsLeft,setSecsLeft]=useState(FOCUS_PRESETS[0].min*60);
+  const [running,setRunning]=useState(false);
+  const [done,setDone]=useState(false);
+  const [linkedTask,setLinkedTask]=useState("");
+  const intervalRef=useRef(null);
+  const totalSecs=FOCUS_PRESETS[preset].min*60;
+
+  useEffect(()=>{
+    if(running&&secsLeft>0){
+      intervalRef.current=setInterval(()=>setSecsLeft(s=>s-1),1000);
+    }else if(running&&secsLeft===0){
+      setRunning(false);setDone(true);
+      if("Notification" in window&&Notification.permission==="granted"){
+        new Notification("⏱ Focus session complete!",{body:linkedTask?`Great work on: ${linkedTask}`:"Time for a break.",icon:"/life-os/icon.svg"});
+      }
+    }
+    return()=>clearInterval(intervalRef.current);
+  },[running,secsLeft]);
+
+  function start(){
+    if(done) reset();
+    if("Notification" in window&&Notification.permission==="default") Notification.requestPermission();
+    setRunning(true);
+  }
+  function pause(){setRunning(false);}
+  function reset(){setRunning(false);setDone(false);setSecsLeft(FOCUS_PRESETS[preset].min*60);}
+  function pickPreset(i){setPreset(i);setRunning(false);setDone(false);setSecsLeft(FOCUS_PRESETS[i].min*60);}
+
+  const pct=1-(secsLeft/totalSecs);
+  const mm=String(Math.floor(secsLeft/60)).padStart(2,"0");
+  const ss=String(secsLeft%60).padStart(2,"0");
+  const r=48,circ=2*Math.PI*r;
+  const activeTasks=tasks.filter(t=>!t.completed);
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10,alignItems:"center",justifyContent:"center"}}>
+    {/* Preset selector */}
+    <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center"}}>
+      {FOCUS_PRESETS.map((p,i)=>(
+        <button key={i} onClick={()=>pickPreset(i)} style={{padding:"2px 8px",borderRadius:100,fontSize:10,fontFamily:F,cursor:"pointer",border:`1px solid ${preset===i?T.pink:T.border}`,background:preset===i?T.pink+"22":"transparent",color:preset===i?T.pink:T.textMd,fontWeight:preset===i?700:400,transition:"all 0.1s"}}>{p.label}</button>
+      ))}
+    </div>
+    {/* Ring timer */}
+    <div style={{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+      <svg width={112} height={112} style={{transform:"rotate(-90deg)"}}>
+        <circle cx={56} cy={56} r={r} fill="none" stroke={T.border} strokeWidth={6}/>
+        <circle cx={56} cy={56} r={r} fill="none" stroke={done?"#34d399":T.pink} strokeWidth={6}
+          strokeDasharray={circ} strokeDashoffset={circ*(1-pct)}
+          style={{transition:"stroke-dashoffset 0.9s linear,stroke 0.3s"}}/>
+      </svg>
+      <div style={{position:"absolute",textAlign:"center"}}>
+        <div style={{fontSize:24,fontWeight:800,fontFamily:F,letterSpacing:"-1px",color:done?"#34d399":T.text,lineHeight:1}}>{done?"✓":mm+":"+ss}</div>
+        {done&&<div style={{fontSize:10,color:"#34d399",fontFamily:F,marginTop:2}}>done</div>}
+      </div>
+    </div>
+    {/* Controls */}
+    <div style={{display:"flex",gap:6}}>
+      {!running&&!done&&<Btn small primary onClick={start} style={{background:T.pink,borderColor:T.pink,color:T.bg}}>▶ Start</Btn>}
+      {running&&<Btn small onClick={pause}>⏸ Pause</Btn>}
+      {(running||secsLeft<totalSecs)&&<Btn small onClick={reset}>↺</Btn>}
+    </div>
+    {/* Task link */}
+    {activeTasks.length>0&&<div style={{width:"100%",maxWidth:200}}>
+      <select value={linkedTask} onChange={e=>setLinkedTask(e.target.value)}
+        style={{width:"100%",background:T.inp,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 6px",fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
+        <option value="">Focusing on… (optional)</option>
+        {activeTasks.slice(0,12).map(t=><option key={t.id} value={t.title}>{t.title}</option>)}
+      </select>
+    </div>}
+    {linkedTask&&running&&<div style={{fontSize:10,color:T.textMd,fontFamily:F,textAlign:"center",maxWidth:180,lineHeight:1.4}}>📌 {linkedTask}</div>}
+  </div>;
+}
+
+// ── MOOD WIDGET ─────────────────────────────────────
+const MOOD_OPTIONS=[{emoji:"🤩",label:"Great",val:5},{emoji:"😊",label:"Good",val:4},{emoji:"😐",label:"Meh",val:3},{emoji:"😔",label:"Low",val:2},{emoji:"😤",label:"Rough",val:1}];
+function MoodWidget({pageMode}){
+  const T=useT();
+  const [log,setLog]=useState(()=>lg("plo3_mood",[]));
+  const [note,setNote]=useState("");
+  const todayStr=toStr(new Date());
+  const todayEntry=log.find(e=>e.date===todayStr);
+
+  useEffect(()=>ls("plo3_mood",log),[log]);
+
+  function pick(val){
+    const entry={date:todayStr,val,note:note.trim()};
+    setLog(p=>[entry,...p.filter(e=>e.date!==todayStr)]);
+    setNote("");
+  }
+  function updateNote(e){
+    if(!todayEntry) return;
+    setLog(p=>p.map(x=>x.date===todayStr?{...x,note:e.target.value}:x));
+  }
+
+  const history=(pageMode?log:log).slice(0,pageMode?30:14);
+  const moodColor={5:"#fbbf24",4:"#34d399",3:T.textLt,2:T.blue,1:"#f87171"};
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
+    {/* Today check-in */}
+    <div style={{textAlign:"center"}}>
+      <div style={{fontSize:10,fontWeight:700,color:T.textLt,fontFamily:F,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>
+        {todayEntry?"Today's mood":"How are you today?"}
+      </div>
+      <div style={{display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap"}}>
+        {MOOD_OPTIONS.map(m=>(
+          <button key={m.val} onClick={()=>pick(m.val)} title={m.label}
+            style={{fontSize:pageMode?22:18,background:"transparent",border:"none",cursor:"pointer",padding:"4px",borderRadius:8,
+              outline:todayEntry?.val===m.val?`2px solid ${moodColor[m.val]}`:"none",
+              filter:todayEntry&&todayEntry.val!==m.val?"grayscale(0.7) opacity(0.5)":"none",
+              transition:"filter 0.15s,outline 0.1s"}}>
+            {m.emoji}
+          </button>
+        ))}
+      </div>
+      {todayEntry&&<input value={todayEntry.note||""} onChange={updateNote} placeholder="One-line note…"
+        style={{marginTop:6,width:"100%",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,outline:"none",fontSize:11,fontFamily:F,color:T.textMd,textAlign:"center",padding:"3px 0"}}/>}
+    </div>
+    {/* History */}
+    {history.length>0&&<div style={{flex:1,overflowY:"auto"}}>
+      <div style={{fontSize:9,color:T.textLt,fontFamily:F,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:5}}>Recent</div>
+      {pageMode
+        ?<div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {history.map(e=>(
+              <div key={e.date} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 6px",borderRadius:6,background:T.cardAlt}}>
+                <span style={{fontSize:16}}>{MOOD_OPTIONS.find(m=>m.val===e.val)?.emoji||"◑"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{e.date}</span>
+                  {e.note&&<div style={{fontSize:11,color:T.textMd,fontFamily:F,lineHeight:1.3}}>{e.note}</div>}
+                </div>
+                <div style={{width:4,height:4,borderRadius:"50%",background:moodColor[e.val]}}/>
+              </div>
+            ))}
+          </div>
+        :<div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+            {history.map(e=>(
+              <div key={e.date} title={`${e.date}${e.note?" — "+e.note:""}`}
+                style={{fontSize:14,cursor:"default",lineHeight:1}}>
+                {MOOD_OPTIONS.find(m=>m.val===e.val)?.emoji||"◑"}
+              </div>
+            ))}
+          </div>
+      }
+    </div>}
+  </div>;
+}
+
 // ── GOAL COACH MODAL ───────────────────────────────
 function GoalCoachModal({goal,onClose,apiKey}){
   const T=useT();
@@ -2010,7 +2273,13 @@ function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onCo
 function App(){
   const [theme,setTheme]=useState(()=>lg("plo3_theme","dark"));
   const [palette,setPalette]=useState(()=>lg("plo3_palette",DEFAULT_PALETTE));
-  const T=useMemo(()=>theme==="dark"?buildDark(palette):buildLight(palette),[theme,palette]);
+  function cycleTheme(){
+    const idx=THEME_PRESETS.findIndex(p=>p.name===theme);
+    const next=THEME_PRESETS[(idx+1)%THEME_PRESETS.length];
+    setTheme(next.name);setPalette(next.palette);
+  }
+  const activePreset=THEME_PRESETS.find(p=>p.name===theme)||THEME_PRESETS[0];
+  const T=useMemo(()=>activePreset.mode==="dark"?buildDark(palette):buildLight(palette),[activePreset,palette]);
 
   const [widgets,setWidgets]=useState(()=>{
     const s=lg("plo3_widgets",null);
@@ -2260,12 +2529,14 @@ function App(){
       case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
+      case "focus":    return <FocusTimerWidget tasks={tasks} pageMode={pageMode}/>;
+      case "mood":     return <MoodWidget pageMode={pageMode}/>;
       default: return null;
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy",radar:"Radar"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦",radar:"🔭"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy",radar:"Radar",focus:"Focus",mood:"Mood"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦",radar:"🔭",focus:"⏱",mood:"◑"};
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
@@ -2291,7 +2562,7 @@ function App(){
                 style={{width:52,cursor:"pointer",accentColor:T.mint,margin:0}}/>
               <span style={{fontSize:12,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
             </div>}
-            <Btn small onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} style={{fontSize:11}}>{theme==="dark"?"☀️":"🌙"}</Btn>
+            <Btn small onClick={cycleTheme} title={`Theme: ${activePreset.label} — click to cycle`} style={{fontSize:11}}>{activePreset.icon}</Btn>
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}>{apiKey?"🔑✓":"🔑"}</Btn>
             <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               {syncStatus==="loading"?"⟳":syncGistId?"☁✓":"☁"}
