@@ -1718,11 +1718,24 @@ function App(){
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cal],{type:"text/calendar"}));a.download="pratham-2026.ics";document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
   function exportJSON(){
-    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({tasks,trips,goals,completions,notes},null,2)],{type:"application/json"}));a.download="pratham-life-os-backup.json";document.body.appendChild(a);a.click();document.body.removeChild(a);
+    const payload={tasks,trips,goals,completions,notes,bingo,photos,scratchpads,layout};
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));a.download="pratham-life-os-backup.json";document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
   function importJSON(){
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
-    inp.onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.tasks)setTasks(d.tasks);if(d.trips)setTrips(d.trips);if(d.goals)setGoals(d.goals);if(d.completions)setCompletions(d.completions);if(d.notes)setNotes(d.notes);alert("✅ Restored!");}catch{alert("❌ Invalid file");}};r.readAsText(file);};
+    inp.onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>{try{
+      const d=JSON.parse(ev.target.result);
+      if(d.tasks)       setTasks(d.tasks);
+      if(d.trips)       setTrips(d.trips);
+      if(d.goals)       setGoals(d.goals);
+      if(d.completions) setCompletions(d.completions);
+      if(d.notes)       setNotes(d.notes);
+      if(d.bingo)       setBingo(d.bingo);
+      if(d.photos)      setPhotos(d.photos);
+      if(d.scratchpads) setScratchpads(d.scratchpads);
+      if(d.layout)      setLayout(d.layout);
+      alert("✅ Restored!");
+    }catch{alert("❌ Invalid file");}};r.readAsText(file);};
     document.body.appendChild(inp);inp.click();document.body.removeChild(inp);
   }
 
