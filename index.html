@@ -70,6 +70,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .badge-hover:hover{transform:scale(1.06);filter:brightness(1.15)}
 
 /* ── BINGO ──────────────────────────────────────── */
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes cellPop{0%{transform:scale(1)}40%{transform:scale(1.18)}70%{transform:scale(.93)}100%{transform:scale(1)}}
 @keyframes bingoFlash{0%,100%{opacity:1}50%{opacity:.6}}
 @keyframes checkDrop{from{opacity:0;transform:scale(.4) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(0deg)}}
@@ -153,19 +154,21 @@ const WDEFS=[
   {id:"trips",   label:"Trips",   icon:"◎",visible:true},
   {id:"goals",   label:"Goals",   icon:"◉",visible:true},
   {id:"notes",   label:"Notes",   icon:"◫",visible:true},
+  {id:"entropy", label:"Entropy", icon:"✦",visible:true},
 ];
-const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1};
-const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink});
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1,entropy:1};
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink,entropy:"#a78bfa"});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
 const GCOLS=16,GROW_H=96,GGAP=8;
 const DEFAULT_LAYOUT={
-  calendar:{col:1, row:1,cS:5, rS:6},
-  wakuli:  {col:6, row:1,cS:6, rS:5},
-  kanban:  {col:12,row:1,cS:5, rS:6},
-  trips:   {col:1, row:7,cS:6, rS:5},
-  goals:   {col:7, row:7,cS:5, rS:5},
-  notes:   {col:12,row:7,cS:5, rS:4},
+  calendar:{col:1, row:1, cS:5,rS:6},
+  wakuli:  {col:6, row:1, cS:5,rS:5},
+  kanban:  {col:11,row:1, cS:6,rS:6},
+  trips:   {col:1, row:7, cS:6,rS:5},
+  goals:   {col:7, row:7, cS:5,rS:5},
+  notes:   {col:12,row:7, cS:5,rS:4},
+  entropy: {col:12,row:12,cS:5,rS:5},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -956,9 +959,9 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo}){
             <div style={{display:"flex",gap:7,alignItems:"flex-start"}}>
               <button onClick={()=>toggle(g.id)} style={{width:13,height:13,borderRadius:"50%",border:`1.5px solid ${T.mint}`,background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,padding:0}}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,lineHeight:1.3,fontFamily:F}}>{g.title}</div>
-                {g.description&&<div style={{fontSize:10,color:T.textMd,marginTop:2,lineHeight:1.35,fontFamily:F}}>{g.description}</div>}
-                {g.targetDate&&<div style={{fontSize:9,color:T.textLt,marginTop:3,fontFamily:F}}>→ {g.targetDate}</div>}
+                <div style={{fontSize:14,fontWeight:600,lineHeight:1.3,fontFamily:F}}>{g.title}</div>
+                {g.description&&<div style={{fontSize:12,color:T.textMd,marginTop:2,lineHeight:1.35,fontFamily:F}}>{g.description}</div>}
+                {g.targetDate&&<div style={{fontSize:11,color:T.textLt,marginTop:3,fontFamily:F}}>→ {g.targetDate}</div>}
                 {dormant&&<Badge label="💤 Dormant" color={T.textMd}/>}
               </div>
               <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
@@ -1317,6 +1320,128 @@ function CustomizePanel({widgets,setWidgets,onResetLayout,onClose,onOpenColors})
   </div>;
 }
 
+// ── ENTROPY WIDGET ─────────────────────────────────
+const ENTROPY_CATS={
+  photography:{color:"#f97316",icon:"📷"},
+  music:      {color:"#a78bfa",icon:"🎵"},
+  learning:   {color:"#38bdf8",icon:"📖"},
+  exploration:{color:"#34d399",icon:"🧭"},
+  creative:   {color:"#f472b6",icon:"✦"},
+  social:     {color:"#fbbf24",icon:"☕"},
+  wellness:   {color:"#6ee7b7",icon:"🌿"},
+};
+
+function EntropyWidget({apiKey,goals,trips,pageMode}){
+  const T=useT();
+  const [data,setData]=useState(()=>lg("plo3_entropy",null));
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
+  const todayStr=toStr(new Date());
+
+  const stale=!data||data.date!==todayStr;
+
+  async function generate(force=false){
+    if(!apiKey){setErr("Add a Claude API key (🔑) to enable suggestions.");return;}
+    if(loading) return;
+    setLoading(true);setErr("");
+    const activeGoals=goals.filter(g=>!g.completed).map(g=>g.title).slice(0,5);
+    const upcoming=trips.filter(t=>t.endDate>=todayStr).sort((a,b)=>a.startDate.localeCompare(b.startDate)).slice(0,3).map(t=>t.destination);
+    const prompt=`You are a thoughtful life-enrichment guide. Today is ${todayStr} (${new Date().toLocaleDateString("en-GB",{weekday:"long",month:"long",day:"numeric"})}).
+
+About this person:
+- Pursuits: International Relations & Nationalism research (Leiden University), Photography, Music production (original tracks), 3D rendering & design, Interior decoration, DIY tech & home projects
+- Listens to: Bossa nova (favourite), Jazz, Shoegaze, Indie classics
+- Lives in: Leiden, Netherlands — originally from Delhi, India
+- Active goals: ${activeGoals.length?activeGoals.join(", "):"(none set)"}
+- Upcoming trips: ${upcoming.length?upcoming.join(", "):"(none planned)"}
+
+Generate ONE specific, well-considered activity for today that introduces positive entropy — a meaningful break from routine that genuinely enriches life.
+
+Rules:
+- Be specific and vivid (not "listen to music" but "find one 1960s Jobim recording you've never heard, loop it while sketching anything with a ballpoint pen for 15 minutes")
+- Duration 15 min–3 hours
+- Rotate across the person's interests over time — today pick what feels most seasonally or emotionally fitting
+- Include a brief WHY (1 sentence of context or inspiration)
+
+Respond ONLY with valid JSON (no markdown):
+{"title":"...","description":"...","why":"...","duration":"~X min","category":"photography|music|learning|exploration|creative|social|wellness"}`;
+
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:[{role:"user",content:prompt}]})
+      });
+      if(!r.ok) throw new Error(`API ${r.status}`);
+      const j=await r.json();
+      const raw=j.content[0].text.trim().replace(/^```json\n?/,"").replace(/\n?```$/,"");
+      const s=JSON.parse(raw);
+      const nd={date:todayStr,suggestion:s,done:false};
+      setData(nd);ls("plo3_entropy",nd);
+    }catch(e){setErr("Could not generate: "+e.message);}
+    finally{setLoading(false);}
+  }
+
+  function markDone(){
+    const nd={...data,done:true};setData(nd);ls("plo3_entropy",nd);
+  }
+
+  // Auto-generate on mount if stale
+  useEffect(()=>{if(stale&&apiKey&&!loading) generate();},[]);// eslint-disable-line
+
+  const s=data?.suggestion;
+  const cat=s?ENTROPY_CATS[s.category]||ENTROPY_CATS.creative:null;
+
+  if(!apiKey) return <div style={{padding:"18px 12px",textAlign:"center"}}>
+    <div style={{fontSize:24,marginBottom:8}}>✦</div>
+    <div style={{fontSize:12,color:T.textMd,fontFamily:F,lineHeight:1.6}}>Add a Claude API key (🔑 in header)<br/>to unlock daily activity suggestions.</div>
+  </div>;
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+    {loading&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10}}>
+      <div style={{fontSize:22,animation:"spin 1.4s linear infinite"}}>✦</div>
+      <div style={{fontSize:11,color:T.textMd,fontFamily:F}}>Finding today's activity…</div>
+    </div>}
+    {!loading&&err&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
+      <div style={{fontSize:11,color:"#f87171",fontFamily:F,textAlign:"center",lineHeight:1.5}}>{err}</div>
+      <Btn small onClick={()=>generate(true)}>Retry</Btn>
+    </div>}
+    {!loading&&!err&&s&&<>
+      {/* Category pill */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{background:cat.color+"22",color:cat.color,border:`1px solid ${cat.color}44`,borderRadius:6,padding:"2px 9px",fontSize:10,fontWeight:700,fontFamily:F,letterSpacing:"0.04em"}}>
+          {cat.icon} {s.category}
+        </span>
+        <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{s.duration}</span>
+      </div>
+      {/* Title */}
+      <div style={{
+        fontSize:pageMode?17:14,fontWeight:800,fontFamily:F,lineHeight:1.3,
+        letterSpacing:"-0.3px",color:T.text,
+        borderLeft:`3px solid ${cat.color}`,paddingLeft:10,
+      }}>{s.title}</div>
+      {/* Description */}
+      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.6,flex:1}}>
+        {s.description}
+      </div>
+      {/* Why */}
+      {s.why&&<div style={{fontSize:pageMode?11:10,color:cat.color,fontFamily:F,fontStyle:"italic",lineHeight:1.5,opacity:0.85}}>
+        "{s.why}"
+      </div>}
+      {/* Actions */}
+      <div style={{display:"flex",gap:6,marginTop:4}}>
+        {!data.done
+          ?<Btn small primary onClick={markDone} style={{flex:1,justifyContent:"center",background:cat.color,borderColor:cat.color}}>✓ Done it</Btn>
+          :<div style={{flex:1,textAlign:"center",fontSize:11,color:T.mint,fontFamily:F,fontWeight:700,padding:"5px 0"}}>✓ Completed today</div>}
+        <Btn small onClick={()=>generate(true)} title="New suggestion" style={{fontSize:12}}>↻</Btn>
+      </div>
+    </>}
+    {!loading&&!err&&!s&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <Btn small primary onClick={()=>generate()}>Generate today's activity</Btn>
+    </div>}
+  </div>;
+}
+
 // ── GIST SYNC ──────────────────────────────────────
 const GIST_FILE="pratham-life-os.json";
 async function gistFetch(token,id){
@@ -1424,6 +1549,7 @@ function App(){
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
+  const [zoom,setZoom]=useState(()=>lg("plo3_zoom",1));
 
   // ── Cloud sync ──
   const [syncToken,setSyncToken]=useState(()=>lg("plo3_sync_token",""));
@@ -1466,6 +1592,7 @@ function App(){
   useEffect(()=>ls("plo3_photos",photos),[photos]);
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
+  useEffect(()=>ls("plo3_zoom",zoom),[zoom]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
   useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
 
@@ -1618,15 +1745,16 @@ function App(){
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo}/>;
       case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
+      case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       default: return null;
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes",entropy:"Entropy"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫",entropy:"✦"};
 
   return <TC.Provider value={T}>
-    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto"}}>
+    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
 
       {/* HEADER */}
       <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
@@ -1642,6 +1770,13 @@ function App(){
           </div>
           <div style={{display:"flex",gap:4,alignItems:"center"}}>
             <button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}>⌕ <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>
+            <div style={{display:"flex",alignItems:"center",gap:5,padding:"2px 7px",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7}} title="Page zoom">
+              <span style={{fontSize:9,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
+              <input type="range" min={0.7} max={1.35} step={0.05} value={zoom}
+                onChange={e=>setZoom(+e.target.value)}
+                style={{width:52,cursor:"pointer",accentColor:T.mint,margin:0}}/>
+              <span style={{fontSize:12,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
+            </div>
             <Btn small onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} style={{fontSize:11}}>{theme==="dark"?"☀️":"🌙"}</Btn>
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}>{apiKey?"🔑✓":"🔑"}</Btn>
             <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
