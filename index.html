@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Pratham's Life OS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body,#root{height:100%;min-height:100vh;}
+body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;}
+input,textarea,button,select{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:2px;}
+input[type=range]{-webkit-appearance:none;height:3px;border-radius:2px;outline:none;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;cursor:pointer;}
+.theme-light input[type=date]{color-scheme:light;}
+.theme-dark input[type=date]{color-scheme:dark;}
+.wwidget:hover .rhandle{opacity:1!important;}
+.rhandle{opacity:0;transition:opacity .15s;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useContext,createContext}=React;
+
+// ── COLOR SYSTEM ──────────────────────────────────────
+function h2r(h){const n=parseInt((h||'#000').replace('#','').slice(0,6),16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function r2h(r,g,b){return'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');}
+function mix(h1,h2,t){const[r1,g1,b1]=h2r(h1),[r2,g2,b2]=h2r(h2);return r2h(r1+t*(r2-r1),g1+t*(g2-g1),b1+t*(b2-b1));}
+function lighten(h,n){const[r,g,b]=h2r(h);return r2h(r+n,g+n,b+n);}
+function alpha(h,a){const[r,g,b]=h2r(h);return`rgba(${r},${g},${b},${a})`;}
+
+// palette: [0]=Primary [1]=Danger [2]=Text [3]=Surface [4]=Background
+const DEFAULT_PALETTE=["#EE8434","#C95D63","#E5E5E5","#074A37","#06070E"];
+
+function buildDark([p1,p2,p3,p4,p5]){
+  const sec=lighten(p4,108);
+  const yel=mix(p1,p3,.22);
+  return{
+    bg:p5,card:mix(p5,p4,.52),cardAlt:mix(p5,p4,.37),
+    border:mix(p5,p4,.27),borderSft:mix(p5,p4,.18),inp:mix(p5,p4,.08),
+    mint:p1,mintX:alpha(p1,.12),
+    blue:sec,blueX:alpha(sec,.12),
+    pink:p2,pinkX:alpha(p2,.12),
+    yellow:yel,yellX:alpha(yel,.12),
+    text:p3,textMd:mix(p3,p5,.56),textLt:mix(p3,p5,.76),
+    overlay:alpha(p5,.90),isDark:true,
+  };
+}
+function buildLight([p1,p2,p3,p4,p5]){
+  const W='#FFFFFF';
+  const sec=mix(p4,W,.38);
+  const txt=mix(p5,p4,.55);
+  return{
+    bg:mix(p3,W,.6),card:mix(p3,W,.82),cardAlt:mix(p3,W,.42),
+    border:mix(p3,p4,.15),borderSft:mix(p3,p4,.08),inp:W,
+    mint:mix(p1,p5,.18),mintX:alpha(p1,.1),
+    blue:sec,blueX:alpha(p4,.1),
+    pink:mix(p2,p5,.15),pinkX:alpha(p2,.1),
+    yellow:mix(p1,W,.25),yellX:alpha(p1,.1),
+    text:txt,textMd:mix(txt,p3,.42),textLt:mix(txt,p3,.62),
+    overlay:'rgba(0,0,0,.5)',isDark:false,
+  };
+}
+
+function parseCoolorsUrl(url){
+  const m=url.trim().match(/([0-9a-fA-F]{6}(?:-[0-9a-fA-F]{6})+)/);
+  if(!m) return null;
+  const cols=m[1].split('-').map(h=>'#'+h.toUpperCase());
+  return cols.length>=5?cols.slice(0,5):null;
+}
+
+const TC=createContext(buildDark(DEFAULT_PALETTE));
+const useT=()=>useContext(TC);
+const F="'Helvetica Neue',Helvetica,Arial,sans-serif";
+
+// ── UTILS ──────────────────────────────────────────
+const uid=()=>Math.random().toString(36).slice(2,9);
+const toStr=d=>(d instanceof Date?d:new Date(d)).toISOString().split("T")[0];
+const fromStr=s=>new Date(s+"T12:00:00");
+const addDays=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
+const getMon=d=>{const dy=d.getDay();return addDays(d,dy===0?-6:1-dy);};
+const MFULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONS3=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+const D3=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const PC=(T)=>({low:T.mint,medium:T.yellow,high:T.pink});
+const WDEFS=[
+  {id:"calendar",label:"Calendar",icon:"◷",visible:true},
+  {id:"wakuli",  label:"Wakuli",  icon:"◈",visible:true},
+  {id:"kanban",  label:"Week",    icon:"▦",visible:true},
+  {id:"trips",   label:"Trips",   icon:"◎",visible:true},
+  {id:"goals",   label:"Goals",   icon:"◉",visible:true},
+  {id:"notes",   label:"Notes",   icon:"◫",visible:true},
+];
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1};
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink});
+
+function lg(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function ls(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+
+// ── QUICK CAPTURE PARSER ───────────────────────────
+function parseDate(text){
+  const today=new Date(),lower=text.toLowerCase();
+  if(/\btomorrow\b/.test(lower)) return toStr(addDays(today,1));
+  if(/\bnext\s+week\b/.test(lower)) return toStr(addDays(today,7));
+  const DAYS=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  for(let i=0;i<DAYS.length;i++){
+    if(lower.includes(DAYS[i])){const diff=(i-today.getDay()+7)%7||7;return toStr(addDays(today,diff));}
+  }
+  for(let m=0;m<MONS3.length;m++){
+    if(lower.includes(MONS3[m])||lower.includes(MFULL[m].toLowerCase())){
+      const match=lower.match(/(\d{1,2})/);
+      if(match){const d=new Date(today.getFullYear(),m,parseInt(match[1]));if(d<today)d.setFullYear(d.getFullYear()+1);return toStr(d);}
+    }
+  }
+  return toStr(addDays(today,7));
+}
+function parseTripText(text){
+  const lower=text.toLowerCase();
+  const rm=lower.match(/(\d{1,2})[-–](\d{1,2})/);
+  if(rm){
+    for(let m=0;m<MONS3.length;m++){
+      if(lower.includes(MONS3[m])||lower.includes(MFULL[m].toLowerCase())){
+        const yr=new Date().getFullYear(),mm=String(m+1).padStart(2,"0");
+        const dest=text.replace(new RegExp(MONS3[m]+'|'+MFULL[m],'gi'),"").replace(/\d{1,2}[-–]\d{1,2}/,"").replace(/[,!]/g,"").trim();
+        return{destination:dest||text,startDate:`${yr}-${mm}-${rm[1].padStart(2,"0")}`,endDate:`${yr}-${mm}-${rm[2].padStart(2,"0")}`};
+      }
+    }
+  }
+  return{destination:text,startDate:null,endDate:null};
+}
+function parseCapture(raw){
+  let t=raw.trim();if(!t)return null;
+  let priority="medium",recurring=null;
+  t=t.replace(/#high|#h\b/gi,()=>{priority="high";return "";})
+     .replace(/#medium|#m\b/gi,()=>{priority="medium";return "";})
+     .replace(/#low|#l\b/gi,()=>{priority="low";return "";})
+     .replace(/~weekly/gi,()=>{recurring="weekly";return "";})
+     .replace(/~monthly/gi,()=>{recurring="monthly";return "";}).trim();
+  if(/^!goal\s+/i.test(t)){const rest=t.replace(/^!goal\s+/i,"");return{type:"goal",title:rest.replace(/\bby\s+\S+/i,"").trim(),targetDate:parseDate(rest)};}
+  if(/^!trip\s+/i.test(t)){const rest=t.replace(/^!trip\s+/i,"");return{type:"trip",...parseTripText(rest)};}
+  const autoTrip=parseTripText(t);
+  if(autoTrip.startDate&&autoTrip.endDate) return{type:"trip",...autoTrip};
+  const deadline=parseDate(t);
+  const title=t.replace(/\bby\s+\S+/i,"").replace(/\bnext\s+week\b/i,"").replace(/\btomorrow\b/i,"").replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,"").trim()||t;
+  return{type:"task",title,deadline,priority,recurring};
+}
+
+// ── SHARED UI ──────────────────────────────────────
+function Card({children,style={}}){
+  const T=useT();
+  return <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:11,padding:"0.8rem",...style}}>{children}</div>;
+}
+function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
+  const T=useT();const[h,sH]=useState(false);
+  const ac=color||T.mint;
+  const bg=active?ac:danger?T.pink:primary?T.mint:ghost?"transparent":T.cardAlt;
+  const co=active||primary||danger?T.bg:color?color:T.text;
+  const bo=active||primary?ac:danger?T.pink:color?color:T.border;
+  return <button onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{
+    padding:small?"3px 8px":"6px 13px",fontSize:small?"11px":"12px",fontFamily:F,fontWeight:600,
+    background:bg,color:co,border:`1px solid ${bo}`,borderRadius:7,cursor:"pointer",
+    opacity:h?0.72:1,transition:"opacity 0.1s",whiteSpace:"nowrap",...style,
+  }}>{children}</button>;
+}
+function Badge({label,color}){
+  const T=useT();const c=color||T.mint;
+  return <span style={{background:c+"18",color:c,border:`1px solid ${c}28`,borderRadius:5,padding:"1px 6px",fontSize:10,fontWeight:700,fontFamily:F,whiteSpace:"nowrap"}}>{label}</span>;
+}
+function Lbl({children}){
+  const T=useT();
+  return <div style={{fontSize:10,fontWeight:700,color:T.textMd,fontFamily:F,marginBottom:4,letterSpacing:"0.07em",textTransform:"uppercase"}}>{children}</div>;
+}
+function Inp({value,onChange,placeholder,type="text",autoFocus,style={}}){
+  const T=useT();
+  return <input autoFocus={autoFocus} type={type} value={value} onChange={onChange} placeholder={placeholder} style={{
+    width:"100%",padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,
+    background:T.inp,color:T.text,fontSize:12,fontFamily:F,boxSizing:"border-box",outline:"none",...style,
+  }}/>;
+}
+function Txta({value,onChange,placeholder,rows=3,autoFocus,style={}}){
+  const T=useT();
+  return <textarea autoFocus={autoFocus} value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{
+    width:"100%",padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,
+    background:T.inp,color:T.text,fontSize:12,fontFamily:F,boxSizing:"border-box",outline:"none",resize:"vertical",...style,
+  }}/>;
+}
+function Empty({msg}){
+  const T=useT();
+  return <div style={{textAlign:"center",padding:"16px 0",color:T.textLt,fontFamily:F,fontSize:12}}>{msg}</div>;
+}
+function WidgetHead({id,title,icon,onPage,action}){
+  const T=useT(),wc=WCOL(T);
+  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+    <button onClick={onPage} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
+      <span style={{fontSize:12,color:wc[id]||T.mint}}>{icon}</span>
+      <span style={{fontSize:13,fontWeight:700,letterSpacing:"-0.2px",fontFamily:F}}>{title}</span>
+      <span style={{fontSize:8,color:T.textLt,marginLeft:1}}>↗</span>
+    </button>
+    {action}
+  </div>;
+}
+
+// ── MODAL SHELL ────────────────────────────────────
+function ModalShell({title,children,onClose,onSave,wide}){
+  const T=useT();
+  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:wide?640:390,maxHeight:"88vh",overflowY:"auto",padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.85rem"}}>
+        <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.2px"}}>{title}</span>
+        <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt,lineHeight:1}}>×</button>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:11}}>{children}</div>
+      {onSave&&<div style={{display:"flex",justifyContent:"flex-end",gap:6,marginTop:"0.85rem"}}>
+        <Btn onClick={onClose}>Cancel</Btn>
+        <Btn primary onClick={onSave}>Save</Btn>
+      </div>}
+    </div>
+  </div>;
+}
+
+// ── SEARCH MODAL ───────────────────────────────────
+function SearchModal({tasks,trips,goals,notes,onClose,setModal,setPage}){
+  const T=useT();
+  const [q,sQ]=useState("");
+  const lower=q.toLowerCase();
+  const res=q.length<2?[]:[
+    ...tasks.filter(t=>t.title.toLowerCase().includes(lower)).map(t=>({kind:"Task",label:t.title,sub:t.deadline,color:T.yellow,action:()=>{setModal({type:"task",data:t});onClose();}})),
+    ...trips.filter(t=>t.destination.toLowerCase().includes(lower)).map(t=>({kind:"Trip",label:t.destination,sub:`${t.startDate}→${t.endDate}`,color:T.mint,action:()=>{setPage("trips");onClose();}})),
+    ...goals.filter(g=>g.title.toLowerCase().includes(lower)).map(g=>({kind:"Goal",label:g.title,sub:`${g.progress||0}%`,color:T.blue,action:()=>{setPage("goals");onClose();}})),
+    ...(notes||[]).filter(n=>(n.content||"").toLowerCase().includes(lower)).map(n=>({kind:"Note",label:n.content.slice(0,60),sub:"",color:T.pink,action:()=>{setPage("notes");onClose();}})),
+  ].slice(0,8);
+
+  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"12vh"}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:13,width:"100%",maxWidth:460,boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
+      <div style={{padding:"10px 12px",display:"flex",gap:8,alignItems:"center",borderBottom:`1px solid ${T.border}`}}>
+        <span style={{color:T.textMd,fontSize:14}}>⌕</span>
+        <input autoFocus value={q} onChange={e=>sQ(e.target.value)} onKeyDown={e=>e.key==="Escape"&&onClose()} placeholder="Search tasks, trips, goals, notes..." style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:13,color:T.text,fontFamily:F}}/>
+        <span style={{fontSize:10,color:T.textLt,fontFamily:F}}>esc</span>
+      </div>
+      {q.length>=2&&<div style={{padding:"6px 0",maxHeight:300,overflowY:"auto"}}>
+        {res.length===0?<div style={{padding:"14px 12px",color:T.textLt,fontSize:12,fontFamily:F,textAlign:"center"}}>No results</div>:
+        res.map((r,i)=><button key={i} onClick={r.action} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"8px 12px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
+          <Badge label={r.kind} color={r.color}/>
+          <span style={{flex:1,fontSize:12,fontFamily:F,color:T.text,fontWeight:500}}>{r.label}</span>
+          {r.sub&&<span style={{fontSize:10,color:T.textMd,fontFamily:F}}>{r.sub}</span>}
+        </button>)}
+      </div>}
+      <div style={{padding:"7px 12px",borderTop:`1px solid ${T.border}`,display:"flex",gap:10}}>
+        {[["!trip dest month d1-d2","Trip"],["!goal title by date","Goal"],["#high ~weekly title","Task"]].map(([ex,l])=>(
+          <span key={l} style={{fontSize:9,color:T.textLt,fontFamily:F}}><span style={{color:T.textMd,fontWeight:700}}>{l}:</span> {ex}</span>
+        ))}
+      </div>
+    </div>
+  </div>;
+}
+
+// ── FOCUS DAY MODAL ────────────────────────────────
+function FocusDayModal({day,tasks,completions,setCompletions,setTasks,scratchpads,setScratchpads,onClose}){
+  const T=useT();const ds=toStr(day);
+  const dayTasks=tasks.filter(t=>!t.completed&&t.deadline>=ds);
+  const scratch=scratchpads[ds]||"";
+  const [localScratch,setLocalScratch]=useState(scratch);
+  const amTasks=dayTasks.filter(t=>t.timeBlock==="am");
+  const pmTasks=dayTasks.filter(t=>t.timeBlock==="pm");
+  const anyTasks=dayTasks.filter(t=>!t.timeBlock);
+  function toggle(tid){setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));}
+  function setBlock(tid,block){setTasks(p=>p.map(t=>t.id===tid?{...t,timeBlock:t.timeBlock===block?null:block}:t));}
+  function saveScratch(v){setLocalScratch(v);setScratchpads(p=>({...p,[ds]:v}));}
+  const TaskRow=({task})=>{
+    const done=completions[`${task.id}_${ds}`];
+    const pcs=PC(T);
+    return <div style={{display:"flex",alignItems:"center",gap:7,padding:"6px 8px",borderRadius:8,background:done?T.mintX:T.cardAlt,border:`1px solid ${T.borderSft}`,marginBottom:4,opacity:done?0.5:1}}>
+      <div onClick={()=>toggle(task.id)} style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${done?T.mint:pcs[task.priority]||T.mint}`,background:done?T.mint:"transparent",cursor:"pointer",flexShrink:0}}/>
+      <span style={{flex:1,fontSize:12,fontFamily:F,textDecoration:done?"line-through":"none",color:T.text}}>{task.title}</span>
+      <span style={{fontSize:9,color:T.textLt,fontFamily:F,flexShrink:0}}>{task.deadline}</span>
+      <div style={{display:"flex",gap:2}}>
+        {["am","pm"].map(b=><button key={b} onClick={()=>setBlock(task.id,b)} style={{padding:"1px 5px",borderRadius:4,fontSize:9,fontFamily:F,fontWeight:700,cursor:"pointer",background:task.timeBlock===b?T.blue+"30":"transparent",color:task.timeBlock===b?T.blue:T.textLt,border:`1px solid ${task.timeBlock===b?T.blue:T.border}`}}>{b}</button>)}
+      </div>
+    </div>;
+  };
+  const Section=({title,color,tasks:ts})=>ts.length===0?null:<div style={{marginBottom:12}}>
+    <div style={{fontSize:9,fontWeight:700,color,fontFamily:F,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{title}</div>
+    {ts.map(t=><TaskRow key={t.id} task={t}/>)}
+  </div>;
+  const d=day;
+  const label=`${D3[(d.getDay()+6)%7]}, ${MFULL[d.getMonth()]} ${d.getDate()}`;
+  return <ModalShell title={`Focus — ${label}`} onClose={onClose} wide>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div>
+        <Section title="AM" color={T.yellow} tasks={amTasks}/>
+        <Section title="PM" color={T.blue} tasks={pmTasks}/>
+        <Section title="Anytime" color={T.textMd} tasks={anyTasks}/>
+        {dayTasks.length===0&&<Empty msg="No tasks — enjoy the day"/>}
+      </div>
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:T.textMd,fontFamily:F,marginBottom:6,letterSpacing:"0.07em",textTransform:"uppercase"}}>Scratchpad</div>
+        <textarea value={localScratch} onChange={e=>saveScratch(e.target.value)} placeholder="Notes for today, intentions, ideas..."
+          style={{width:"100%",height:180,padding:"9px 10px",borderRadius:8,border:`1px solid ${T.border}`,background:T.inp,color:T.text,fontSize:12,fontFamily:F,resize:"none",outline:"none"}}/>
+        <div style={{fontSize:9,color:T.textLt,fontFamily:F,marginTop:4}}>Click AM/PM on a task to assign a time block</div>
+      </div>
+    </div>
+  </ModalShell>;
+}
+
+// ── DAILY BRIEF ────────────────────────────────────
+function DailyBrief({tasks,trips,goals}){
+  const T=useT();
+  const today=new Date(),todayStr=toStr(today),endWeek=toStr(addDays(today,7));
+  const overdue=tasks.filter(t=>!t.completed&&t.deadline<todayStr).length;
+  const thisWeek=tasks.filter(t=>!t.completed&&t.deadline>=todayStr&&t.deadline<=endWeek).length;
+  const nextTrip=trips.filter(t=>t.endDate>=todayStr).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0];
+  const daysUntil=nextTrip?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-today)/86400000)):null;
+  const goalsOn=goals.filter(g=>!g.completed&&(g.progress||0)>=50).length;
+  const goalsTotal=goals.filter(g=>!g.completed).length;
+  const parts=[];
+  if(overdue>0) parts.push({text:`${overdue} overdue`,color:T.pink});
+  if(thisWeek>0) parts.push({text:`${thisWeek} due this week`,color:T.yellow});
+  if(nextTrip) parts.push({text:`${nextTrip.destination} in ${daysUntil}d`,color:T.mint});
+  if(goalsTotal>0) parts.push({text:`${goalsOn}/${goalsTotal} goals on track`,color:T.blue});
+  if(parts.length===0) parts.push({text:"Looking clear — add something to track",color:T.textMd});
+  return <div style={{background:T.cardAlt,borderBottom:`1px solid ${T.border}`,padding:"5px 1rem",display:"flex",gap:2,alignItems:"center",overflowX:"auto"}}>
+    <span style={{fontSize:9,fontWeight:700,color:T.textMd,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase",marginRight:8,flexShrink:0}}>{today.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span>
+    {parts.map((p,i)=><React.Fragment key={i}>
+      {i>0&&<span style={{color:T.textLt,fontSize:10,flexShrink:0,padding:"0 4px"}}>·</span>}
+      <span style={{fontSize:11,color:p.color,fontFamily:F,fontWeight:500,whiteSpace:"nowrap"}}>{p.text}</span>
+    </React.Fragment>)}
+  </div>;
+}
+
+// ── QUICK CAPTURE ──────────────────────────────────
+function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
+  const T=useT();
+  const [val,sV]=useState("");
+  const [hint,sH]=useState(null);
+  function onChange(e){const v=e.target.value;sV(v);if(v.trim().length>2){const p=parseCapture(v);sH(p);}else sH(null);}
+  function onKey(e){
+    if(e.key==="Enter"&&val.trim()){
+      const p=parseCapture(val);
+      if(!p){sV("");sH(null);return;}
+      if(p.type==="task"&&p.title){setTasks(prev=>[...prev,{id:uid(),title:p.title,deadline:p.deadline,priority:p.priority,recurring:p.recurring||null,notes:"",completed:false,timeBlock:null}]);}
+      else if(p.type==="trip"&&p.startDate){setTrips(prev=>[...prev,{id:uid(),destination:p.destination,startDate:p.startDate,endDate:p.endDate,notes:"",phase:"planning",packingList:[]}]);}
+      else if(p.type==="goal"&&p.title){setGoals(prev=>[...prev,{id:uid(),title:p.title,targetDate:p.targetDate||"",description:"",progress:0,completed:false,lastTouched:null}]);}
+      else{setModal({type:p.type==="trip"?"trip":p.type==="goal"?"goal":"task"});sV("");sH(null);return;}
+      sV("");sH(null);
+    }
+    if(e.key==="Escape"){sV("");sH(null);e.target.blur();}
+  }
+  const typeColor=hint?{task:T.yellow,trip:T.mint,goal:T.blue}[hint.type]||T.textMd:T.textMd;
+  return <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`,padding:"6px 1rem"}}>
+    <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",gap:8}}>
+      <span style={{fontSize:12,color:T.textLt,flexShrink:0}}>⌘</span>
+      <input ref={captureRef} value={val} onChange={onChange} onKeyDown={onKey} placeholder='Quick capture — task, "!trip Paris apr 10-15", "!goal learn piano" → Enter' style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:12,color:T.text,fontFamily:F}}/>
+      {hint&&<span style={{fontSize:10,fontWeight:700,color:typeColor,fontFamily:F,flexShrink:0,textTransform:"uppercase",letterSpacing:"0.05em"}}>{hint.type}</span>}
+    </div>
+  </div>;
+}
+
+// ── CALENDAR ───────────────────────────────────────
+function CalendarWidget({tasks,trips,goals,pageMode}){
+  const T=useT();
+  const now=new Date(),todayStr=toStr(now);
+  const [month,setMonth]=useState(now.getMonth());
+  const [year,setYear]=useState(now.getFullYear());
+  const dIM=new Date(year,month+1,0).getDate();
+  const sP=(new Date(year,month,1).getDay()+6)%7;
+  const cells=[...Array(sP).fill(null),...Array.from({length:dIM},(_,i)=>i+1)];
+  const prev=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
+  const next=()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);};
+  const ms=`${year}-${String(month+1).padStart(2,"0")}`;
+  function dots(ds){
+    const d=[];
+    if(tasks.some(t=>!t.completed&&t.deadline===ds)) d.push(T.yellow);
+    if(trips.some(t=>ds>=t.startDate&&ds<=t.endDate)) d.push(T.mint);
+    if(goals.some(g=>g.targetDate===ds)) d.push(T.blue);
+    return d;
+  }
+  const cal=<>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <span style={{fontFamily:F,fontWeight:700,fontSize:pageMode?16:13,letterSpacing:"-0.3px"}}>{MFULL[month]} {year}</span>
+      <div style={{display:"flex",gap:3}}>
+        <Btn small onClick={prev}>‹</Btn>
+        <Btn small ghost onClick={()=>{setMonth(now.getMonth());setYear(now.getFullYear());}} style={{fontSize:9}}>Today</Btn>
+        <Btn small onClick={next}>›</Btn>
+      </div>
+    </div>
+    {/* Day header row */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
+      {["M","T","W","T","F","S","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:9,color:T.textMd,fontWeight:700,fontFamily:F,aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center"}}>{d}</div>)}
+    </div>
+    {/* Day cells — each forced square via aspectRatio */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+      {cells.map((day,idx)=>{
+        if(!day) return <div key={"p"+idx} style={{aspectRatio:"1"}}/>;
+        const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const isT=ds===todayStr,d=dots(ds);
+        return <div key={ds} style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:5,background:isT?T.mint:"transparent",cursor:"default",transition:"background 0.1s"}}>
+          <span style={{fontSize:11,lineHeight:"1",color:isT?T.bg:T.text,fontWeight:isT?700:400,fontFamily:F}}>{day}</span>
+          {d.length>0&&<div style={{display:"flex",gap:1,marginTop:2}}>
+            {d.slice(0,3).map((c,i)=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:c}}/>)}
+          </div>}
+        </div>;
+      })}
+    </div>
+    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`}}>
+      {[["Tasks",T.yellow],["Trips",T.mint],["Goals",T.blue]].map(([l,c])=>(
+        <div key={l} style={{display:"flex",alignItems:"center",gap:3}}>
+          <div style={{width:4,height:4,borderRadius:"50%",background:c}}/><span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{l}</span>
+        </div>
+      ))}
+    </div>
+  </>;
+  if(!pageMode) return cal;
+  const mT=tasks.filter(t=>!t.completed&&t.deadline&&t.deadline.startsWith(ms));
+  const mTr=trips.filter(t=>t.startDate.startsWith(ms)||t.endDate.startsWith(ms));
+  return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.6rem",alignItems:"start"}}>
+    <Card>{cal}</Card>
+    <div style={{display:"flex",flexDirection:"column",gap:7}}>
+      <Card>
+        <div style={{fontSize:10,fontWeight:700,color:T.yellow,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Tasks this month</div>
+        {mT.length===0?<Empty msg="None"/>:mT.map(t=><div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><span style={{fontSize:12,fontFamily:F}}>{t.title}</span><span style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.deadline}</span></div>)}
+      </Card>
+      <Card>
+        <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,marginBottom:7,letterSpacing:"0.06em",textTransform:"uppercase"}}>Trips this month</div>
+        {mTr.length===0?<Empty msg="None"/>:mTr.map(t=><div key={t.id} style={{padding:"4px 0",borderBottom:`1px solid ${T.borderSft}`}}><div style={{fontSize:12,fontFamily:F,fontWeight:600}}>{t.destination}</div><div style={{fontSize:10,color:T.textMd,fontFamily:F}}>{t.startDate}→{t.endDate}</div></div>)}
+      </Card>
+    </div>
+  </div>;
+}
+
+// ── KANBAN ─────────────────────────────────────────
+function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pageMode}){
+  const T=useT();
+  const [offset,setOffset]=useState(0);
+  const today=new Date(),todayStr=toStr(today);
+  const ws=addDays(getMon(today),offset*7);
+  const days=Array.from({length:7},(_,i)=>addDays(ws,i));
+  const wkLabel=offset===0?"This Week":offset===1?"Next Week":offset===-1?"Last Week":`Wk ${offset>0?"+"+offset:offset}`;
+  const max=pageMode?9:5;
+  const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline>=ds);
+  const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
+  return <>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Week Planner</span>}
+        <Badge label={wkLabel} color={T.blue}/>
+      </div>
+      <div style={{display:"flex",gap:3}}>
+        <Btn small onClick={()=>setOffset(o=>o-1)}>‹</Btn>
+        {offset!==0&&<Btn small ghost onClick={()=>setOffset(0)} style={{fontSize:9}}>Now</Btn>}
+        <Btn small onClick={()=>setOffset(o=>o+1)}>›</Btn>
+        <Btn small primary onClick={onAddTask}>+ Task</Btn>
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:pageMode?6:4}}>
+      {days.map((day,idx)=>{
+        const ds=toStr(day),isT=ds===todayStr,isPast=ds<todayStr;
+        const dayTasks=tasksForDay(ds);
+        return <div key={ds} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?130:88,background:isT?T.mintX:isPast?T.bg+"44":T.cardAlt,border:`1px solid ${isT?T.mint+"55":T.borderSft}`,opacity:isPast?0.55:1}}>
+          <div style={{textAlign:"center",marginBottom:5}}>
+            <div style={{fontSize:8,color:T.textMd,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
+            <div onClick={()=>onFocusDay(day)} title="Focus view" style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F,cursor:"pointer"}}>{day.getDate()}</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            {dayTasks.slice(0,max).map(task=>{
+              const done=completions[`${task.id}_${ds}`],isDl=task.deadline===ds;
+              const pcs=PC(T);
+              return <div key={task.id} onClick={()=>toggle(task.id,ds)} title={task.title} style={{display:"flex",alignItems:"flex-start",gap:2,padding:"2px 3px",borderRadius:4,cursor:"pointer",background:done?T.mintX:isDl?T.yellX:T.border+"33",opacity:done?0.4:1}}>
+                <div style={{width:7,height:7,borderRadius:2,flexShrink:0,marginTop:2,border:`1.5px solid ${done?T.mint:pcs[task.priority]||T.mint}`,background:done?T.mint:"transparent"}}/>
+                <span style={{fontSize:9,color:T.text,lineHeight:1.25,flex:1,fontFamily:F,textDecoration:done?"line-through":"none",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{task.title}</span>
+                {task.timeBlock&&<span style={{fontSize:7,color:T.blue,fontFamily:F,flexShrink:0,marginTop:2}}>{task.timeBlock}</span>}
+              </div>;
+            })}
+            {dayTasks.length>max&&<div style={{fontSize:8,color:T.textLt,textAlign:"center",fontFamily:F}}>+{dayTasks.length-max}</div>}
+          </div>
+        </div>;
+      })}
+    </div>
+    <div style={{marginTop:6,fontSize:9,color:T.textLt,fontFamily:F}}>Click a date to open focus view · Tick = done for that day</div>
+  </>;
+}
+
+// ── WAKULI ─────────────────────────────────────────
+function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pageMode}){
+  const T=useT();
+  const todayStr=toStr(new Date());
+  const [filter,setFilter]=useState("active");
+  const active=tasks.filter(t=>!t.completed).sort((a,b)=>a.deadline.localeCompare(b.deadline));
+  const done=tasks.filter(t=>t.completed);
+  const overdue=active.filter(t=>t.deadline<todayStr);
+  const shown=pageMode?(filter==="active"?active:filter==="overdue"?overdue:done):active.slice(0,7);
+  const focusTask=active[0];
+  const urgency=dl=>{
+    if(dl<todayStr) return{label:"Overdue",color:T.pink};
+    if(dl===todayStr) return{label:"Today",color:T.yellow};
+    const d=Math.ceil((fromStr(dl)-new Date())/86400000);
+    return d<=3?{label:`${d}d`,color:T.yellow}:{label:dl,color:T.textMd};
+  };
+  function toggleDone(id){
+    const task=tasks.find(t=>t.id===id);
+    if(task?.recurring&&!task.completed){
+      const daysAdd=task.recurring==="weekly"?7:30;
+      const newTask={...task,id:uid(),deadline:toStr(addDays(fromStr(task.deadline),daysAdd)),completed:false};
+      setTasks(p=>[...p.map(t=>t.id===id?{...t,completed:true}:t),newTask]);
+    }else{setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed}:t));}
+  }
+  function del(id){setTasks(p=>p.filter(t=>t.id!==id));}
+  const Row=({task,highlight})=>{
+    const u=urgency(task.deadline),isOver=!task.completed&&task.deadline<todayStr;
+    const pcs=PC(T);
+    return <div style={{display:"flex",gap:7,padding:"7px 8px",borderRadius:8,background:highlight?T.mintX:isOver?T.pinkX:T.cardAlt,border:`1px solid ${highlight?T.mint+"40":isOver?T.pink+"28":T.borderSft}`}}>
+      <button onClick={()=>toggleDone(task.id)} style={{width:13,height:13,borderRadius:3,flexShrink:0,marginTop:2,border:`1.5px solid ${pcs[task.priority]||T.mint}`,background:task.completed?pcs[task.priority]||T.mint:"transparent",cursor:"pointer",padding:0}}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:500,lineHeight:1.3,fontFamily:F,textDecoration:task.completed?"line-through":"none",color:task.completed?T.textMd:T.text}}>{task.title}</span>
+          {highlight&&<Badge label="Focus" color={T.mint}/>}
+          {task.recurring&&<Badge label={task.recurring} color={T.blue}/>}
+        </div>
+        {task.notes&&<div style={{fontSize:10,color:T.textMd,marginTop:1,lineHeight:1.3,fontFamily:F}}>{task.notes}</div>}
+        <div style={{display:"flex",gap:5,marginTop:3,alignItems:"center"}}>
+          <span style={{fontSize:10,color:u.color,fontFamily:F}}>{u.label}</span>
+          {task.priority&&<Badge label={task.priority} color={pcs[task.priority]||T.mint}/>}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:2,alignItems:"flex-start"}}>
+        {!task.completed&&<button onClick={()=>onEditTask(task)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:11,padding:"1px 3px",lineHeight:1}}>✎</button>}
+        <button onClick={()=>del(task.id)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+      </div>
+    </div>;
+  };
+  return <>
+    {pageMode&&<div style={{display:"flex",gap:4,marginBottom:9,alignItems:"center",flexWrap:"wrap"}}>
+      {[["active","Active"],["overdue","Overdue"],["done","Done"]].map(([v,l])=>(
+        <Btn key={v} small active={filter===v} onClick={()=>setFilter(v)}>
+          {l}{v==="overdue"&&overdue.length>0?<span style={{marginLeft:4,background:T.pink,color:T.bg,borderRadius:8,padding:"0 4px",fontSize:9,fontWeight:700}}>{overdue.length}</span>:null}
+        </Btn>
+      ))}
+      <div style={{flex:1}}/><Btn small primary onClick={onAddTask}>+ Task</Btn>
+    </div>}
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {!pageMode&&focusTask&&<Row task={focusTask} highlight={true}/>}
+      {shown.filter(t=>!(!pageMode&&t.id===focusTask?.id)).map(t=><Row key={t.id} task={t} highlight={false}/>)}
+      {shown.length===0&&<Empty msg={filter==="overdue"?"No overdue 🎉":filter==="done"?"Nothing done yet":"All clear"}/>}
+      {!pageMode&&active.length>7&&<div style={{fontSize:10,color:T.textMd,textAlign:"center",fontFamily:F,paddingTop:2}}>+{active.length-7} more</div>}
+    </div>
+    {!pageMode&&done.length>0&&<div style={{marginTop:7,paddingTop:7,borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textLt,fontFamily:F}}>{done.length} completed</div>}
+  </>;
+}
+
+// ── TRIPS ──────────────────────────────────────────
+const PHASES=["planning","booked","ongoing","done"];
+const PHASE_COLOR=(T)=>({planning:T.textMd,booked:T.blue,ongoing:T.pink,done:T.textLt});
+function dg(dest){
+  let h=0;for(let i=0;i<dest.length;i++) h=dest.charCodeAt(i)+((h<<5)-h);
+  const P=[["#1a0d05","#0d0800"],["#1a0510","#0d0208"],["#051a1a","#020d0d"],["#1a0518","#0d020c"],["#051a08","#020d04"]];
+  return P[Math.abs(h)%P.length];
+}
+function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTripSugg,loadingSugg,pageMode}){
+  const T=useT();
+  const [expanded,setExpanded]=useState(null);
+  const [packInput,setPackInput]=useState({});
+  const todayStr=toStr(new Date());
+  const sorted=[...trips].sort((a,b)=>{
+    const aFut=a.endDate>=todayStr,bFut=b.endDate>=todayStr;
+    if(aFut&&!bFut) return -1;if(!aFut&&bFut) return 1;
+    return a.startDate.localeCompare(b.startDate);
+  });
+  const shown=pageMode?sorted:sorted.filter(t=>t.endDate>=todayStr).slice(0,3);
+  const del=id=>setTrips(p=>p.filter(t=>t.id!==id));
+  const setPhase=(id,phase)=>setTrips(p=>p.map(t=>t.id===id?{...t,phase}:t));
+  const addPack=id=>{
+    const v=packInput[id]?.trim();if(!v)return;
+    setTrips(p=>p.map(t=>t.id===id?{...t,packingList:[...(t.packingList||[]),{id:uid(),item:v,packed:false}]}:t));
+    setPackInput(p=>({...p,[id]:""}));
+  };
+  const togglePack=(tid,pid)=>setTrips(p=>p.map(t=>t.id===tid?{...t,packingList:t.packingList.map(i=>i.id===pid?{...i,packed:!i.packed}:i)}:t));
+  const delPack=(tid,pid)=>setTrips(p=>p.map(t=>t.id===tid?{...t,packingList:t.packingList.filter(i=>i.id!==pid)}:t));
+  function handlePhoto(tid,e){
+    const file=e.target.files[0];if(!file)return;
+    const r=new FileReader();r.onload=ev=>setPhotos(p=>({...p,[tid]:ev.target.result}));r.readAsDataURL(file);
+  }
+  const phaseColors=PHASE_COLOR(T);
+  return <div style={{display:"flex",flexDirection:"column",gap:7}}>
+    {shown.length===0?<Empty msg="Add your first trip"/>:shown.map(trip=>{
+      const isExp=expanded===trip.id,sugg=tripSugg[trip.id],loading=loadingSugg===trip.id;
+      const isPast=trip.endDate<todayStr;
+      const daysUntil=Math.ceil((fromStr(trip.startDate)-new Date())/86400000);
+      const ongoing=daysUntil<=0&&!isPast;
+      const autoPhase=ongoing?"ongoing":isPast?"done":trip.phase||"planning";
+      const [bg1,bg2]=dg(trip.destination);
+      const customPhoto=photos[trip.id];
+      const pl=trip.packingList||[];
+      const packed=pl.filter(i=>i.packed).length;
+      return <div key={trip.id} style={{borderRadius:9,overflow:"hidden",border:`1px solid ${phaseColors[autoPhase]||T.border}22`,background:T.cardAlt}}>
+        <div style={{height:pageMode?88:68,position:"relative",background:`linear-gradient(135deg,${bg1},${bg2})`}}>
+          <img src={customPhoto||(pageMode?`https://loremflickr.com/640/176/${encodeURIComponent(trip.destination)},travel,city`:"")} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:customPhoto?0.75:0.4}} onError={e=>{e.target.style.display="none";}}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 20%,rgba(0,0,0,.7) 100%)",display:"flex",flexDirection:"column",justifyContent:"flex-end",padding:"6px 10px"}}>
+            <div style={{color:"white",fontWeight:700,fontSize:pageMode?15:12,fontFamily:F}}>{trip.destination}</div>
+            <div style={{color:"rgba(255,255,255,.65)",fontSize:9,marginTop:1,fontFamily:F}}>{trip.startDate}→{trip.endDate}</div>
+          </div>
+          <div style={{position:"absolute",top:5,right:6,display:"flex",gap:3}}>
+            <span style={{background:phaseColors[autoPhase]||T.textMd,color:"#000",borderRadius:5,padding:"2px 6px",fontSize:9,fontWeight:700,fontFamily:F,textTransform:"capitalize",opacity:0.88}}>{autoPhase}</span>
+          </div>
+          {!isPast&&!ongoing&&<div style={{position:"absolute",top:5,left:6,background:"rgba(0,0,0,.5)",color:"white",borderRadius:5,padding:"2px 6px",fontSize:9,fontWeight:700,fontFamily:F}}>in {daysUntil}d</div>}
+        </div>
+        <div style={{padding:"7px 9px"}}>
+          {trip.notes&&<p style={{fontSize:10,color:T.textMd,margin:"0 0 6px",lineHeight:1.4,fontFamily:F}}>{trip.notes}</p>}
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:isExp?8:0}}>
+            <Btn small onClick={()=>setExpanded(isExp?null:trip.id)}>{isExp?"▲":"▼"} Details</Btn>
+            {!isPast&&<Btn small primary onClick={()=>getTripSugg(trip)}>✦ {sugg?"Refresh":"AI Ideas"}</Btn>}
+            {!isPast&&PHASES.filter(ph=>ph!==autoPhase&&ph!=="done").map(ph=>(
+              <Btn key={ph} small onClick={()=>setPhase(trip.id,ph)} style={{fontSize:10}}>{ph}</Btn>
+            ))}
+            <label style={{padding:"3px 8px",borderRadius:7,fontSize:11,fontFamily:F,fontWeight:600,background:T.cardAlt,border:`1px solid ${T.border}`,cursor:"pointer",color:T.text}}>
+              📷<input type="file" accept="image/*" onChange={e=>handlePhoto(trip.id,e)} style={{display:"none"}}/>
+            </label>
+            <Btn small danger onClick={()=>del(trip.id)}>×</Btn>
+          </div>
+          {isExp&&<>
+            {!isPast&&<div style={{marginBottom:8,padding:"8px",borderRadius:8,background:T.card,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:10,fontWeight:700,color:T.textMd,fontFamily:F,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Packing {pl.length>0&&<span style={{color:packed===pl.length?T.mint:T.textMd}}>({packed}/{pl.length})</span>}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+                {pl.map(item=><div key={item.id} onClick={()=>togglePack(trip.id,item.id)} style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:100,background:item.packed?T.mintX:T.cardAlt,border:`1px solid ${item.packed?T.mint+"44":T.border}`,cursor:"pointer",textDecoration:item.packed?"line-through":"none",opacity:item.packed?0.6:1,fontSize:11,fontFamily:F,color:item.packed?T.mint:T.text}}>
+                  {item.packed?"✓ ":""}{item.item}
+                  <span onClick={e=>{e.stopPropagation();delPack(trip.id,item.id);}} style={{marginLeft:2,opacity:0.5,fontSize:12,cursor:"pointer"}}>×</span>
+                </div>)}
+              </div>
+              <div style={{display:"flex",gap:5}}>
+                <input value={packInput[trip.id]||""} onChange={e=>setPackInput(p=>({...p,[trip.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addPack(trip.id)} placeholder="Add item, press Enter" style={{flex:1,background:T.inp,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",fontSize:11,fontFamily:F,color:T.text,outline:"none"}}/>
+                <Btn small onClick={()=>addPack(trip.id)}>+</Btn>
+              </div>
+            </div>}
+            {loading&&<div style={{textAlign:"center",color:T.textMd,fontSize:11,padding:"8px 0",fontFamily:F}}>✦ Finding ideas for {trip.destination}...</div>}
+            {sugg&&!loading&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {sugg.map((s,i)=><div key={i} style={{padding:"6px 8px",borderRadius:7,background:T.card,border:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:s.tip?2:0,flexWrap:"wrap"}}><Badge label={s.category||"Tip"} color={T.mint}/><span style={{fontSize:11,fontWeight:600,fontFamily:F}}>{s.name}</span></div>
+                {s.tip&&<p style={{margin:0,fontSize:10,color:T.textMd,lineHeight:1.4,fontFamily:F}}>{s.tip}</p>}
+              </div>)}
+            </div>}
+          </>}
+        </div>
+      </div>;
+    })}
+    {!pageMode&&sorted.filter(t=>t.endDate<todayStr).length>0&&<div style={{fontSize:10,color:T.textLt,fontFamily:F,textAlign:"center"}}>{sorted.filter(t=>t.endDate<todayStr).length} past trips archived</div>}
+  </div>;
+}
+
+// ── GOALS ──────────────────────────────────────────
+function GoalsWidget({goals,setGoals,onAddGoal,pageMode}){
+  const T=useT();
+  const updProg=(id,v)=>setGoals(p=>p.map(g=>g.id===id?{...g,progress:+v,lastTouched:new Date().toISOString()}:g));
+  const toggle=id=>setGoals(p=>p.map(g=>g.id===id?{...g,completed:!g.completed}:g));
+  const del=id=>setGoals(p=>p.filter(g=>g.id!==id));
+  const active=goals.filter(g=>!g.completed),done=goals.filter(g=>g.completed);
+  function isDormant(g){
+    if(g.completed) return false;
+    const ref=g.lastTouched||g.createdAt;
+    if(!ref) return true;
+    return(new Date()-new Date(ref))>14*86400000;
+  }
+  return <>
+    {goals.length===0?<Empty msg="Set your intentions for 2026"/>:<>
+      <div style={{display:"grid",gridTemplateColumns:pageMode?"repeat(auto-fill,minmax(230px,1fr))":"repeat(auto-fill,minmax(190px,1fr))",gap:7}}>
+        {active.map(g=>{
+          const dormant=isDormant(g);
+          const prog=g.progress||0;
+          const progColor=prog<25?T.textLt:prog<75?T.yellow:T.mint;
+          return <div key={g.id} style={{padding:"9px 10px",borderRadius:9,background:T.cardAlt,border:`1px solid ${dormant?T.textLt+"22":T.borderSft}`,opacity:dormant?0.75:1}}>
+            <div style={{display:"flex",gap:7,alignItems:"flex-start"}}>
+              <button onClick={()=>toggle(g.id)} style={{width:13,height:13,borderRadius:"50%",border:`1.5px solid ${T.mint}`,background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,padding:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,lineHeight:1.3,fontFamily:F}}>{g.title}</div>
+                {g.description&&<div style={{fontSize:10,color:T.textMd,marginTop:2,lineHeight:1.35,fontFamily:F}}>{g.description}</div>}
+                {g.targetDate&&<div style={{fontSize:9,color:T.textLt,marginTop:3,fontFamily:F}}>→ {g.targetDate}</div>}
+                {dormant&&<Badge label="💤 Dormant" color={T.textMd}/>}
+              </div>
+              <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+            </div>
+            <div style={{marginTop:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>Progress</span>
+                <span style={{fontSize:9,color:progColor,fontWeight:700,fontFamily:F}}>{prog}%</span>
+              </div>
+              <div style={{position:"relative",height:3,background:T.border,borderRadius:2,marginBottom:3}}>
+                <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${prog}%`,borderRadius:2,background:`linear-gradient(to right,${T.blue},${T.mint})`,transition:"width 0.3s"}}/>
+              </div>
+              <input type="range" min={0} max={100} value={prog} onChange={e=>updProg(g.id,e.target.value)} style={{width:"100%",cursor:"pointer",margin:0,accentColor:T.mint}}/>
+            </div>
+          </div>;
+        })}
+      </div>
+      {done.length>0&&<div style={{marginTop:9,paddingTop:9,borderTop:`1px solid ${T.border}`}}>
+        <div style={{fontSize:9,color:T.textLt,fontFamily:F,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>✓ {done.length} done</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+          {done.map(g=><div key={g.id} style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:100,background:T.mintX,color:T.mint,fontSize:11,fontFamily:F,border:`1px solid ${T.mint}22`}}>
+            ✓ {g.title}
+            <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.mint,cursor:"pointer",fontSize:11,padding:0,marginLeft:2,opacity:0.5}}>×</button>
+          </div>)}
+        </div>
+      </div>}
+    </>}
+  </>;
+}
+
+// ── NOTES ──────────────────────────────────────────
+function NotesWidget({notes,setNotes,pageMode}){
+  const T=useT();
+  const [active,setActive]=useState(null);
+  const [edit,setEdit]=useState("");
+  function addNote(){const n={id:uid(),content:"",updatedAt:new Date().toISOString()};setNotes(p=>[n,...p]);setActive(n.id);setEdit("");}
+  function saveEdit(id){
+    if(!edit.trim()){setNotes(p=>p.filter(n=>n.id!==id));}
+    else{setNotes(p=>p.map(n=>n.id===id?{...n,content:edit,updatedAt:new Date().toISOString()}:n));}
+    setActive(null);
+  }
+  function openNote(n){setActive(n.id);setEdit(n.content);}
+  function delNote(id){setNotes(p=>p.filter(n=>n.id!==id));if(active===id)setActive(null);}
+  const sorted=[...notes].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+  const listed=pageMode?sorted:sorted.slice(0,4);
+  return <>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16}}>Notes</span>}
+      <Btn small primary onClick={addNote}>+ Note</Btn>
+    </div>
+    {notes.length===0?<Empty msg="A scratchpad for everything"/>:
+    <div style={{display:pageMode?"grid":"flex",gridTemplateColumns:pageMode?"repeat(auto-fill,minmax(240px,1fr))":undefined,flexDirection:pageMode?undefined:"column",gap:6}}>
+      {listed.map(n=>{
+        const isEdit2=active===n.id;
+        const preview=(n.content||"").split("\n")[0].slice(0,80)||"(empty)";
+        const daysAgo=Math.floor((new Date()-new Date(n.updatedAt))/86400000);
+        const timeLabel=daysAgo===0?"today":daysAgo===1?"yesterday":`${daysAgo}d ago`;
+        return <div key={n.id} style={{borderRadius:9,background:T.cardAlt,border:`1px solid ${T.borderSft}`,overflow:"hidden"}}>
+          {isEdit2?(
+            <div style={{padding:"8px"}}>
+              <textarea autoFocus value={edit} onChange={e=>setEdit(e.target.value)} onBlur={()=>saveEdit(n.id)} rows={5} placeholder="Write anything..." style={{width:"100%",background:"transparent",border:"none",outline:"none",color:T.text,fontSize:12,fontFamily:F,resize:"none"}}/>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginTop:4}}>
+                <Btn small onClick={()=>saveEdit(n.id)} primary>Done</Btn>
+              </div>
+            </div>
+          ):(
+            <div onClick={()=>openNote(n)} style={{padding:"8px 9px",cursor:"pointer"}}>
+              <div style={{fontSize:12,fontFamily:F,lineHeight:1.4,color:T.text,marginBottom:5}}>{preview}</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>{timeLabel}</span>
+                <button onClick={e=>{e.stopPropagation();delNote(n.id);}} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:13,lineHeight:1}}>×</button>
+              </div>
+            </div>
+          )}
+        </div>;
+      })}
+    </div>}
+    {!pageMode&&notes.length>4&&<div style={{fontSize:10,color:T.textMd,textAlign:"center",fontFamily:F,marginTop:4}}>+{notes.length-4} more</div>}
+  </>;
+}
+
+// ── MODALS ─────────────────────────────────────────
+function TaskModal({data,setTasks,onClose}){
+  const isE=!!data?.id;
+  const [title,sT]=useState(data?.title||"");
+  const [dl,sDl]=useState(data?.deadline||toStr(new Date()));
+  const [pri,sP]=useState(data?.priority||"medium");
+  const [notes,sN]=useState(data?.notes||"");
+  const [recur,sR]=useState(data?.recurring||null);
+  const [tb,sTb]=useState(data?.timeBlock||null);
+  const T=useT(),pcs=PC(T);
+  function save(){
+    if(!title.trim()) return;
+    const e={id:data?.id||uid(),title:title.trim(),deadline:dl,priority:pri,notes:notes.trim(),completed:data?.completed||false,recurring:recur,timeBlock:tb};
+    setTasks(p=>isE?p.map(t=>t.id===data.id?e:t):[...p,e]);onClose();
+  }
+  return <ModalShell title={isE?"Edit Task":"New Task"} onClose={onClose} onSave={save}>
+    <div><Lbl>Title</Lbl><Inp autoFocus value={title} onChange={e=>sT(e.target.value)} placeholder="What needs doing?"/></div>
+    <div><Lbl>Deadline</Lbl><Inp type="date" value={dl} onChange={e=>sDl(e.target.value)}/></div>
+    <div>
+      <Lbl>Priority</Lbl>
+      <div style={{display:"flex",gap:5}}>
+        {["low","medium","high"].map(p=><button key={p} onClick={()=>sP(p)} style={{flex:1,padding:"5px 0",borderRadius:6,cursor:"pointer",background:pri===p?pcs[p]+"18":"transparent",border:`1px solid ${pri===p?pcs[p]:T.border}`,color:pri===p?pcs[p]:T.textMd,fontFamily:F,fontSize:11,fontWeight:pri===p?700:400,transition:"all 0.1s"}}>{p}</button>)}
+      </div>
+    </div>
+    <div><Lbl>Recurring</Lbl><div style={{display:"flex",gap:5}}>{[null,"weekly","monthly"].map(r=><Btn key={String(r)} small active={recur===r} onClick={()=>sR(r)}>{r||"None"}</Btn>)}</div></div>
+    <div><Lbl>Time Block</Lbl><div style={{display:"flex",gap:5}}>{[null,"am","pm"].map(b=><Btn key={String(b)} small active={tb===b} onClick={()=>sTb(b)}>{b||"Anytime"}</Btn>)}</div></div>
+    <div><Lbl>Notes</Lbl><Txta value={notes} onChange={e=>sN(e.target.value)} placeholder="Context, links..."/></div>
+  </ModalShell>;
+}
+function TripModal({data,setTrips,onClose}){
+  const [dest,sD]=useState(data?.destination||"");
+  const [start,sS]=useState(data?.startDate||"");
+  const [end,sE]=useState(data?.endDate||"");
+  const [notes,sN]=useState(data?.notes||"");
+  const [phase,sPh]=useState(data?.phase||"planning");
+  const T=useT(),phc=PHASE_COLOR(T);
+  function save(){
+    if(!dest.trim()||!start||!end) return;
+    const e={id:data?.id||uid(),destination:dest.trim(),startDate:start,endDate:end,notes:notes.trim(),phase,packingList:data?.packingList||[]};
+    setTrips(p=>data?.id?p.map(t=>t.id===data.id?e:t):[...p,e]);onClose();
+  }
+  return <ModalShell title={data?.id?"Edit Trip":"New Trip"} onClose={onClose} onSave={save}>
+    <div><Lbl>Destination</Lbl><Inp autoFocus value={dest} onChange={e=>sD(e.target.value)} placeholder="e.g. Kyoto, Japan"/></div>
+    <div><Lbl>Dates</Lbl><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+      <div><div style={{fontSize:9,color:T.textLt,fontFamily:F,marginBottom:3}}>From</div><Inp type="date" value={start} onChange={e=>sS(e.target.value)}/></div>
+      <div><div style={{fontSize:9,color:T.textLt,fontFamily:F,marginBottom:3}}>To</div><Inp type="date" value={end} onChange={e=>sE(e.target.value)}/></div>
+    </div></div>
+    <div><Lbl>Phase</Lbl><div style={{display:"flex",gap:5}}>{PHASES.map(p=><Btn key={p} small active={phase===p} color={phc[p]} onClick={()=>sPh(p)}>{p}</Btn>)}</div></div>
+    <div><Lbl>Notes</Lbl><Txta value={notes} onChange={e=>sN(e.target.value)} placeholder="Plans, vibes..."/></div>
+  </ModalShell>;
+}
+function GoalModal({data,setGoals,onClose}){
+  const [title,sT]=useState(data?.title||"");
+  const [desc,sD]=useState(data?.description||"");
+  const [date,sDt]=useState(data?.targetDate||"");
+  function save(){
+    if(!title.trim()) return;
+    const e={id:data?.id||uid(),title:title.trim(),description:desc.trim(),targetDate:date,progress:data?.progress||0,completed:data?.completed||false,lastTouched:null};
+    setGoals(p=>data?.id?p.map(g=>g.id===data.id?e:g):[...p,e]);onClose();
+  }
+  return <ModalShell title={data?.id?"Edit Goal":"New Goal"} onClose={onClose} onSave={save}>
+    <div><Lbl>Goal</Lbl><Inp autoFocus value={title} onChange={e=>sT(e.target.value)} placeholder="What do you want to achieve?"/></div>
+    <div><Lbl>Description</Lbl><Txta value={desc} onChange={e=>sD(e.target.value)} placeholder="Why it matters..."/></div>
+    <div><Lbl>Target date</Lbl><Inp type="date" value={date} onChange={e=>sDt(e.target.value)}/></div>
+  </ModalShell>;
+}
+function ApiKeyModal({current,onClose,onSave}){
+  const T=useT();
+  const [key,sK]=useState(current||"");
+  return <ModalShell title="API Key" onClose={onClose} onSave={()=>onSave(key.trim())}>
+    <p style={{fontSize:11,color:T.textMd,fontFamily:F,lineHeight:1.5,margin:0}}>For AI trip suggestions. Stored locally only. Get yours at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{color:T.mint}}>console.anthropic.com</a></p>
+    <div><Lbl>Key</Lbl><Inp value={key} onChange={e=>sK(e.target.value)} placeholder="sk-ant-..." type="password"/></div>
+  </ModalShell>;
+}
+
+// ── COLOR CUSTOMIZE PANEL ──────────────────────────
+const PAL_LABELS=["Primary","Danger","Text","Surface","Background"];
+const PAL_TIPS=["CTA, highlights","Alerts, priority","Body text","Card bg tint","Page background"];
+
+function ColorCustomizePanel({palette,onApply,onClose}){
+  const T=useT();
+  const [draft,setDraft]=useState([...palette]);
+  const [urlInput,setUrlInput]=useState("");
+  const [urlErr,setUrlErr]=useState("");
+  const [urlOk,setUrlOk]=useState(false);
+
+  function parseUrl(){
+    const cols=parseCoolorsUrl(urlInput);
+    if(!cols){setUrlErr("Couldn't parse — paste a full coolors.co URL");setUrlOk(false);return;}
+    setDraft(cols);setUrlErr("");setUrlOk(true);
+    setTimeout(()=>setUrlOk(false),1800);
+  }
+
+  function updateHex(i,v){
+    const n=[...draft];n[i]=v;setDraft(n);
+  }
+
+  const prev=buildDark(draft);
+
+  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:450,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:560,padding:"1.2rem",boxShadow:"0 32px 80px rgba(0,0,0,.8)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <span style={{fontFamily:F,fontWeight:700,fontSize:16}}>🎨 Theme Colors</span>
+        <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt}}>×</button>
+      </div>
+
+      {/* Coolors URL input */}
+      <div style={{marginBottom:14}}>
+        <Lbl>Paste coolors.co palette URL</Lbl>
+        <div style={{display:"flex",gap:6}}>
+          <input value={urlInput} onChange={e=>setUrlInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseUrl()} placeholder="https://coolors.co/ee8434-c95d63-e5e5e5-074a37-06070e" style={{flex:1,padding:"8px 10px",borderRadius:7,border:`1px solid ${urlErr?T.pink:urlOk?T.mint:T.border}`,background:T.inp,color:T.text,fontSize:11,fontFamily:F,outline:"none"}}/>
+          <Btn primary small onClick={parseUrl}>Parse →</Btn>
+        </div>
+        {urlErr&&<div style={{fontSize:10,color:T.pink,marginTop:4,fontFamily:F}}>{urlErr}</div>}
+        {urlOk&&<div style={{fontSize:10,color:T.mint,marginTop:4,fontFamily:F}}>✓ Colors applied — hit Apply to save</div>}
+      </div>
+
+      {/* 5 swatches */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}}>
+        {draft.map((col,i)=>(
+          <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+            <div style={{fontFamily:F,fontSize:9,fontWeight:700,color:T.textMd,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"center"}}>{PAL_LABELS[i]}</div>
+            <div style={{width:"100%",aspectRatio:"1",borderRadius:8,background:col,border:`2px solid ${T.border}`,cursor:"pointer",position:"relative",overflow:"hidden"}} onClick={()=>document.getElementById(`cp${i}`).click()}>
+              <input id={`cp${i}`} type="color" value={col} onChange={e=>updateHex(i,e.target.value)} style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}/>
+            </div>
+            <input value={col} onChange={e=>updateHex(i,e.target.value.length===7&&e.target.value.startsWith('#')?e.target.value:col)} placeholder="#000000" style={{width:"100%",padding:"3px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.inp,color:T.text,fontSize:10,fontFamily:F,outline:"none",textAlign:"center"}}/>
+            <div style={{fontSize:8,color:T.textLt,fontFamily:F,textAlign:"center",lineHeight:1.3}}>{PAL_TIPS[i]}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mini preview */}
+      <div style={{marginBottom:14,padding:"10px",borderRadius:9,background:prev.bg,border:`1px solid ${prev.border}`}}>
+        <div style={{fontSize:9,fontWeight:700,color:prev.textMd,fontFamily:F,marginBottom:7,textTransform:"uppercase",letterSpacing:"0.06em"}}>Preview</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{width:28,height:28,borderRadius:6,background:prev.card,border:`1px solid ${prev.border}`}}/>
+          <div style={{width:28,height:28,borderRadius:6,background:prev.mint}}/>
+          <div style={{width:28,height:28,borderRadius:6,background:prev.pink}}/>
+          <div style={{width:28,height:28,borderRadius:6,background:prev.blue}}/>
+          <div style={{width:28,height:28,borderRadius:6,background:prev.yellow}}/>
+          <div style={{flex:1,height:6,borderRadius:3,background:`linear-gradient(to right,${prev.mint},${prev.blue})`}}/>
+          <span style={{fontSize:11,color:prev.text,fontFamily:F,fontWeight:500}}>Text preview</span>
+          <span style={{fontSize:11,color:prev.textMd,fontFamily:F}}>Secondary</span>
+        </div>
+      </div>
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <Btn small onClick={()=>setDraft([...DEFAULT_PALETTE])}>Reset defaults</Btn>
+        <div style={{display:"flex",gap:6}}>
+          <Btn small onClick={onClose}>Cancel</Btn>
+          <Btn primary onClick={()=>onApply(draft)}>Apply ✓</Btn>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── CUSTOMIZE PANEL ────────────────────────────────
+function CustomizePanel({widgets,setWidgets,sizes,setSizes,onClose,onOpenColors}){
+  const T=useT();
+  const dragIdx=useRef(null);
+  const toggleW=id=>setWidgets(p=>p.map(w=>w.id===id?{...w,visible:!w.visible}:w));
+  const setSize=(id,s)=>setSizes(p=>({...p,[id]:s}));
+  const onDS=i=>{dragIdx.current=i;};
+  const onDO=(e,i)=>{e.preventDefault();if(dragIdx.current===null||dragIdx.current===i)return;const from=dragIdx.current;dragIdx.current=i;setWidgets(p=>{const n=[...p];const[item]=n.splice(from,1);n.splice(i,0,item);return n;});};
+  const onDE=()=>{dragIdx.current=null;};
+  const wc=WCOL(T);
+  return <div style={{background:T.cardAlt,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem"}}>
+    <div style={{maxWidth:1400,margin:"0 auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <span style={{fontSize:10,color:T.textMd,fontFamily:F,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>Drag to reorder · click to toggle · set columns</span>
+          <Btn small onClick={onOpenColors} style={{fontSize:10}}>🎨 Colors</Btn>
+        </div>
+        <Btn small onClick={onClose}>Done ✓</Btn>
+      </div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        {widgets.map((w,i)=>(
+          <div key={w.id} style={{display:"flex",flexDirection:"column",gap:3,padding:"5px 8px",borderRadius:8,background:w.visible?wc[w.id]+"15":T.bg,border:`1px solid ${w.visible?wc[w.id]+"45":T.border}`}}>
+            <div draggable onDragStart={()=>onDS(i)} onDragOver={e=>onDO(e,i)} onDragEnd={onDE} onClick={()=>toggleW(w.id)}
+              style={{cursor:"grab",userSelect:"none",color:w.visible?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+              <span style={{opacity:0.4,fontSize:9,letterSpacing:2}}>⠿</span>{w.icon} {w.label}
+            </div>
+            <div style={{display:"flex",gap:2,alignItems:"center"}}>
+              {[1,2,3].map(s=>{const cur=sizes[w.id]||DSPAN[w.id]||1;return <button key={s} onClick={()=>setSize(w.id,s)} style={{padding:"1px 6px",borderRadius:4,fontSize:10,fontFamily:F,fontWeight:700,cursor:"pointer",background:cur===s?T.mint:T.border+"44",color:cur===s?T.bg:T.textMd,border:`1px solid ${cur===s?T.mint:T.border}`}}>{s}</button>;})}
+              <span style={{fontSize:9,color:T.textLt,fontFamily:F}}>col</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:6,fontSize:9,color:T.textLt,fontFamily:F}}>
+        Tip: drag the ⟺ handle on any widget card to resize it directly on the dashboard
+      </div>
+    </div>
+  </div>;
+}
+
+// ── APP ────────────────────────────────────────────
+function App(){
+  const [theme,setTheme]=useState(()=>lg("plo3_theme","dark"));
+  const [palette,setPalette]=useState(()=>lg("plo3_palette",DEFAULT_PALETTE));
+  const T=useMemo(()=>theme==="dark"?buildDark(palette):buildLight(palette),[theme,palette]);
+
+  const [widgets,setWidgets]=useState(()=>{
+    const s=lg("plo3_widgets",null);
+    return s?WDEFS.map(d=>({...d,...(s.find(w=>w.id===d.id)||{})})):WDEFS;
+  });
+  const [sizes,setSizes]=useState(()=>lg("plo3_sizes",{}));
+  const [tasks,setTasks]=useState(()=>lg("plo3_tasks",[]));
+  const [trips,setTrips]=useState(()=>lg("plo3_trips",[]));
+  const [goals,setGoals]=useState(()=>lg("plo3_goals",[]));
+  const [completions,setCompletions]=useState(()=>lg("plo3_completions",{}));
+  const [notes,setNotes]=useState(()=>lg("plo3_notes",[]));
+  const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
+  const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
+  const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
+
+  const [page,setPage]=useState(null);
+  const [customizing,setCustomizing]=useState(false);
+  const [showColorPanel,setShowColorPanel]=useState(false);
+  const [modal,setModal]=useState(null);
+  const [focusDay,setFocusDay]=useState(null);
+  const [searchOpen,setSearchOpen]=useState(false);
+  const [tripSugg,setTripSugg]=useState({});
+  const [loadingSugg,setLoadingSugg]=useState(null);
+  const captureRef=useRef(null);
+
+  // ── Drag-resize state ──
+  const gridRef=useRef(null);
+  const [resizing,setResizing]=useState(null); // {id, startX, startSpan}
+  const [hoveredWidget,setHoveredWidget]=useState(null);
+
+  useEffect(()=>ls("plo3_theme",theme),[theme]);
+  useEffect(()=>ls("plo3_palette",palette),[palette]);
+  useEffect(()=>ls("plo3_widgets",widgets),[widgets]);
+  useEffect(()=>ls("plo3_sizes",sizes),[sizes]);
+  useEffect(()=>ls("plo3_tasks",tasks),[tasks]);
+  useEffect(()=>ls("plo3_trips",trips),[trips]);
+  useEffect(()=>ls("plo3_goals",goals),[goals]);
+  useEffect(()=>ls("plo3_completions",completions),[completions]);
+  useEffect(()=>ls("plo3_notes",notes),[notes]);
+  useEffect(()=>ls("plo3_photos",photos),[photos]);
+  useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
+  useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
+
+  // Keyboard shortcuts
+  useEffect(()=>{
+    function onKey(e){
+      const tag=e.target.tagName;
+      if(tag==="INPUT"||tag==="TEXTAREA"){if(e.key==="Escape"){e.target.blur();}return;}
+      if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();setSearchOpen(true);return;}
+      if(modal||searchOpen||focusDay) return;
+      if(e.key==="n") setModal({type:"task"});
+      if(e.key==="t") setModal({type:"trip"});
+      if(e.key==="g") setModal({type:"goal"});
+      if(e.key==="/"||e.key===" "){e.preventDefault();setTimeout(()=>captureRef.current?.focus(),30);}
+      if(e.key==="Escape"){setPage(null);}
+    }
+    window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey);
+  },[modal,searchOpen,focusDay]);
+
+  // ── Drag resize handlers ──
+  function startResize(e,id){
+    e.preventDefault();e.stopPropagation();
+    setResizing({id,startX:e.clientX,startSpan:sizes[id]||DSPAN[id]||1});
+  }
+  useEffect(()=>{
+    if(!resizing) return;
+    function onMove(e){
+      if(!gridRef.current) return;
+      const rect=gridRef.current.getBoundingClientRect();
+      const gap=7.2; // 0.45rem * 16
+      const colW=(rect.width-2*gap)/3;
+      const snapUnit=colW+gap;
+      const delta=e.clientX-resizing.startX;
+      const newSpan=Math.max(1,Math.min(3,Math.round(resizing.startSpan+delta/snapUnit)));
+      setSizes(p=>({...p,[resizing.id]:newSpan}));
+    }
+    function onUp(){setResizing(null);}
+    window.addEventListener("mousemove",onMove);
+    window.addEventListener("mouseup",onUp);
+    return()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
+  },[resizing]);
+
+  async function getTripSugg(trip){
+    if(!apiKey){setModal({type:"apikey"});return;}
+    setLoadingSugg(trip.id);
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`Give 6 curated things to do in ${trip.destination} (${trip.startDate} to ${trip.endDate}). Mix hidden gems, local food, culture. Raw JSON only, no markdown: [{"category":"Food","name":"...","tip":"one sentence"}]`}]})});
+      const data=await res.json();
+      const text=data.content?.find(c=>c.type==="text")?.text||"[]";
+      setTripSugg(p=>({...p,[trip.id]:JSON.parse(text.replace(/```json|```/g,"").trim())}));
+    }catch{setTripSugg(p=>({...p,[trip.id]:[{category:"Note",name:"Could not generate",tip:"Check your API key"}]}));}
+    setLoadingSugg(null);
+  }
+
+  function exportICS(){
+    const f=s=>s.replace(/-/g,"");
+    let cal="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Pratham Life OS//EN\r\nCALSCALE:GREGORIAN\r\n";
+    tasks.forEach(t=>{cal+=`BEGIN:VEVENT\r\nUID:wakuli-${t.id}@plo\r\nDTSTART;VALUE=DATE:${f(t.deadline)}\r\nDTEND;VALUE=DATE:${f(t.deadline)}\r\nSUMMARY:[Wakuli] ${t.title}\r\nEND:VEVENT\r\n`;});
+    trips.forEach(t=>{cal+=`BEGIN:VEVENT\r\nUID:trip-${t.id}@plo\r\nDTSTART;VALUE=DATE:${f(t.startDate)}\r\nDTEND;VALUE=DATE:${f(t.endDate)}\r\nSUMMARY:✈ ${t.destination}\r\nEND:VEVENT\r\n`;});
+    goals.forEach(g=>{if(!g.targetDate)return;cal+=`BEGIN:VEVENT\r\nUID:goal-${g.id}@plo\r\nDTSTART;VALUE=DATE:${f(g.targetDate)}\r\nDTEND;VALUE=DATE:${f(g.targetDate)}\r\nSUMMARY:[Goal] ${g.title}\r\nEND:VEVENT\r\n`;});
+    cal+="END:VCALENDAR";
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cal],{type:"text/calendar"}));a.download="pratham-2026.ics";document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }
+  function exportJSON(){
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({tasks,trips,goals,completions,notes},null,2)],{type:"application/json"}));a.download="pratham-life-os-backup.json";document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }
+  function importJSON(){
+    const inp=document.createElement("input");inp.type="file";inp.accept=".json";
+    inp.onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.tasks)setTasks(d.tasks);if(d.trips)setTrips(d.trips);if(d.goals)setGoals(d.goals);if(d.completions)setCompletions(d.completions);if(d.notes)setNotes(d.notes);alert("✅ Restored!");}catch{alert("❌ Invalid file");}};r.readAsText(file);};
+    document.body.appendChild(inp);inp.click();document.body.removeChild(inp);
+  }
+
+  const visible=widgets.filter(w=>w.visible);
+  const wc=WCOL(T);
+
+  function addAction(id){
+    if(id==="wakuli"||id==="kanban") return <Btn small primary onClick={()=>setModal({type:"task"})}>+ Task</Btn>;
+    if(id==="trips") return <Btn small primary onClick={()=>setModal({type:"trip"})}>+ Trip</Btn>;
+    if(id==="goals") return <Btn small primary onClick={()=>setModal({type:"goal"})}>+ Goal</Btn>;
+    if(id==="notes") return <Btn small primary onClick={()=>{const n={id:uid(),content:"",updatedAt:new Date().toISOString()};setNotes(p=>[n,...p]);}}>+ Note</Btn>;
+    return null;
+  }
+
+  function widgetBody(id,pageMode=false){
+    switch(id){
+      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} pageMode={pageMode}/>;
+      case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pageMode={pageMode}/>;
+      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode}/>;
+      case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pageMode={pageMode}/>;
+      case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode}/>;
+      case "notes":    return <NotesWidget notes={notes} setNotes={setNotes} pageMode={pageMode}/>;
+      default: return null;
+    }
+  }
+
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",notes:"Notes"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",notes:"◫"};
+
+  return <TC.Provider value={T}>
+    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:resizing?"none":"auto"}}>
+
+      {/* HEADER */}
+      <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
+        <div style={{maxWidth:1400,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:2}}>
+            <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",padding:"3px 10px 3px 0",display:"flex",alignItems:"center",gap:5,color:T.text}}>
+              <span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
+              <span style={{fontFamily:F,fontSize:13,fontWeight:700,letterSpacing:"-0.3px"}}>Life OS</span>
+            </button>
+            <div style={{display:"flex",gap:1,flexWrap:"wrap"}}>
+              {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}>{WICON[w.id]} {WLABEL[w.id]}</button>;})}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:4,alignItems:"center"}}>
+            <button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}>⌕ <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>
+            <Btn small onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} style={{fontSize:11}}>{theme==="dark"?"☀️":"🌙"}</Btn>
+            <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}>{apiKey?"🔑✓":"🔑"}</Btn>
+            <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}>⊞</Btn>
+            <Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>
+            <Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>
+            <Btn small primary onClick={exportICS} style={{fontSize:10}}>📅</Btn>
+          </div>
+        </div>
+      </header>
+
+      {/* DAILY BRIEF */}
+      <DailyBrief tasks={tasks} trips={trips} goals={goals}/>
+
+      {/* QUICK CAPTURE */}
+      <QuickCapture captureRef={captureRef} setTasks={setTasks} setTrips={setTrips} setGoals={setGoals} setModal={setModal}/>
+
+      {/* CUSTOMIZE */}
+      {customizing&&<CustomizePanel widgets={widgets} setWidgets={setWidgets} sizes={sizes} setSizes={setSizes} onClose={()=>setCustomizing(false)} onOpenColors={()=>setShowColorPanel(true)}/>}
+
+      {/* CONTENT */}
+      <main style={{padding:"0.55rem 1rem",maxWidth:1400,margin:"0 auto"}}>
+        {page?(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,padding:0,display:"flex",alignItems:"center",gap:3}}>← Back</button>
+                <span style={{color:T.border,fontSize:10}}>│</span>
+                <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px",color:wc[page]}}>{WICON[page]} {WLABEL[page]}</span>
+              </div>
+              {addAction(page)}
+            </div>
+            <Card style={{padding:"0.9rem"}}>{widgetBody(page,true)}</Card>
+          </div>
+        ):visible.length===0?(
+          <div style={{textAlign:"center",padding:"60px 0",color:T.textLt}}>
+            <div style={{fontSize:28,marginBottom:8}}>⊞</div>
+            <div style={{fontFamily:F,fontSize:14}}>No widgets visible — click ⊞ to customize</div>
+          </div>
+        ):(
+          <div ref={gridRef} style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0.45rem",alignItems:"start"}}>
+            {visible.map(w=>{
+              const span=Math.min(sizes[w.id]||DSPAN[w.id]||1,3);
+              const isHov=hoveredWidget===w.id;
+              const isRes=resizing?.id===w.id;
+              return <div
+                key={w.id}
+                className="wwidget"
+                style={{gridColumn:`span ${span}`,position:"relative"}}
+                onMouseEnter={()=>setHoveredWidget(w.id)}
+                onMouseLeave={()=>!resizing&&setHoveredWidget(null)}
+              >
+                <Card style={{transition:"box-shadow 0.15s",boxShadow:isRes?`0 0 0 2px ${T.mint}55`:"none"}}>
+                  <WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>setPage(w.id)} action={addAction(w.id)}/>
+                  {widgetBody(w.id,false)}
+                </Card>
+                {/* Drag-resize handle */}
+                <div
+                  className="rhandle"
+                  onMouseDown={e=>startResize(e,w.id)}
+                  title="⟺ Drag to resize"
+                  style={{
+                    position:"absolute",right:-2,top:"10%",bottom:"10%",
+                    width:10,cursor:"col-resize",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    zIndex:20,opacity:isHov||isRes?1:0,
+                  }}
+                >
+                  <div style={{
+                    display:"flex",flexDirection:"column",gap:2,
+                    padding:"4px 2px",borderRadius:4,
+                    background:isRes?T.mint:T.cardAlt,
+                    border:`1px solid ${T.mint}`,
+                    transition:"all 0.15s",
+                  }}>
+                    {[0,1,2].map(i=><div key={i} style={{width:2,height:2,borderRadius:1,background:isRes?T.bg:T.mint}}/>)}
+                  </div>
+                </div>
+              </div>;
+            })}
+          </div>
+        )}
+        <div style={{marginTop:14,textAlign:"center",fontSize:9,color:T.textLt,fontFamily:F,letterSpacing:"0.03em"}}>
+          / or space → capture &nbsp;·&nbsp; n/t/g → new task/trip/goal &nbsp;·&nbsp; ⌘K → search &nbsp;·&nbsp; Esc → back &nbsp;·&nbsp; ⟺ drag card edge to resize
+        </div>
+      </main>
+
+      {/* MODALS */}
+      {modal?.type==="task"   &&<TaskModal   data={modal.data} setTasks={setTasks} onClose={()=>setModal(null)}/>}
+      {modal?.type==="trip"   &&<TripModal   data={modal.data} setTrips={setTrips} onClose={()=>setModal(null)}/>}
+      {modal?.type==="goal"   &&<GoalModal   data={modal.data} setGoals={setGoals} onClose={()=>setModal(null)}/>}
+      {modal?.type==="apikey" &&<ApiKeyModal current={apiKey} onClose={()=>setModal(null)} onSave={k=>{setApiKey(k);setModal(null);}}/>}
+      {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
+      {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} notes={notes} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
+      {showColorPanel&&<ColorCustomizePanel palette={palette} onApply={p=>{setPalette(p);setShowColorPanel(false);}} onClose={()=>setShowColorPanel(false)}/>}
+    </div>
+  </TC.Provider>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
