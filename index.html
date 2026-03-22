@@ -835,7 +835,7 @@ function ApiKeyModal({current,onClose,onSave}){
 
 // ── COLOR CUSTOMIZE PANEL ──────────────────────────
 const PAL_LABELS=["Primary","Danger","Text","Surface","Background"];
-const PAL_TIPS=["CTA, highlights","Alerts, priority","Body text","Card bg tint","Page background"];
+const PAL_TIPS=["CTA, highlights","Alerts, priority","Body text","Card bg tint","Page bg"];
 
 function ColorCustomizePanel({palette,onApply,onClose}){
   const T=useT();
@@ -843,22 +843,29 @@ function ColorCustomizePanel({palette,onApply,onClose}){
   const [urlInput,setUrlInput]=useState("");
   const [urlErr,setUrlErr]=useState("");
   const [urlOk,setUrlOk]=useState(false);
+  const [dragOver,setDragOver]=useState(null);
+  const dragSwatch=useRef(null);
 
   function parseUrl(){
     const cols=parseCoolorsUrl(urlInput);
     if(!cols){setUrlErr("Couldn't parse — paste a full coolors.co URL");setUrlOk(false);return;}
     setDraft(cols);setUrlErr("");setUrlOk(true);
-    setTimeout(()=>setUrlOk(false),1800);
+    setTimeout(()=>setUrlOk(false),2200);
   }
-
-  function updateHex(i,v){
-    const n=[...draft];n[i]=v;setDraft(n);
+  function updateHex(i,v){const n=[...draft];n[i]=v;setDraft(n);}
+  function onSwatchDragStart(i){dragSwatch.current=i;}
+  function onSwatchDragOver(e,i){
+    e.preventDefault();setDragOver(i);
+    if(dragSwatch.current===null||dragSwatch.current===i)return;
+    const from=dragSwatch.current;dragSwatch.current=i;
+    setDraft(p=>{const n=[...p];const[item]=n.splice(from,1);n.splice(i,0,item);return n;});
   }
+  function onSwatchDragEnd(){dragSwatch.current=null;setDragOver(null);}
 
   const prev=buildDark(draft);
 
   return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:450,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:560,padding:"1.2rem",boxShadow:"0 32px 80px rgba(0,0,0,.8)"}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto",padding:"1.2rem",boxShadow:"0 32px 80px rgba(0,0,0,.85)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <span style={{fontFamily:F,fontWeight:700,fontSize:16}}>🎨 Theme Colors</span>
         <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt}}>×</button>
@@ -872,35 +879,118 @@ function ColorCustomizePanel({palette,onApply,onClose}){
           <Btn primary small onClick={parseUrl}>Parse →</Btn>
         </div>
         {urlErr&&<div style={{fontSize:10,color:T.pink,marginTop:4,fontFamily:F}}>{urlErr}</div>}
-        {urlOk&&<div style={{fontSize:10,color:T.mint,marginTop:4,fontFamily:F}}>✓ Colors applied — hit Apply to save</div>}
+        {urlOk&&<div style={{fontSize:10,color:T.mint,marginTop:4,fontFamily:F}}>✓ Colors loaded — drag swatches to reassign roles, then Apply</div>}
       </div>
 
-      {/* 5 swatches */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}}>
+      {/* 5 draggable swatches */}
+      <div style={{marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+        <Lbl>Colours — drag to reassign roles</Lbl>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:16}}>
         {draft.map((col,i)=>(
-          <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-            <div style={{fontFamily:F,fontSize:9,fontWeight:700,color:T.textMd,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"center"}}>{PAL_LABELS[i]}</div>
-            <div style={{width:"100%",aspectRatio:"1",borderRadius:8,background:col,border:`2px solid ${T.border}`,cursor:"pointer",position:"relative",overflow:"hidden"}} onClick={()=>document.getElementById(`cp${i}`).click()}>
-              <input id={`cp${i}`} type="color" value={col} onChange={e=>updateHex(i,e.target.value)} style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}/>
+          <div key={i}
+            draggable
+            onDragStart={()=>onSwatchDragStart(i)}
+            onDragOver={e=>onSwatchDragOver(e,i)}
+            onDragEnd={onSwatchDragEnd}
+            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,userSelect:"none",
+              transition:"transform 0.1s",transform:dragOver===i?"scale(1.06)":"scale(1)"}}>
+            <div style={{fontFamily:F,fontSize:9,fontWeight:700,color:T.textMd,textTransform:"uppercase",
+              letterSpacing:"0.06em",textAlign:"center",lineHeight:1.3}}>{PAL_LABELS[i]}</div>
+            <div style={{width:"100%",aspectRatio:"1",borderRadius:9,background:col,
+              border:`2px solid ${dragOver===i?T.mint:T.border}`,
+              cursor:"grab",position:"relative",overflow:"hidden",
+              boxShadow:dragOver===i?`0 0 0 3px ${T.mint}44`:"none",
+              transition:"border-color 0.1s,box-shadow 0.1s"}}
+              onClick={()=>document.getElementById(`cp${i}`).click()}>
+              <input id={`cp${i}`} type="color" value={col} onChange={e=>updateHex(i,e.target.value)}
+                style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}/>
+              <div style={{position:"absolute",top:4,right:5,fontSize:9,opacity:0.55,
+                color:"#fff",textShadow:"0 1px 3px rgba(0,0,0,.8)",pointerEvents:"none"}}>⠿</div>
             </div>
-            <input value={col} onChange={e=>updateHex(i,e.target.value.length===7&&e.target.value.startsWith('#')?e.target.value:col)} placeholder="#000000" style={{width:"100%",padding:"3px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.inp,color:T.text,fontSize:10,fontFamily:F,outline:"none",textAlign:"center"}}/>
+            <input value={col}
+              onChange={e=>updateHex(i,e.target.value.length===7&&e.target.value.startsWith('#')?e.target.value:col)}
+              placeholder="#000000"
+              style={{width:"100%",padding:"3px 5px",borderRadius:5,border:`1px solid ${T.border}`,
+                background:T.inp,color:T.text,fontSize:10,fontFamily:F,outline:"none",textAlign:"center"}}/>
             <div style={{fontSize:8,color:T.textLt,fontFamily:F,textAlign:"center",lineHeight:1.3}}>{PAL_TIPS[i]}</div>
           </div>
         ))}
       </div>
 
-      {/* Mini preview */}
-      <div style={{marginBottom:14,padding:"10px",borderRadius:9,background:prev.bg,border:`1px solid ${prev.border}`}}>
-        <div style={{fontSize:9,fontWeight:700,color:prev.textMd,fontFamily:F,marginBottom:7,textTransform:"uppercase",letterSpacing:"0.06em"}}>Preview</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-          <div style={{width:28,height:28,borderRadius:6,background:prev.card,border:`1px solid ${prev.border}`}}/>
-          <div style={{width:28,height:28,borderRadius:6,background:prev.mint}}/>
-          <div style={{width:28,height:28,borderRadius:6,background:prev.pink}}/>
-          <div style={{width:28,height:28,borderRadius:6,background:prev.blue}}/>
-          <div style={{width:28,height:28,borderRadius:6,background:prev.yellow}}/>
-          <div style={{flex:1,height:6,borderRadius:3,background:`linear-gradient(to right,${prev.mint},${prev.blue})`}}/>
-          <span style={{fontSize:11,color:prev.text,fontFamily:F,fontWeight:500}}>Text preview</span>
-          <span style={{fontSize:11,color:prev.textMd,fontFamily:F}}>Secondary</span>
+      {/* Rich live preview */}
+      <div style={{marginBottom:14}}>
+        <Lbl>Live preview</Lbl>
+        <div style={{borderRadius:10,background:prev.bg,border:`1px solid ${prev.border}`,padding:"11px",overflow:"hidden"}}>
+          {/* Fake topbar */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9,
+            paddingBottom:8,borderBottom:`1px solid ${prev.border}`}}>
+            <span style={{fontFamily:F,fontWeight:700,fontSize:11,color:prev.text,letterSpacing:"-0.3px"}}>Pratham's Life OS</span>
+            <div style={{display:"flex",gap:5,alignItems:"center"}}>
+              <div style={{padding:"2px 7px",borderRadius:4,background:prev.mint,fontSize:8,fontFamily:F,
+                color:prev.bg,fontWeight:700}}>+ Add</div>
+              <div style={{width:5,height:5,borderRadius:"50%",background:prev.pink}}/>
+              <div style={{width:5,height:5,borderRadius:"50%",background:prev.yellow}}/>
+              <div style={{width:5,height:5,borderRadius:"50%",background:prev.mint}}/>
+            </div>
+          </div>
+          {/* Two fake cards */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            {/* Tasks card */}
+            <div style={{background:prev.card,border:`1px solid ${prev.border}`,borderRadius:8,padding:"8px"}}>
+              <div style={{fontSize:8,fontWeight:700,color:prev.mint,fontFamily:F,marginBottom:7,
+                textTransform:"uppercase",letterSpacing:"0.08em"}}>◷ Tasks</div>
+              {[{t:"Thesis chapter draft",p:prev.pink,done:false},
+                {t:"Seminar reading",p:prev.yellow,done:true},
+                {t:"Run 5km",p:prev.mint,done:false}].map((r,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:5,marginBottom:5,opacity:r.done?0.45:1}}>
+                  <div style={{width:8,height:8,borderRadius:2,border:`1.5px solid ${r.p}`,
+                    background:r.done?r.p:"transparent",flexShrink:0}}/>
+                  <span style={{fontSize:9,fontFamily:F,color:prev.text,flex:1,
+                    textDecoration:r.done?"line-through":"none"}}>{r.t}</span>
+                  <div style={{width:4,height:4,borderRadius:"50%",background:r.p,flexShrink:0}}/>
+                </div>
+              ))}
+              <div style={{marginTop:5,height:2,borderRadius:2,
+                background:`linear-gradient(to right,${prev.mint},${prev.blue})`}}/>
+            </div>
+            {/* Goals card */}
+            <div style={{background:prev.card,border:`1px solid ${prev.border}`,borderRadius:8,padding:"8px"}}>
+              <div style={{fontSize:8,fontWeight:700,color:prev.blue,fontFamily:F,marginBottom:7,
+                textTransform:"uppercase",letterSpacing:"0.08em"}}>◉ Goals</div>
+              {[{t:"Master thesis",v:72,c:prev.mint},{t:"Learn Farsi",v:38,c:prev.blue},{t:"Save €3k",v:55,c:prev.yellow}].map((g,i)=>(
+                <div key={i} style={{marginBottom:6}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                    <span style={{fontSize:9,fontFamily:F,color:prev.text}}>{g.t}</span>
+                    <span style={{fontSize:8,fontFamily:F,color:prev.textMd}}>{g.v}%</span>
+                  </div>
+                  <div style={{height:3,borderRadius:2,background:prev.bg}}>
+                    <div style={{height:"100%",width:`${g.v}%`,borderRadius:2,background:g.c,
+                      transition:"width 0.3s"}}/>
+                  </div>
+                </div>
+              ))}
+              <div style={{display:"flex",gap:3,marginTop:4}}>
+                <div style={{padding:"1px 6px",borderRadius:4,background:prev.mintX,
+                  border:`1px solid ${prev.mint}30`,fontSize:8,fontFamily:F,color:prev.mint,fontWeight:700}}>On track</div>
+                <div style={{padding:"1px 6px",borderRadius:4,background:prev.pinkX,
+                  border:`1px solid ${prev.pink}30`,fontSize:8,fontFamily:F,color:prev.pink,fontWeight:700}}>Behind</div>
+              </div>
+            </div>
+          </div>
+          {/* Button + text row */}
+          <div style={{display:"flex",gap:5,alignItems:"center",paddingTop:7,
+            borderTop:`1px solid ${prev.border}`}}>
+            <div style={{padding:"3px 9px",borderRadius:6,background:prev.mint,
+              fontSize:9,fontFamily:F,color:prev.bg,fontWeight:700}}>Primary</div>
+            <div style={{padding:"3px 9px",borderRadius:6,background:prev.cardAlt,
+              border:`1px solid ${prev.border}`,fontSize:9,fontFamily:F,color:prev.text}}>Secondary</div>
+            <div style={{padding:"3px 9px",borderRadius:6,background:prev.pinkX,
+              border:`1px solid ${prev.pink}44`,fontSize:9,fontFamily:F,color:prev.pink,fontWeight:700}}>Danger</div>
+            <span style={{marginLeft:"auto",fontSize:9,fontFamily:F,color:prev.text,fontWeight:500}}>Body text</span>
+            <span style={{fontSize:9,fontFamily:F,color:prev.textMd}}>Secondary</span>
+            <span style={{fontSize:9,fontFamily:F,color:prev.textLt}}>Muted</span>
+          </div>
         </div>
       </div>
 
