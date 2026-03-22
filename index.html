@@ -158,14 +158,14 @@ const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,notes:1};
 const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,notes:T.pink});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
-const GCOLS=8,GROW_H=64,GGAP=6;
+const GCOLS=16,GROW_H=96,GGAP=8;
 const DEFAULT_LAYOUT={
-  calendar:{col:1,row:1,cS:3,rS:6},
-  wakuli:  {col:4,row:1,cS:3,rS:5},
-  kanban:  {col:7,row:1,cS:2,rS:6},
-  trips:   {col:1,row:7,cS:3,rS:5},
-  goals:   {col:4,row:6,cS:3,rS:5},
-  notes:   {col:7,row:7,cS:2,rS:4},
+  calendar:{col:1, row:1,cS:5, rS:6},
+  wakuli:  {col:6, row:1,cS:6, rS:5},
+  kanban:  {col:12,row:1,cS:5, rS:6},
+  trips:   {col:1, row:7,cS:6, rS:5},
+  goals:   {col:7, row:7,cS:5, rS:5},
+  notes:   {col:12,row:7,cS:5, rS:4},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -451,7 +451,7 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
   }
   const typeColor=hint?{task:T.yellow,trip:T.mint,goal:T.blue}[hint.type]||T.textMd:T.textMd;
   return <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`,padding:"6px 1rem"}}>
-    <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",gap:8}}>
+    <div style={{margin:"0 auto",display:"flex",alignItems:"center",gap:8}}>
       <span style={{fontSize:12,color:T.textLt,flexShrink:0}}>⌘</span>
       <input ref={captureRef} value={val} onChange={onChange} onKeyDown={onKey} placeholder='Quick capture — task, "!trip Paris apr 10-15", "!goal learn piano" → Enter' style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:12,color:T.text,fontFamily:F}}/>
       {hint&&<span style={{fontSize:10,fontWeight:700,color:typeColor,fontFamily:F,flexShrink:0,textTransform:"uppercase",letterSpacing:"0.05em"}}>{hint.type}</span>}
@@ -1292,8 +1292,8 @@ function CustomizePanel({widgets,setWidgets,onResetLayout,onClose,onOpenColors})
   const T=useT();
   const toggleW=id=>setWidgets(p=>p.map(w=>w.id===id?{...w,visible:!w.visible}:w));
   const wc=WCOL(T);
-  return <div style={{background:T.cardAlt,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem"}}>
-    <div style={{maxWidth:1400,margin:"0 auto"}}>
+  return <div style={{background:T.cardAlt,borderBottom:`1px solid ${T.border}`,padding:"7px 1.5rem"}}>
+    <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <span style={{fontSize:10,color:T.textMd,fontFamily:F,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>Click to show/hide · ⠿ drag header to move · drag edges/corner to resize</span>
@@ -1630,7 +1630,7 @@ function App(){
 
       {/* HEADER */}
       <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
-        <div style={{maxWidth:1400,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:2}}>
             <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",padding:"3px 10px 3px 0",display:"flex",alignItems:"center",gap:5,color:T.text}}>
               <span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
@@ -1665,7 +1665,7 @@ function App(){
       {customizing&&<CustomizePanel widgets={widgets} setWidgets={setWidgets} onResetLayout={()=>setLayout(DEFAULT_LAYOUT)} onClose={()=>setCustomizing(false)} onOpenColors={()=>setShowColorPanel(true)}/>}
 
       {/* CONTENT */}
-      <main style={{padding:"0.55rem 1rem",maxWidth:1400,margin:"0 auto"}}>
+      <main style={{padding:"0.55rem 1.5rem"}}>
         {page?(
           <div key={page} className="fade-up">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
