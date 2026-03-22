@@ -847,10 +847,13 @@ function BingoCard({bingo,setBingo,pageMode}){
                 </div>}
           </div>}
           {/* Widget mode mini label */}
-          {!pageMode&&!done&&cell.label&&<div style={{
-            position:"absolute",bottom:2,left:1,right:1,
-            textAlign:"center",fontSize:6,fontFamily:F,color:T.textLt,
-            lineHeight:1.1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",
+          {!pageMode&&cell.label&&<div style={{
+            position:"absolute",inset:"0 1px",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            textAlign:"center",fontSize:6.5,fontFamily:F,fontWeight:700,
+            color:done?T.mint:T.text,
+            lineHeight:1.15,overflow:"hidden",padding:"2px",
+            wordBreak:"break-word",zIndex:1,
           }}>{cell.label}</div>}
         </div>;
       })}
