@@ -1125,6 +1125,92 @@ function CustomizePanel({widgets,setWidgets,onResetLayout,onClose,onOpenColors})
   </div>;
 }
 
+// ── GIST SYNC ──────────────────────────────────────
+const GIST_FILE="pratham-life-os.json";
+async function gistFetch(token,id){
+  const r=await fetch(`https://api.github.com/gists/${id}`,
+    {headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json"}});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const d=await r.json();
+  const c=d.files[GIST_FILE]?.content;
+  if(!c)return {};
+  return JSON.parse(c);
+}
+async function gistPush(token,id,payload){
+  const r=await fetch(`https://api.github.com/gists/${id}`,{
+    method:"PATCH",
+    headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},
+    body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(payload,null,2)}}})
+  });
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+}
+async function gistCreate(token){
+  const r=await fetch("https://api.github.com/gists",{
+    method:"POST",
+    headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},
+    body:JSON.stringify({description:"Life OS – synced data",public:false,
+      files:{[GIST_FILE]:{content:JSON.stringify({})}}})
+  });
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const d=await r.json();return d.id;
+}
+function applyGistData(data,setters){
+  const{setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads}=setters;
+  if(data.tasks)       setTasks(data.tasks);
+  if(data.trips)       setTrips(data.trips);
+  if(data.goals)       setGoals(data.goals);
+  if(data.completions) setCompletions(data.completions);
+  if(data.notes)       setNotes(data.notes);
+  if(data.photos)      setPhotos(data.photos);
+  if(data.scratchpads) setScratchpads(data.scratchpads);
+}
+
+function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onConnect}){
+  const T=useContext(TC);
+  const[tok,setTok]=useState(syncToken);
+  const[gid,setGid]=useState(syncGistId);
+  const[busy,setBusy]=useState(false);
+  const[err,setErr]=useState("");
+  async function handle(){
+    if(!tok.trim()){setErr("A GitHub token is required.");return;}
+    setBusy(true);setErr("");
+    try{
+      let id=gid.trim();
+      if(!id){id=await gistCreate(tok.trim());}
+      const data=await gistFetch(tok.trim(),id);
+      setSyncToken(tok.trim());setSyncGistId(id);
+      onConnect(data);onClose();
+    }catch(e){setErr(""+e.message);}
+    finally{setBusy(false);}
+  }
+  const inp={background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 10px",
+    color:T.text,fontFamily:F,fontSize:12,width:"100%",boxSizing:"border-box",outline:"none"};
+  return <ModalShell title="☁ Cloud Sync" onClose={onClose}>
+    <p style={{fontSize:12,color:T.textMd,marginBottom:12,lineHeight:1.6}}>
+      Sync your data across devices using a private GitHub Gist.<br/>
+      You'll need a <b>Personal Access Token</b> with <code style={{background:T.cardAlt,borderRadius:4,padding:"1px 4px"}}>gist</code> scope — create one at <span style={{color:T.mint}}>github.com → Settings → Developer settings → Tokens</span>.
+    </p>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>GitHub Personal Access Token</label>
+    <input value={tok} onChange={e=>setTok(e.target.value)} placeholder="ghp_…" style={{...inp,marginBottom:10}} type="password" autoComplete="off"/>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>
+      Gist ID <span style={{opacity:0.55,fontWeight:400}}>(leave blank to create a new private Gist)</span>
+    </label>
+    <input value={gid} onChange={e=>setGid(e.target.value)} placeholder="e.g. a1b2c3d4e5f6…" style={{...inp,marginBottom:14}} autoComplete="off"/>
+    {err&&<div style={{fontSize:11,color:"#f87171",marginBottom:10,padding:"6px 9px",background:"#f871711a",borderRadius:6}}>{err}</div>}
+    <div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center"}}>
+      {syncGistId&&<Btn small onClick={()=>{setSyncToken("");setSyncGistId("");onClose();}} style={{color:"#f87171"}}>Disconnect</Btn>}
+      <span style={{flex:1}}/>
+      <Btn small onClick={onClose}>Cancel</Btn>
+      <Btn small primary onClick={handle} disabled={busy}>
+        {busy?"Connecting…":gid.trim()?"Connect":"Create & Connect"}
+      </Btn>
+    </div>
+    {syncGistId&&<div style={{marginTop:12,padding:"8px 10px",background:T.cardAlt,borderRadius:7,fontSize:10,color:T.textMd,wordBreak:"break-all"}}>
+      <span style={{opacity:0.6}}>Gist ID: </span>{syncGistId}
+    </div>}
+  </ModalShell>;
+}
+
 // ── APP ────────────────────────────────────────────
 function App(){
   const [theme,setTheme]=useState(()=>lg("plo3_theme","dark"));
@@ -1144,6 +1230,14 @@ function App(){
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
+
+  // ── Cloud sync ──
+  const [syncToken,setSyncToken]=useState(()=>lg("plo3_sync_token",""));
+  const [syncGistId,setSyncGistId]=useState(()=>lg("plo3_sync_gist",""));
+  const [syncStatus,setSyncStatus]=useState("idle"); // idle|loading|ok|err
+  const [showSyncModal,setShowSyncModal]=useState(false);
+  const syncTimerRef=useRef(null);
+  const syncReadyRef=useRef(false); // prevents push before initial load
 
   const [page,setPage]=useState(null);
   const [customizing,setCustomizing]=useState(false);
@@ -1177,6 +1271,33 @@ function App(){
   useEffect(()=>ls("plo3_photos",photos),[photos]);
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
+  useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
+  useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
+
+  // Load from Gist on mount
+  useEffect(()=>{
+    if(!syncToken||!syncGistId){syncReadyRef.current=true;return;}
+    setSyncStatus("loading");
+    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads};
+    gistFetch(syncToken,syncGistId)
+      .then(data=>{applyGistData(data,setters);setSyncStatus("ok");})
+      .catch(()=>setSyncStatus("err"))
+      .finally(()=>{syncReadyRef.current=true;});
+  },[]);// eslint-disable-line
+
+  // Auto-push on data changes (debounced 2.5s)
+  useEffect(()=>{
+    if(!syncReadyRef.current||!syncToken||!syncGistId)return;
+    clearTimeout(syncTimerRef.current);
+    setSyncStatus("loading");
+    syncTimerRef.current=setTimeout(()=>{
+      const payload={tasks,trips,goals,completions,notes,photos,scratchpads};
+      gistPush(syncToken,syncGistId,payload)
+        .then(()=>setSyncStatus("ok"))
+        .catch(()=>setSyncStatus("err"));
+    },2500);
+    return()=>clearTimeout(syncTimerRef.current);
+  },[tasks,trips,goals,completions,notes,photos,scratchpads]);// eslint-disable-line
 
   // Keyboard shortcuts
   useEffect(()=>{
@@ -1328,6 +1449,9 @@ function App(){
             <button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}>⌕ <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>
             <Btn small onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} style={{fontSize:11}}>{theme==="dark"?"☀️":"🌙"}</Btn>
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}>{apiKey?"🔑✓":"🔑"}</Btn>
+            <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
+              {syncStatus==="loading"?"⟳":syncGistId?"☁✓":"☁"}
+            </Btn>
             <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}>⊞</Btn>
             <Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>
             <Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>
@@ -1420,6 +1544,17 @@ function App(){
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
       {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} notes={notes} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
       {showColorPanel&&<ColorCustomizePanel palette={palette} onApply={p=>{setPalette(p);setShowColorPanel(false);}} onClose={()=>setShowColorPanel(false)}/>}
+      {showSyncModal&&<SyncModal
+        onClose={()=>setShowSyncModal(false)}
+        syncToken={syncToken} setSyncToken={setSyncToken}
+        syncGistId={syncGistId} setSyncGistId={setSyncGistId}
+        onConnect={data=>{
+          const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setPhotos,setScratchpads};
+          applyGistData(data,setters);
+          setSyncStatus("ok");
+          syncReadyRef.current=true;
+        }}
+      />}
     </div>
   </TC.Provider>;
 }
