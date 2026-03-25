@@ -11,14 +11,16 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Life OS"/>
 <link rel="apple-touch-icon" href="icon.svg"/>
+<link rel="stylesheet" href="https://fonts.bunny.net/css?family=geist:300,400,500,600,700,800,900&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body,#root{height:100%;min-height:100vh;}
-body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;}
-input,textarea,button,select{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;}
+body{font-family:'Geist','Helvetica Neue',system-ui,sans-serif;}
+input,textarea,button,select{font-family:'Geist','Helvetica Neue',system-ui,sans-serif;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:2px;}
@@ -91,6 +93,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .bingo-cell-pop{animation:cellPop .35s cubic-bezier(.34,1.56,.64,1) both}
 .bingo-line-cell{animation:bingoFlash 2s ease infinite}
 .bingo-check{animation:checkDrop .3s cubic-bezier(.34,1.56,.64,1) .05s both}
+
+/* ── NOISE OVERLAY ──────────────────────────────── */
+.noise-layer{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.032;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-repeat:repeat;background-size:256px 256px;}
 </style>
 </head>
 <body>
@@ -160,7 +165,10 @@ function parseCoolorsUrl(url){
 
 const TC=createContext(buildDark(DEFAULT_PALETTE));
 const useT=()=>useContext(TC);
-const F="'Helvetica Neue',Helvetica,Arial,sans-serif";
+const F="'Geist','Helvetica Neue',system-ui,sans-serif";
+
+// ── ICON HELPER ─────────────────────────────────────
+const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
 
 // ── UTILS ──────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -282,7 +290,7 @@ function Card({children,style={},lift=true,glass=false}){
   const bg=glass?T.cardGlass:T.card;
   const bd=glass?alpha(T.border,.55):T.border;
   const glassExtra=glass?{backdropFilter:"blur(20px) saturate(1.5)",WebkitBackdropFilter:"blur(20px) saturate(1.5)"}:{};
-  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:11,padding:"0.8rem",...glassExtra,...style}}>{children}</div>;
+  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"0.85rem",...glassExtra,...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
   const T=useT();const[h,sH]=useState(false);
@@ -332,8 +340,8 @@ function WidgetHead({id,title,icon,onPage,action}){
   const T=useT(),wc=WCOL(T);
   return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
     <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
-      <span style={{fontSize:12,color:wc[id]||T.mint,transition:"transform .2s"}}>{icon}</span>
-      <span style={{fontSize:13,fontWeight:700,letterSpacing:"-0.2px",fontFamily:F}}>{title}</span>
+      <span style={{color:wc[id]||T.mint,transition:"transform .2s",display:"flex"}}><Ico n={icon} size={12}/></span>
+      <span style={{fontSize:12,fontWeight:600,letterSpacing:"-0.2px",fontFamily:F}}>{title}</span>
       <span style={{fontSize:8,color:T.textLt,marginLeft:1,transition:"opacity .15s"}}>↗</span>
     </button>
     {action}
@@ -453,26 +461,34 @@ function FocusDayModal({day,tasks,completions,setCompletions,setTasks,scratchpad
 // ── DAILY BRIEF ────────────────────────────────────
 // ── GREETING HEADER ────────────────────────────────
 const DAILY_GREETINGS=[
-  {lang:"English",    morning:"Good morning",       afternoon:"Good afternoon",    evening:"Good evening"},
-  {lang:"Dutch",      morning:"Goedemorgen",        afternoon:"Goedemiddag",       evening:"Goedenavond"},
-  {lang:"French",     morning:"Bonjour",            afternoon:"Bon après-midi",    evening:"Bonsoir"},
-  {lang:"Japanese",   morning:"おはようございます",    afternoon:"こんにちは",          evening:"こんばんは"},
-  {lang:"Hindi",      morning:"सुप्रभात",             afternoon:"नमस्ते",             evening:"शुभ संध्या"},
-  {lang:"Spanish",    morning:"Buenos días",        afternoon:"Buenas tardes",     evening:"Buenas noches"},
-  {lang:"Portuguese", morning:"Bom dia",            afternoon:"Boa tarde",         evening:"Boa noite"},
-  {lang:"Italian",    morning:"Buongiorno",         afternoon:"Buon pomeriggio",   evening:"Buonasera"},
-  {lang:"German",     morning:"Guten Morgen",       afternoon:"Guten Tag",         evening:"Guten Abend"},
-  {lang:"Mandarin",   morning:"早上好",               afternoon:"下午好",             evening:"晚上好"},
-  {lang:"Arabic",     morning:"صباح الخير",          afternoon:"مساء الخير",        evening:"مساء النور"},
-  {lang:"Korean",     morning:"좋은 아침이에요",        afternoon:"안녕하세요",          evening:"좋은 저녁이에요"},
-  {lang:"Russian",    morning:"Доброе утро",         afternoon:"Добрый день",       evening:"Добрый вечер"},
-  {lang:"Turkish",    morning:"Günaydın",           afternoon:"İyi günler",        evening:"İyi akşamlar"},
-  {lang:"Bengali",    morning:"শুভ সকাল",             afternoon:"শুভ দুপুর",           evening:"শুভ সন্ধ্যা"},
-  {lang:"Swahili",    morning:"Habari za asubuhi",  afternoon:"Habari za mchana",  evening:"Habari za jioni"},
-  {lang:"Greek",      morning:"Καλημέρα",            afternoon:"Καλημέρα",          evening:"Καλησπέρα"},
-  {lang:"Indonesian", morning:"Selamat pagi",       afternoon:"Selamat siang",     evening:"Selamat malam"},
-  {lang:"Vietnamese", morning:"Chào buổi sáng",     afternoon:"Chào buổi chiều",   evening:"Chào buổi tối"},
-  {lang:"Tagalog",    morning:"Magandang umaga",    afternoon:"Magandang hapon",   evening:"Magandang gabi"},
+  {lang:"English",    morning:"Good morning",         afternoon:"Good afternoon",      evening:"Good evening"},
+  {lang:"Dutch",      morning:"Goedemorgen",          afternoon:"Goedemiddag",         evening:"Goedenavond"},
+  {lang:"French",     morning:"Bonjour",              afternoon:"Bon après-midi",      evening:"Bonsoir"},
+  {lang:"Japanese",   morning:"Ohayou gozaimasu",     afternoon:"Konnichiwa",          evening:"Konbanwa",
+   script:{morning:"おはようございます",afternoon:"こんにちは",evening:"こんばんは"}},
+  {lang:"Hindi",      morning:"Suprabhat",            afternoon:"Namaste",             evening:"Shubh sandhya",
+   script:{morning:"सुप्रभात",afternoon:"नमस्ते",evening:"शुभ संध्या"}},
+  {lang:"Spanish",    morning:"Buenos días",          afternoon:"Buenas tardes",       evening:"Buenas noches"},
+  {lang:"Portuguese", morning:"Bom dia",              afternoon:"Boa tarde",           evening:"Boa noite"},
+  {lang:"Italian",    morning:"Buongiorno",           afternoon:"Buon pomeriggio",     evening:"Buonasera"},
+  {lang:"German",     morning:"Guten Morgen",         afternoon:"Guten Tag",           evening:"Guten Abend"},
+  {lang:"Mandarin",   morning:"Zǎoshang hǎo",         afternoon:"Xiàwǔ hǎo",          evening:"Wǎnshàng hǎo",
+   script:{morning:"早上好",afternoon:"下午好",evening:"晚上好"}},
+  {lang:"Arabic",     morning:"Sabah al-khayr",       afternoon:"Masa al-khayr",       evening:"Masa al-noor",
+   script:{morning:"صباح الخير",afternoon:"مساء الخير",evening:"مساء النور"}},
+  {lang:"Korean",     morning:"Joeun achim ieyo",     afternoon:"Annyeonghaseyo",      evening:"Joeun jeonyeok ieyo",
+   script:{morning:"좋은 아침이에요",afternoon:"안녕하세요",evening:"좋은 저녁이에요"}},
+  {lang:"Russian",    morning:"Dobroye utro",         afternoon:"Dobryy den",          evening:"Dobryy vecher",
+   script:{morning:"Доброе утро",afternoon:"Добрый день",evening:"Добрый вечер"}},
+  {lang:"Turkish",    morning:"Günaydın",             afternoon:"İyi günler",          evening:"İyi akşamlar"},
+  {lang:"Bengali",    morning:"Shubho shokal",        afternoon:"Shubho dupur",        evening:"Shubho shondha",
+   script:{morning:"শুভ সকাল",afternoon:"শুভ দুপুর",evening:"শুভ সন্ধ্যা"}},
+  {lang:"Swahili",    morning:"Habari za asubuhi",    afternoon:"Habari za mchana",    evening:"Habari za jioni"},
+  {lang:"Greek",      morning:"Kaliméra",             afternoon:"Kaliméra",            evening:"Kalispéra",
+   script:{morning:"Καλημέρα",afternoon:"Καλημέρα",evening:"Καλησπέρα"}},
+  {lang:"Indonesian", morning:"Selamat pagi",         afternoon:"Selamat siang",       evening:"Selamat malam"},
+  {lang:"Vietnamese", morning:"Chào buổi sáng",       afternoon:"Chào buổi chiều",     evening:"Chào buổi tối"},
+  {lang:"Tagalog",    morning:"Magandang umaga",      afternoon:"Magandang hapon",     evening:"Magandang gabi"},
 ];
 
 function GreetingHeader({tasks,trips,goals}){
@@ -481,10 +497,21 @@ function GreetingHeader({tasks,trips,goals}){
   const hr=today.getHours();
   const timeKey=hr>=5&&hr<12?"morning":hr>=12&&hr<18?"afternoon":"evening";
 
-  // Rotate language by day of year
+  // Rotate language by day of year; allow manual override stored in localStorage
   const dayOfYear=Math.floor((today-new Date(today.getFullYear(),0,0))/86400000);
-  const g=DAILY_GREETINGS[dayOfYear%DAILY_GREETINGS.length];
+  const [langOverride,setLangOverride]=useState(()=>lg("plo3_greeting_idx",null));
+  const langIdx=langOverride!==null?langOverride:dayOfYear%DAILY_GREETINGS.length;
+  const g=DAILY_GREETINGS[langIdx];
   const greeting=g[timeKey];
+  const scriptGreeting=g.script?g.script[timeKey]:null;
+
+  function shuffleLang(){
+    let next;
+    do{next=Math.floor(Math.random()*DAILY_GREETINGS.length);}
+    while(next===langIdx&&DAILY_GREETINGS.length>1);
+    setLangOverride(next);
+    ls("plo3_greeting_idx",next);
+  }
 
   // Stats
   const overdue=tasks.filter(t=>!t.completed&&t.deadline<todayStr).length;
@@ -505,23 +532,52 @@ function GreetingHeader({tasks,trips,goals}){
   if(stats.length===0) stats.push({text:"All clear",color:T.mint});
 
   return <div className="greet-in" style={{
-    padding:"18px 1.5rem 14px",
+    padding:"28px 1.75rem 20px",
     borderBottom:`1px solid ${alpha(T.border,.6)}`,
-    background:`linear-gradient(to right, ${alpha(T.mint,.07)} 0%, transparent 55%)`,
+    background:`linear-gradient(to right, ${alpha(T.mint,.06)} 0%, transparent 60%)`,
+    backdropFilter:"blur(8px)",
   }}>
-    {/* Main greeting line */}
-    <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6,flexWrap:"wrap"}}>
-      <span style={{fontSize:26,fontWeight:800,fontFamily:F,letterSpacing:"-0.6px",color:T.text,lineHeight:1}}>
+    {/* Hero greeting */}
+    <div style={{marginBottom:scriptGreeting?4:10}}>
+      <span style={{
+        fontSize:52,fontWeight:800,fontFamily:F,
+        letterSpacing:"-2.5px",color:T.text,lineHeight:0.92,
+        display:"block",
+      }}>
         {greeting}
       </span>
+    </div>
+
+    {/* Original script subtitle (only when non-Latin script exists) */}
+    {scriptGreeting&&<div style={{marginBottom:10}}>
       <span style={{
-        fontSize:9,fontWeight:700,fontFamily:F,letterSpacing:"0.1em",textTransform:"uppercase",
+        fontSize:15,fontWeight:400,color:alpha(T.textMd,.7),
+        letterSpacing:"0.02em",lineHeight:1.3,display:"block",
+      }}>
+        {scriptGreeting}
+      </span>
+    </div>}
+
+    {/* Lang badge + shuffle button */}
+    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+      <span style={{
+        fontSize:9,fontWeight:700,fontFamily:F,letterSpacing:"0.12em",textTransform:"uppercase",
         color:T.mint,background:alpha(T.mint,.12),border:`1px solid ${alpha(T.mint,.28)}`,
-        borderRadius:5,padding:"3px 7px",lineHeight:1.4,alignSelf:"center",
+        borderRadius:5,padding:"3px 7px",lineHeight:1.4,
       }}>
         {g.lang}
       </span>
+      <button onClick={shuffleLang} title="Try another language" style={{
+        display:"inline-flex",alignItems:"center",justifyContent:"center",
+        background:alpha(T.border,.35),border:`1px solid ${alpha(T.border,.5)}`,
+        borderRadius:5,padding:"3px 7px",cursor:"pointer",color:T.textMd,
+        fontSize:10,fontWeight:500,fontFamily:F,letterSpacing:"0.04em",
+        lineHeight:1.4,gap:4,transition:"background .15s",
+      }}>
+        <Ico n="shuffle" size={10}/> shuffle
+      </button>
     </div>
+
     {/* Date + stats line */}
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:0}}>
       <span style={{fontSize:11,color:T.textMd,fontFamily:F,marginRight:10}}>{dateStr}</span>
@@ -2866,10 +2922,11 @@ function App(){
   }
 
   const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",entropy:"Entropy",radar:"Radar",embed:"Embed",tasks:"Tasks"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",entropy:"✦",radar:"🔭",embed:"⧉",tasks:"◫"};
+  const WICON={calendar:"calendar-blank",wakuli:"diamond-four",kanban:"squares-four",trips:"airplane-tilt",goals:"target",entropy:"sparkle",radar:"telescope",embed:"browsers",tasks:"list-checks"};
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
+      <div className="noise-layer"/>
 
       {/* HEADER */}
       <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
@@ -2880,11 +2937,11 @@ function App(){
               <span style={{fontFamily:F,fontSize:13,fontWeight:700,letterSpacing:"-0.3px"}}>Life OS</span>
             </button>
             {!isMobile&&<div style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}>{WICON[w.id]} {WLABEL[w.id]}</button>;})}
+              {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
             </div>}
           </div>
           <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-            {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}>⌕ <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
+            {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}><Ico n="magnifying-glass" size={13}/> <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
             {!isMobile&&<div style={{display:"flex",alignItems:"center",gap:5,padding:"2px 7px",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7}} title="Page zoom">
               <span style={{fontSize:9,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
               <input type="range" min={0.7} max={1.35} step={0.05} value={zoom}
@@ -2893,14 +2950,14 @@ function App(){
               <span style={{fontSize:12,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
             </div>}
             <Btn small onClick={cycleTheme} title={`Theme: ${activePreset.label} — click to cycle`} style={{fontSize:11}}>{activePreset.icon}</Btn>
-            <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}>{apiKey?"🔑✓":"🔑"}</Btn>
+            <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
             <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
-              {syncStatus==="loading"?"⟳":syncGistId?"☁✓":"☁"}
+              {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:syncGistId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
             </Btn>
             <Btn small onClick={()=>setShowWeeklyReview(true)} title="Weekly Review" style={{position:"relative",fontSize:11}}>
-              ◑{isSunday&&<span style={{position:"absolute",top:1,right:1,width:5,height:5,borderRadius:"50%",background:T.mint,pointerEvents:"none"}}/>}
+              <Ico n="book-open" size={13}/>{isSunday&&<span style={{position:"absolute",top:1,right:1,width:5,height:5,borderRadius:"50%",background:T.mint,pointerEvents:"none"}}/>}
             </Btn>
-            <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}>⊞</Btn>
+            <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}><Ico n="grid-four" size={13}/></Btn>
             {!isMobile&&<Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>}
             {!isMobile&&<Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>}
             {!isMobile&&<Btn small primary onClick={exportICS} style={{fontSize:10}}>📅</Btn>}
@@ -2925,7 +2982,7 @@ function App(){
               <div style={{display:"flex",alignItems:"center",gap:7}}>
                 <button onClick={()=>setPage(null)} className="nav-btn" style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,padding:0,display:"flex",alignItems:"center",gap:3}}>← Back</button>
                 <span style={{color:T.border,fontSize:10}}>│</span>
-                <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px",color:wc[page]}}>{WICON[page]} {WLABEL[page]}</span>
+                <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px",color:wc[page],display:"flex",alignItems:"center",gap:6}}><Ico n={WICON[page]} size={15}/> {WLABEL[page]}</span>
               </div>
               {addAction(page)}
             </div>
