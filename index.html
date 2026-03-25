@@ -41,6 +41,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 @keyframes progressFill{from{width:0}to{width:var(--prog-w)}}
 @keyframes softPulse{0%,100%{opacity:1}50%{opacity:.55}}
 @keyframes greetIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes marqueeScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ── MARQUEE ─────────────────────────────────── */
+.marquee-outer{overflow:hidden;width:100%;border-top:1px solid var(--marquee-border);border-bottom:1px solid var(--marquee-border);}
+.marquee-track{display:flex;width:max-content;animation:marqueeScroll 28s linear infinite;will-change:transform;}
+.marquee-track:hover{animation-play-state:paused;}
+.marquee-item{display:flex;align-items:center;gap:0;white-space:nowrap;}
+
+/* ── WIDGET SCROLL ENTRANCE ──────────────────── */
+.widget-enter{opacity:0;transform:translateY(32px);}
+.widget-visible{opacity:1!important;transform:translateY(0)!important;transition:opacity 0.65s cubic-bezier(.22,1,.36,1),transform 0.65s cubic-bezier(.22,1,.36,1);}
 
 .fade-up{animation:fadeUp .5s cubic-bezier(.22,1,.36,1) both}
 .fade-up-d1{animation:fadeUp .5s .08s cubic-bezier(.22,1,.36,1) both}
@@ -170,6 +181,26 @@ const F="'Geist','Helvetica Neue',system-ui,sans-serif";
 
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
+
+// ── FADE-IN ON SCROLL (IntersectionObserver) ────────────────────────────────
+function FadeIn({children,delay=0,style={}}){
+  const ref=useRef(null);
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{
+    const el=ref.current;if(!el)return;
+    const obs=new IntersectionObserver(([e])=>{
+      if(e.isIntersecting){setVis(true);obs.disconnect();}
+    },{threshold:0.04,rootMargin:"0px 0px -20px 0px"});
+    obs.observe(el);
+    return()=>obs.disconnect();
+  },[]);
+  return <div ref={ref} style={{
+    opacity:vis?1:0,
+    transform:vis?"translateY(0)":"translateY(32px)",
+    transition:`opacity 0.65s cubic-bezier(.22,1,.36,1) ${delay}ms, transform 0.65s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+    ...style,
+  }}>{children}</div>;
+}
 
 // ── UTILS ──────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -459,6 +490,46 @@ function FocusDayModal({day,tasks,completions,setCompletions,setTasks,scratchpad
   </ModalShell>;
 }
 
+// ── SCROLL DOT ─────────────────────────────────────
+function ScrollDot(){
+  const T=useT();
+  const [prog,setProg]=useState(0);
+  useEffect(()=>{
+    const onS=()=>{
+      const el=document.documentElement;
+      const scrolled=el.scrollTop||document.body.scrollTop;
+      const max=el.scrollHeight-el.clientHeight;
+      setProg(max>0?scrolled/max:0);
+    };
+    window.addEventListener("scroll",onS,{passive:true});
+    return()=>window.removeEventListener("scroll",onS);
+  },[]);
+  return <div style={{
+    position:"fixed",right:14,top:`${18+prog*60}%`,zIndex:9990,
+    width:7,height:7,borderRadius:"50%",
+    background:alpha(T.text,.55),
+    boxShadow:`0 0 0 1.5px ${alpha(T.border,.6)}`,
+    transition:"top 0.12s linear, background 0.3s",
+    pointerEvents:"none",
+  }}/>;
+}
+
+// ── MARQUEE TICKER ─────────────────────────────────
+function MarqueeTicker(){
+  const T=useT();
+  const items=["TASKS","GOALS","TRIPS","RADAR","ENTROPY","CALENDAR","WAKULI","WEEK","EMBED"];
+  const dot=<span style={{margin:"0 18px",opacity:0.35,fontSize:7}}>◆</span>;
+  const segment=items.flatMap((item,i)=>[
+    <span key={i} style={{fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.textMd,padding:"0 2px"}}>{item}</span>,
+    dot,
+  ]);
+  // Duplicate for seamless loop
+  const track=[...segment,...segment];
+  return <div className="marquee-outer" style={{"--marquee-border":alpha(T.border,.5),padding:"7px 0"}}>
+    <div className="marquee-track">{track}</div>
+  </div>;
+}
+
 // ── DAILY BRIEF ────────────────────────────────────
 // ── GREETING HEADER ────────────────────────────────
 const DAILY_GREETINGS=[
@@ -546,6 +617,12 @@ function GreetingHeader({tasks,trips,goals}){
     background:`linear-gradient(to right, ${alpha(T.mint,.06)} 0%, transparent 60%)`,
     backdropFilter:"blur(8px)",
   }}>
+    {/* Metadata row — Palmer-style 3-col section header */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt}}>© Pratham Gupta</span>
+      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt}}>{today.toLocaleDateString("en-GB",{month:"long",year:"numeric"}).toUpperCase()}</span>
+      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt}}>Leiden · Delhi</span>
+    </div>
     {/* Hero greeting */}
     <div style={{marginBottom:scriptGreeting?4:10}}>
       <span style={{
@@ -691,7 +768,8 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
                   border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
                   cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
                 <span style={{fontSize:10,lineHeight:"1",color:isT?T.bg:T.text,fontWeight:isT?700:400,fontFamily:F}}>{day}</span>
-              </div>;
+              </div>
+              </FadeIn>;
             })}
           </div>
           {/* Event span bars with names */}
@@ -2237,29 +2315,38 @@ function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
       ))}
     </div>}
 
-    {/* Task list */}
-    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
+    {/* Task list — numbered hairline rows */}
+    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
       {displayed.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:T.textLt,fontSize:11,fontFamily:F}}>
         {filter==="done"?"No completed tasks yet":"Nothing here"}
       </div>}
-      {displayed.map(task=>{
+      {displayed.map((task,idx)=>{
         const urg=filter!=="done"?urgency(task.deadline):null;
         const taskTags=task.tags||[];
-        return <div key={task.id} className="task-row" style={{display:"flex",alignItems:"flex-start",gap:6,padding:"5px 6px",borderRadius:7,background:T.cardAlt,border:`1px solid ${T.borderSft}`}}>
-          <button onClick={()=>toggle(task.id)} style={{flexShrink:0,marginTop:1,width:14,height:14,borderRadius:3,border:`1.5px solid ${task.completed?T.mint:T.textLt}`,background:task.completed?T.mint:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            {task.completed&&<span style={{fontSize:8,color:T.bg,lineHeight:1}}>✓</span>}
+        const num=String(idx+1).padStart(2,"0");
+        return <div key={task.id} className="task-row" style={{
+          display:"flex",alignItems:"center",gap:0,
+          borderBottom:`1px solid ${alpha(T.border,.45)}`,
+          padding:"8px 2px",
+        }}>
+          {/* Number */}
+          <span style={{fontSize:9,fontWeight:700,color:T.textLt,letterSpacing:"0.06em",width:22,flexShrink:0,userSelect:"none",opacity:task.completed?0.35:0.6}}>{num}</span>
+          {/* Checkbox */}
+          <button onClick={()=>toggle(task.id)} style={{flexShrink:0,marginRight:8,width:13,height:13,borderRadius:2,border:`1.5px solid ${task.completed?T.mint:alpha(T.textLt,.5)}`,background:task.completed?T.mint:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+            {task.completed&&<span style={{fontSize:7,color:T.bg,lineHeight:1}}>✓</span>}
           </button>
+          {/* Title */}
           <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>onEditTask&&onEditTask(task)}>
-            <div style={{fontSize:11,fontFamily:F,color:task.completed?T.textLt:T.text,textDecoration:task.completed?"line-through":"none",lineHeight:1.35,wordBreak:"break-word"}}>{task.title}</div>
-            <div style={{display:"flex",gap:4,marginTop:2,alignItems:"center",flexWrap:"wrap"}}>
-              {urg&&<span style={{fontSize:9,color:urg.color,fontFamily:F,fontWeight:500}}>{urg.label}</span>}
-              {taskTags.slice(0,2).map(tg=><span key={tg} style={{fontSize:8,color:TASK_TAGS[tg]||T.textLt,fontFamily:F}}>{tg}</span>)}
-            </div>
+            <span style={{fontSize:11,fontFamily:F,fontWeight:task.completed?300:500,color:task.completed?T.textLt:T.text,textDecoration:task.completed?"line-through":"none",lineHeight:1.3}}>{task.title}</span>
+            {taskTags.length>0&&<span style={{marginLeft:6,fontSize:8,color:T.textLt,fontFamily:F,letterSpacing:"0.04em"}}>{taskTags[0]}</span>}
           </div>
-          <button onClick={()=>del(task.id)} style={{flexShrink:0,background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:11,padding:"0 2px",lineHeight:1,opacity:0.6}}>×</button>
+          {/* Date */}
+          {urg&&<span style={{fontSize:9,fontWeight:700,color:urg.color,fontFamily:F,letterSpacing:"0.04em",flexShrink:0,marginLeft:6}}>{urg.label}</span>}
+          {/* Delete */}
+          <button onClick={()=>del(task.id)} style={{flexShrink:0,background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,padding:"0 0 0 6px",lineHeight:1,opacity:0.4}}>×</button>
         </div>;
       })}
-      {!pageMode&&shown.length>8&&<div style={{fontSize:10,color:T.textMd,textAlign:"center",fontFamily:F,padding:"2px 0"}}>+{shown.length-8} more → open full view</div>}
+      {!pageMode&&shown.length>8&&<div style={{fontSize:9,color:T.textMd,textAlign:"center",fontFamily:F,padding:"8px 0",letterSpacing:"0.08em"}}>+{shown.length-8} MORE</div>}
     </div>
   </div>;
 }
@@ -2975,6 +3062,8 @@ function App(){
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
       <div className="noise-layer"/>
+      {/* Floating scroll dot */}
+      <ScrollDot/>
 
       {/* HEADER */}
       <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
@@ -3016,6 +3105,9 @@ function App(){
       {/* DAILY BRIEF */}
       <GreetingHeader tasks={tasks} trips={trips} goals={goals}/>
 
+      {/* MARQUEE TICKER */}
+      {!page&&<MarqueeTicker/>}
+
       {/* QUICK CAPTURE */}
       <QuickCapture captureRef={captureRef} setTasks={setTasks} setTrips={setTrips} setGoals={setGoals} setModal={setModal}/>
 
@@ -3053,17 +3145,17 @@ function App(){
               const isDrag=activeDragId===w.id;
               const isRes=activeResizeId===w.id;
               const isMin=minimised.has(w.id);
-              const delayClass=["fade-up","fade-up-d1","fade-up-d2","fade-up-d3"][Math.min(wi,3)];
               const mobileH=isMin?"auto":`${l.rS*GROW_H+(l.rS-1)*GGAP}px`;
-              return <div
-                key={w.id}
-                className={delayClass}
-                draggable={false}
-                onDragStart={e=>e.preventDefault()}
-                style={isMobile
+              const enterDelay=wi*55;
+              return <FadeIn key={w.id} delay={enterDelay} style={isMobile
                   ?{position:"relative",width:"100%",height:mobileH,minHeight:0}
                   :{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${isMin?1:l.rS}`,position:"relative",minHeight:0,
-                    opacity:isDrag?0.38:1,transition:isDrag||isRes?"none":"opacity 0.15s",zIndex:isDrag||isRes?10:1}}
+                    opacity:isDrag?0.38:undefined,transition:isDrag||isRes?"none":undefined,zIndex:isDrag||isRes?10:1}}
+                  >
+              <div
+                draggable={false}
+                onDragStart={e=>e.preventDefault()}
+                style={{height:"100%",position:"relative"}}
                 onMouseEnter={()=>!isMobile&&setHoveredWidget(w.id)}
                 onMouseLeave={()=>!isMobile&&!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
