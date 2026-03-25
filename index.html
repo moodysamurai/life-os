@@ -95,7 +95,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .bingo-check{animation:checkDrop .3s cubic-bezier(.34,1.56,.64,1) .05s both}
 
 /* ── NOISE OVERLAY ──────────────────────────────── */
-.noise-layer{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.032;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-repeat:repeat;background-size:256px 256px;}
+.noise-layer{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.11;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.52' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-repeat:repeat;background-size:180px 180px;}
 </style>
 </head>
 <body>
@@ -111,10 +111,11 @@ function lighten(h,n){const[r,g,b]=h2r(h);return r2h(r+n,g+n,b+n);}
 function alpha(h,a){const[r,g,b]=h2r(h);return`rgba(${r},${g},${b},${a})`;}
 
 // palette: [0]=Primary [1]=Danger [2]=Text [3]=Surface [4]=Background
-const DEFAULT_PALETTE=["#EE8434","#C95D63","#E5E5E5","#074A37","#06070E"];
+const DEFAULT_PALETTE=["#C8C8C8","#A0A0A0","#F2F2F2","#1E1E1E","#080808"];
 const THEME_PRESETS=[
-  {name:"dark",    label:"Dark",    icon:"🌙", mode:"dark",  palette:DEFAULT_PALETTE},
-  {name:"light",   label:"Light",   icon:"☀️", mode:"light", palette:DEFAULT_PALETTE},
+  {name:"mono",    label:"Mono",    icon:"◑",  mode:"dark",  palette:DEFAULT_PALETTE},
+  {name:"dark",    label:"Dark",    icon:"🌙", mode:"dark",  palette:["#EE8434","#C95D63","#E5E5E5","#074A37","#06070E"]},
+  {name:"light",   label:"Light",   icon:"☀️", mode:"light", palette:["#EE8434","#C95D63","#E5E5E5","#074A37","#06070E"]},
   {name:"sepia",   label:"Sepia",   icon:"📜", mode:"light", palette:["#b5714a","#c04b5a","#4a2e1e","#c4a882","#f5ede3"]},
   {name:"ocean",   label:"Ocean",   icon:"🌊", mode:"dark",  palette:["#22d3ee","#f43f5e","#cff4ff","#0e3a5c","#020c18"]},
   {name:"midnight",label:"Midnight",icon:"✦",  mode:"dark",  palette:["#a78bfa","#f87171","#ede9fe","#1e1b4b","#080510"]},
