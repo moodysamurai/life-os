@@ -51,8 +51,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .greet-in{animation:greetIn .6s cubic-bezier(.22,1,.36,1) both}
 
 /* ── CARD LIFT ──────────────────────────────────── */
-.card-lift{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
-.card-lift:hover{transform:translateY(-2px)}
+.card-lift{transition:box-shadow .22s ease,border-color .22s ease,opacity .18s ease}
+.card-lift:hover{opacity:0.88;box-shadow:0 4px 20px rgba(0,0,0,.28)}
 
 /* ── TRIP IMAGE ZOOM ────────────────────────────── */
 .trip-card .trip-thumb{transition:transform .45s ease,filter .3s ease;width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
@@ -64,8 +64,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .nav-btn:active{transform:scale(.95) !important}
 
 /* ── GOAL CARDS ─────────────────────────────────── */
-.goal-card{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,opacity .18s ease}
-.goal-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.22)}
+.goal-card{transition:box-shadow .22s ease,border-color .22s ease,opacity .18s ease}
+.goal-card:hover{opacity:0.86;box-shadow:0 4px 18px rgba(0,0,0,.26)}
 
 /* ── KANBAN DAY CELLS ───────────────────────────── */
 .day-cell{transition:background .16s ease,border-color .16s ease,transform .14s ease}
@@ -197,7 +197,7 @@ const TASK_TAGS={urgent:"#f87171",research:"#38bdf8",personal:"#a78bfa",music:"#
 const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,entropy:"#a78bfa",radar:"#38bdf8",embed:T.textMd,tasks:T.yellow});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
-const GCOLS=16,GROW_H=96,GGAP=8;
+const GCOLS=16,GROW_H=96,GGAP=12;
 const DEFAULT_LAYOUT={
   calendar:{col:1, row:1, cS:5,rS:6},
   wakuli:  {col:6, row:1, cS:5,rS:6},
@@ -291,7 +291,7 @@ function Card({children,style={},lift=true,glass=false}){
   const bg=glass?T.cardGlass:T.card;
   const bd=glass?alpha(T.border,.55):T.border;
   const glassExtra=glass?{backdropFilter:"blur(20px) saturate(1.5)",WebkitBackdropFilter:"blur(20px) saturate(1.5)"}:{};
-  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"0.85rem",...glassExtra,...style}}>{children}</div>;
+  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"1.1rem",...glassExtra,...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
   const T=useT();const[h,sH]=useState(false);
@@ -317,7 +317,7 @@ function Badge({label,color}){
 }
 function Lbl({children}){
   const T=useT();
-  return <div style={{fontSize:10,fontWeight:700,color:T.textMd,fontFamily:F,marginBottom:4,letterSpacing:"0.07em",textTransform:"uppercase"}}>{children}</div>;
+  return <div style={{fontSize:9,fontWeight:700,color:T.textLt,fontFamily:F,marginBottom:5,letterSpacing:"0.12em",textTransform:"uppercase"}}>{children}</div>;
 }
 function Inp({value,onChange,placeholder,type="text",autoFocus,style={}}){
   const T=useT();
@@ -339,11 +339,11 @@ function Empty({msg}){
 }
 function WidgetHead({id,title,icon,onPage,action}){
   const T=useT(),wc=WCOL(T);
-  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
-    <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
-      <span style={{color:wc[id]||T.mint,transition:"transform .2s",display:"flex"}}><Ico n={icon} size={12}/></span>
-      <span style={{fontSize:12,fontWeight:600,letterSpacing:"-0.2px",fontFamily:F}}>{title}</span>
-      <span style={{fontSize:8,color:T.textLt,marginLeft:1,transition:"opacity .15s"}}>↗</span>
+  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${alpha(T.border,.5)}`}}>
+    <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5,color:T.text}}>
+      <span style={{color:wc[id]||T.mint,opacity:0.7,display:"flex"}}><Ico n={icon} size={11}/></span>
+      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:F,color:T.textMd}}>{title}</span>
+      <span style={{fontSize:8,color:T.textLt,opacity:0.5}}>↗</span>
     </button>
     {action}
   </div>;
@@ -498,6 +498,14 @@ function GreetingHeader({tasks,trips,goals}){
   const hr=today.getHours();
   const timeKey=hr>=5&&hr<12?"morning":hr>=12&&hr<18?"afternoon":"evening";
 
+  // Scroll parallax
+  const [scrollY,setScrollY]=useState(0);
+  useEffect(()=>{
+    const onS=()=>setScrollY(window.scrollY);
+    window.addEventListener("scroll",onS,{passive:true});
+    return()=>window.removeEventListener("scroll",onS);
+  },[]);
+
   // Rotate language by day of year; allow manual override stored in localStorage
   const dayOfYear=Math.floor((today-new Date(today.getFullYear(),0,0))/86400000);
   const [langOverride,setLangOverride]=useState(()=>lg("plo3_greeting_idx",null));
@@ -543,7 +551,7 @@ function GreetingHeader({tasks,trips,goals}){
       <span style={{
         fontSize:52,fontWeight:800,fontFamily:F,
         letterSpacing:"-2.5px",color:T.text,lineHeight:0.92,
-        display:"block",
+        display:"block",transform:`translateY(${scrollY*0.22}px)`,transition:"transform 0.05s linear",
       }}>
         {greeting}
       </span>
@@ -1042,7 +1050,22 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
   }
   const phaseColors=PHASE_COLOR(T);
   const imgH=pageMode?190:120;
-  return <div style={{display:pageMode?"grid":"flex",gridTemplateColumns:pageMode?"repeat(auto-fill,minmax(255px,1fr))":undefined,flexDirection:pageMode?undefined:"column",gap:pageMode?12:8,alignItems:pageMode?"start":undefined}}>
+  const futureSorted=sorted.filter(t=>t.endDate>=todayStr);
+  const nextFuture=futureSorted[0];
+  const daysToNext=nextFuture?Math.max(0,Math.ceil((fromStr(nextFuture.startDate)-new Date())/86400000)):null;
+  return <div style={{display:"flex",flexDirection:"column",gap:0}}>
+    {/* Hero stat */}
+    {!pageMode&&<div style={{display:"flex",gap:20,paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${alpha(T.border,.4)}`,flexShrink:0}}>
+      <div>
+        <div style={{fontSize:38,fontWeight:300,fontFamily:F,letterSpacing:"-1.5px",color:T.text,lineHeight:1}}>{futureSorted.length}</div>
+        <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt,marginTop:3}}>upcoming</div>
+      </div>
+      {daysToNext!==null&&<div>
+        <div style={{fontSize:38,fontWeight:300,fontFamily:F,letterSpacing:"-1.5px",color:T.mint,lineHeight:1}}>{daysToNext===0?"today":daysToNext}</div>
+        <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt,marginTop:3}}>{daysToNext===0?"ongoing":"days away"}</div>
+      </div>}
+    </div>}
+    <div style={{display:pageMode?"grid":"flex",gridTemplateColumns:pageMode?"repeat(auto-fill,minmax(255px,1fr))":undefined,flexDirection:pageMode?undefined:"column",gap:pageMode?12:8,alignItems:pageMode?"start":undefined}}>
     {shown.length===0?<Empty msg="Add your first trip"/>:shown.map(trip=>{
       const isExp=expanded===trip.id,sugg=tripSugg[trip.id],loading=loadingSugg===trip.id;
       const isPast=trip.endDate<todayStr;
@@ -1105,6 +1128,7 @@ function TripsWidget({trips,setTrips,photos,setPhotos,onAddTrip,tripSugg,getTrip
       </div>;
     })}
     {!pageMode&&sorted.filter(t=>t.endDate<todayStr).length>0&&<div style={{fontSize:10,color:T.textLt,fontFamily:F,textAlign:"center"}}>{sorted.filter(t=>t.endDate<todayStr).length} past trips archived</div>}
+    </div>
   </div>;
 }
 
@@ -1268,7 +1292,19 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,
     if(!ref) return true;
     return(new Date()-new Date(ref))>14*86400000;
   }
+  const onTrackCount=active.filter(g=>(g.progress||0)>=50).length;
   return <>
+    {/* Hero stat row */}
+    {!pageMode&&<div style={{display:"flex",gap:20,marginBottom:12,paddingBottom:10,borderBottom:`1px solid ${alpha(T.border,.4)}`}}>
+      <div>
+        <div style={{fontSize:38,fontWeight:300,fontFamily:F,letterSpacing:"-1.5px",color:T.text,lineHeight:1}}>{active.length}</div>
+        <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt,marginTop:3}}>active</div>
+      </div>
+      <div>
+        <div style={{fontSize:38,fontWeight:300,fontFamily:F,letterSpacing:"-1.5px",color:T.mint,lineHeight:1}}>{onTrackCount}</div>
+        <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt,marginTop:3}}>on track</div>
+      </div>
+    </div>}
     {/* Bingo card — always at top */}
     {bingo&&<div style={{marginBottom:pageMode?18:10}}>
       <BingoCard bingo={bingo} setBingo={setBingo} pageMode={pageMode}/>
@@ -1289,9 +1325,9 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,
             <div style={{display:"flex",gap:7,alignItems:"flex-start"}}>
               <button onClick={()=>toggle(g.id)} style={{width:13,height:13,borderRadius:"50%",border:`1.5px solid ${T.mint}`,background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,padding:0}}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:14,fontWeight:600,lineHeight:1.3,fontFamily:F}}>{g.title}</div>
-                {g.description&&<div style={{fontSize:12,color:T.textMd,marginTop:2,lineHeight:1.35,fontFamily:F}}>{g.description}</div>}
-                {g.targetDate&&<div style={{fontSize:11,color:T.textLt,marginTop:3,fontFamily:F}}>→ {g.targetDate}</div>}
+                <div style={{fontSize:14,fontWeight:700,lineHeight:1.3,fontFamily:F,letterSpacing:"-0.2px"}}>{g.title}</div>
+                {g.description&&<div style={{fontSize:12,fontWeight:300,color:T.textMd,marginTop:2,lineHeight:1.35,fontFamily:F}}>{g.description}</div>}
+                {g.targetDate&&<div style={{fontSize:10,fontWeight:300,letterSpacing:"0.03em",color:T.textLt,marginTop:3,fontFamily:F}}>→ {g.targetDate}</div>}
                 {dormant&&<Badge label="💤 Dormant" color={T.textMd}/>}
               </div>
               <div style={{display:"flex",gap:2,alignItems:"center"}}>
@@ -2167,6 +2203,17 @@ function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
   const tabBg=(id)=>filter===id?{background:T.card,color:T.text,fontWeight:700}:{background:"transparent",color:T.textMd,fontWeight:400};
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+    {/* Hero stat */}
+    {!pageMode&&<div style={{display:"flex",gap:20,paddingBottom:10,marginBottom:0,borderBottom:`1px solid ${alpha(T.border,.4)}`,flexShrink:0}}>
+      <div>
+        <div style={{fontSize:38,fontWeight:300,fontFamily:F,letterSpacing:"-1.5px",color:T.text,lineHeight:1}}>{active.length}</div>
+        <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt,marginTop:3}}>pending</div>
+      </div>
+      {overdue.length>0&&<div>
+        <div style={{fontSize:38,fontWeight:300,fontFamily:F,letterSpacing:"-1.5px",color:T.pink,lineHeight:1}}>{overdue.length}</div>
+        <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt,marginTop:3}}>overdue</div>
+      </div>}
+    </div>}
     {/* Filter tabs */}
     <div style={{display:"flex",gap:1,background:T.cardAlt,borderRadius:7,padding:2,flexShrink:0}}>
       {[["active","Active"],["overdue","Overdue"],["done","Done"]].map(([id,lab])=>(
@@ -2935,7 +2982,7 @@ function App(){
           <div style={{display:"flex",alignItems:"center",gap:2}}>
             <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",padding:"3px 10px 3px 0",display:"flex",alignItems:"center",gap:5,color:T.text}}>
               <span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
-              <span style={{fontFamily:F,fontSize:13,fontWeight:700,letterSpacing:"-0.3px"}}>Life OS</span>
+              <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"-0.8px"}}>Life OS</span>
             </button>
             {!isMobile&&<div style={{display:"flex",gap:1,flexWrap:"wrap"}}>
               {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
@@ -3033,7 +3080,7 @@ function App(){
                       {isMin?"▽":"△"}
                     </button>
                   </div>
-                  {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0}}>{widgetBody(w.id,false)}</div>}
+                  {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:10}}>{widgetBody(w.id,false)}</div>}
                 </Card>
                 {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')}
                   style={{position:"absolute",right:0,top:"18%",bottom:"18%",width:5,cursor:"col-resize",zIndex:20,
