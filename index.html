@@ -33,18 +33,20 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .rhandle{opacity:0;transition:opacity .15s;}
 
 /* ── ANIMATIONS ─────────────────────────────────── */
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes modalPop{from{opacity:0;transform:scale(.955) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes modalPop{from{opacity:0;transform:scale(.975) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes overlayIn{from{opacity:0}to{opacity:1}}
 @keyframes progressFill{from{width:0}to{width:var(--prog-w)}}
 @keyframes softPulse{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes greetIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 
-.fade-up{animation:fadeUp .26s cubic-bezier(.22,1,.36,1) both}
-.fade-up-d1{animation:fadeUp .26s .05s cubic-bezier(.22,1,.36,1) both}
-.fade-up-d2{animation:fadeUp .26s .10s cubic-bezier(.22,1,.36,1) both}
-.fade-up-d3{animation:fadeUp .26s .15s cubic-bezier(.22,1,.36,1) both}
-.modal-pop{animation:modalPop .22s cubic-bezier(.34,1.18,.64,1) both}
-.overlay-in{animation:overlayIn .18s ease both}
+.fade-up{animation:fadeUp .5s cubic-bezier(.22,1,.36,1) both}
+.fade-up-d1{animation:fadeUp .5s .08s cubic-bezier(.22,1,.36,1) both}
+.fade-up-d2{animation:fadeUp .5s .16s cubic-bezier(.22,1,.36,1) both}
+.fade-up-d3{animation:fadeUp .5s .24s cubic-bezier(.22,1,.36,1) both}
+.modal-pop{animation:modalPop .35s cubic-bezier(.34,1.12,.64,1) both}
+.overlay-in{animation:overlayIn .28s ease both}
+.greet-in{animation:greetIn .6s cubic-bezier(.22,1,.36,1) both}
 
 /* ── CARD LIFT ──────────────────────────────────── */
 .card-lift{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
@@ -116,14 +118,17 @@ const THEME_PRESETS=[
 function buildDark([p1,p2,p3,p4,p5]){
   const sec=lighten(p4,108);
   const yel=mix(p1,p3,.22);
+  const card=mix(p5,p4,.52);
   return{
-    bg:p5,card:mix(p5,p4,.52),cardAlt:mix(p5,p4,.37),
+    bg:p5,bgGradient:`radial-gradient(ellipse at 22% -8%, ${mix(p5,p1,.16)} 0%, ${p5} 58%)`,
+    card,cardAlt:mix(p5,p4,.37),
+    cardGlass:alpha(card,.58),cardAltGlass:alpha(mix(p5,p4,.37),.52),
     border:mix(p5,p4,.27),borderSft:mix(p5,p4,.18),inp:mix(p5,p4,.08),
     mint:p1,mintX:alpha(p1,.12),
     blue:sec,blueX:alpha(sec,.12),
     pink:p2,pinkX:alpha(p2,.12),
     yellow:yel,yellX:alpha(yel,.12),
-    text:p3,textMd:mix(p3,p5,.56),textLt:mix(p3,p5,.76),
+    text:p3,textMd:mix(p3,p5,.56),textLt:mix(p3,p5,.76),textHi:p3,
     overlay:alpha(p5,.90),isDark:true,
   };
 }
@@ -131,14 +136,17 @@ function buildLight([p1,p2,p3,p4,p5]){
   const W='#FFFFFF';
   const sec=mix(p4,W,.38);
   const txt=mix(p5,p4,.55);
+  const card=mix(p3,W,.82);
   return{
-    bg:mix(p3,W,.6),card:mix(p3,W,.82),cardAlt:mix(p3,W,.42),
+    bg:mix(p3,W,.6),bgGradient:`linear-gradient(145deg, ${mix(p3,W,.78)} 0%, ${mix(p3,W,.55)} 100%)`,
+    card,cardAlt:mix(p3,W,.42),
+    cardGlass:alpha(card,.72),cardAltGlass:alpha(mix(p3,W,.42),.65),
     border:mix(p3,p4,.15),borderSft:mix(p3,p4,.08),inp:W,
     mint:mix(p1,p5,.18),mintX:alpha(p1,.1),
     blue:sec,blueX:alpha(p4,.1),
     pink:mix(p2,p5,.15),pinkX:alpha(p2,.1),
     yellow:mix(p1,W,.25),yellX:alpha(p1,.1),
-    text:txt,textMd:mix(txt,p3,.42),textLt:mix(txt,p3,.62),
+    text:txt,textMd:mix(txt,p3,.42),textLt:mix(txt,p3,.62),textHi:txt,
     overlay:'rgba(0,0,0,.5)',isDark:false,
   };
 }
@@ -173,11 +181,11 @@ const WDEFS=[
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
   {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
   {id:"embed",   label:"Embed",   icon:"⧉",visible:true},
-  {id:"projects",label:"Projects",icon:"⊞",visible:true},
+  {id:"tasks",   label:"Tasks",   icon:"◫",visible:true},
 ];
-const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,entropy:1,radar:1,embed:1,projects:1};
+const DSPAN={calendar:1,wakuli:1,kanban:3,trips:1,goals:2,entropy:1,radar:1,embed:1,tasks:1};
 const TASK_TAGS={urgent:"#f87171",research:"#38bdf8",personal:"#a78bfa",music:"#f97316",creative:"#f472b6",admin:"#6ee7b7"};
-const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,entropy:"#a78bfa",radar:"#38bdf8",embed:T.textMd,projects:T.mint});
+const WCOL=(T)=>({calendar:T.blue,wakuli:T.yellow,kanban:T.mint,trips:T.mint,goals:T.blue,entropy:"#a78bfa",radar:"#38bdf8",embed:T.textMd,tasks:T.yellow});
 
 // ── 2D GRID LAYOUT ─────────────────────────────────
 const GCOLS=16,GROW_H=96,GGAP=8;
@@ -190,7 +198,7 @@ const DEFAULT_LAYOUT={
   embed:   {col:12,row:7, cS:5,rS:5},
   entropy: {col:1, row:12,cS:5,rS:5},
   radar:   {col:6, row:12,cS:6,rS:5},
-  projects:{col:12,row:12,cS:5,rS:5},
+  tasks:   {col:12,row:12,cS:5,rS:5},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -269,9 +277,12 @@ function parseCapture(raw){
 }
 
 // ── SHARED UI ──────────────────────────────────────
-function Card({children,style={},lift=true}){
+function Card({children,style={},lift=true,glass=false}){
   const T=useT();
-  return <div className={lift?"card-lift":undefined} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:11,padding:"0.8rem",...style}}>{children}</div>;
+  const bg=glass?T.cardGlass:T.card;
+  const bd=glass?alpha(T.border,.55):T.border;
+  const glassExtra=glass?{backdropFilter:"blur(20px) saturate(1.5)",WebkitBackdropFilter:"blur(20px) saturate(1.5)"}:{};
+  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:11,padding:"0.8rem",...glassExtra,...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
   const T=useT();const[h,sH]=useState(false);
@@ -440,27 +451,85 @@ function FocusDayModal({day,tasks,completions,setCompletions,setTasks,scratchpad
 }
 
 // ── DAILY BRIEF ────────────────────────────────────
-function DailyBrief({tasks,trips,goals}){
+// ── GREETING HEADER ────────────────────────────────
+const DAILY_GREETINGS=[
+  {lang:"English",    morning:"Good morning",       afternoon:"Good afternoon",    evening:"Good evening"},
+  {lang:"Dutch",      morning:"Goedemorgen",        afternoon:"Goedemiddag",       evening:"Goedenavond"},
+  {lang:"French",     morning:"Bonjour",            afternoon:"Bon après-midi",    evening:"Bonsoir"},
+  {lang:"Japanese",   morning:"おはようございます",    afternoon:"こんにちは",          evening:"こんばんは"},
+  {lang:"Hindi",      morning:"सुप्रभात",             afternoon:"नमस्ते",             evening:"शुभ संध्या"},
+  {lang:"Spanish",    morning:"Buenos días",        afternoon:"Buenas tardes",     evening:"Buenas noches"},
+  {lang:"Portuguese", morning:"Bom dia",            afternoon:"Boa tarde",         evening:"Boa noite"},
+  {lang:"Italian",    morning:"Buongiorno",         afternoon:"Buon pomeriggio",   evening:"Buonasera"},
+  {lang:"German",     morning:"Guten Morgen",       afternoon:"Guten Tag",         evening:"Guten Abend"},
+  {lang:"Mandarin",   morning:"早上好",               afternoon:"下午好",             evening:"晚上好"},
+  {lang:"Arabic",     morning:"صباح الخير",          afternoon:"مساء الخير",        evening:"مساء النور"},
+  {lang:"Korean",     morning:"좋은 아침이에요",        afternoon:"안녕하세요",          evening:"좋은 저녁이에요"},
+  {lang:"Russian",    morning:"Доброе утро",         afternoon:"Добрый день",       evening:"Добрый вечер"},
+  {lang:"Turkish",    morning:"Günaydın",           afternoon:"İyi günler",        evening:"İyi akşamlar"},
+  {lang:"Bengali",    morning:"শুভ সকাল",             afternoon:"শুভ দুপুর",           evening:"শুভ সন্ধ্যা"},
+  {lang:"Swahili",    morning:"Habari za asubuhi",  afternoon:"Habari za mchana",  evening:"Habari za jioni"},
+  {lang:"Greek",      morning:"Καλημέρα",            afternoon:"Καλημέρα",          evening:"Καλησπέρα"},
+  {lang:"Indonesian", morning:"Selamat pagi",       afternoon:"Selamat siang",     evening:"Selamat malam"},
+  {lang:"Vietnamese", morning:"Chào buổi sáng",     afternoon:"Chào buổi chiều",   evening:"Chào buổi tối"},
+  {lang:"Tagalog",    morning:"Magandang umaga",    afternoon:"Magandang hapon",   evening:"Magandang gabi"},
+];
+
+function GreetingHeader({tasks,trips,goals}){
   const T=useT();
   const today=new Date(),todayStr=toStr(today),endWeek=toStr(addDays(today,7));
+  const hr=today.getHours();
+  const timeKey=hr>=5&&hr<12?"morning":hr>=12&&hr<18?"afternoon":"evening";
+
+  // Rotate language by day of year
+  const dayOfYear=Math.floor((today-new Date(today.getFullYear(),0,0))/86400000);
+  const g=DAILY_GREETINGS[dayOfYear%DAILY_GREETINGS.length];
+  const greeting=g[timeKey];
+
+  // Stats
   const overdue=tasks.filter(t=>!t.completed&&t.deadline<todayStr).length;
-  const thisWeek=tasks.filter(t=>!t.completed&&t.deadline>=todayStr&&t.deadline<=endWeek).length;
+  const dueToday=tasks.filter(t=>!t.completed&&t.deadline===todayStr).length;
+  const thisWeek=tasks.filter(t=>!t.completed&&t.deadline>todayStr&&t.deadline<=endWeek).length;
   const nextTrip=trips.filter(t=>t.endDate>=todayStr).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0];
   const daysUntil=nextTrip?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-today)/86400000)):null;
   const goalsOn=goals.filter(g=>!g.completed&&(g.progress||0)>=50).length;
   const goalsTotal=goals.filter(g=>!g.completed).length;
-  const parts=[];
-  if(overdue>0) parts.push({text:`${overdue} overdue`,color:T.pink});
-  if(thisWeek>0) parts.push({text:`${thisWeek} due this week`,color:T.yellow});
-  if(nextTrip) parts.push({text:`${nextTrip.destination} in ${daysUntil}d`,color:T.mint});
-  if(goalsTotal>0) parts.push({text:`${goalsOn}/${goalsTotal} goals on track`,color:T.blue});
-  if(parts.length===0) parts.push({text:"Looking clear — add something to track",color:T.textMd});
-  return <div style={{background:T.cardAlt,borderBottom:`1px solid ${T.border}`,padding:"5px 1rem",display:"flex",gap:2,alignItems:"center",overflowX:"auto"}}>
-    <span style={{fontSize:9,fontWeight:700,color:T.textMd,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase",marginRight:8,flexShrink:0}}>{today.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span>
-    {parts.map((p,i)=><React.Fragment key={i}>
-      {i>0&&<span style={{color:T.textLt,fontSize:10,flexShrink:0,padding:"0 4px"}}>·</span>}
-      <span style={{fontSize:11,color:p.color,fontFamily:F,fontWeight:500,whiteSpace:"nowrap"}}>{p.text}</span>
-    </React.Fragment>)}
+
+  const dateStr=today.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
+  const stats=[];
+  if(overdue>0)    stats.push({text:`${overdue} overdue`,color:T.pink});
+  if(dueToday>0)   stats.push({text:`${dueToday} due today`,color:T.yellow});
+  if(thisWeek>0)   stats.push({text:`${thisWeek} this week`,color:T.textMd});
+  if(nextTrip&&daysUntil!==null) stats.push({text:`${nextTrip.destination} in ${daysUntil}d`,color:T.mint});
+  if(goalsTotal>0) stats.push({text:`${goalsOn}/${goalsTotal} goals on track`,color:T.blue});
+  if(stats.length===0) stats.push({text:"All clear",color:T.mint});
+
+  return <div className="greet-in" style={{
+    padding:"18px 1.5rem 14px",
+    borderBottom:`1px solid ${alpha(T.border,.6)}`,
+    background:`linear-gradient(to right, ${alpha(T.mint,.07)} 0%, transparent 55%)`,
+  }}>
+    {/* Main greeting line */}
+    <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+      <span style={{fontSize:26,fontWeight:800,fontFamily:F,letterSpacing:"-0.6px",color:T.text,lineHeight:1}}>
+        {greeting}
+      </span>
+      <span style={{
+        fontSize:9,fontWeight:700,fontFamily:F,letterSpacing:"0.1em",textTransform:"uppercase",
+        color:T.mint,background:alpha(T.mint,.12),border:`1px solid ${alpha(T.mint,.28)}`,
+        borderRadius:5,padding:"3px 7px",lineHeight:1.4,alignSelf:"center",
+      }}>
+        {g.lang}
+      </span>
+    </div>
+    {/* Date + stats line */}
+    <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:0}}>
+      <span style={{fontSize:11,color:T.textMd,fontFamily:F,marginRight:10}}>{dateStr}</span>
+      {stats.map((s,i)=><React.Fragment key={i}>
+        <span style={{fontSize:10,color:T.textLt,margin:"0 6px",lineHeight:1}}>·</span>
+        <span style={{fontSize:11,color:s.color,fontFamily:F,fontWeight:500,whiteSpace:"nowrap"}}>{s.text}</span>
+      </React.Fragment>)}
+    </div>
   </div>;
 }
 
@@ -493,7 +562,7 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
 }
 
 // ── CALENDAR ───────────────────────────────────────
-function CalendarWidget({tasks,trips,goals,completions,pageMode}){
+function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
   const T=useT();
   const now=new Date(),todayStr=toStr(now);
   const [calTab,setCalTab]=useState("calendar"); // "calendar" | "timeline"
@@ -511,12 +580,12 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode}){
   const evs=[];
   trips.forEach(t=>{
     if(t.endDate>=`${ms}-01`&&t.startDate<=mEnd)
-      evs.push({s:t.startDate,e:t.endDate,color:T.mint});
+      evs.push({s:t.startDate,e:t.endDate,color:T.mint,label:t.destination});
   });
   tasks.filter(t=>!t.completed&&t.deadline&&t.deadline.startsWith(ms))
-    .forEach(t=>evs.push({s:t.deadline,e:t.deadline,color:T.yellow}));
+    .forEach(t=>evs.push({s:t.deadline,e:t.deadline,color:T.yellow,label:t.title}));
   goals.filter(g=>g.targetDate&&g.targetDate.startsWith(ms))
-    .forEach(g=>evs.push({s:g.targetDate,e:g.targetDate,color:T.blue}));
+    .forEach(g=>evs.push({s:g.targetDate,e:g.targetDate,color:T.blue,label:g.title}));
 
   // Group cells into rows of 7
   const weekRows=[];
@@ -547,14 +616,20 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode}){
           {/* Day numbers */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {week.map((day,di)=>{
-              if(!day) return <div key={"p"+di} style={{aspectRatio:"1"}}/>;
+              if(!day) return <div key={"p"+di} style={{height:22,border:`1px solid transparent`}}/>;
               const ds=wDates[di],isT=ds===todayStr;
-              return <div key={ds} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,background:isT?T.mint:"transparent"}}>
-                <span style={{fontSize:11,lineHeight:"1",color:isT?T.bg:T.text,fontWeight:isT?700:400,fontFamily:F}}>{day}</span>
+              return <div key={ds}
+                onClick={()=>onAddTask&&onAddTask(ds)}
+                title="Add task for this day"
+                style={{height:22,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
+                  background:isT?T.mint:"transparent",
+                  border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
+                  cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
+                <span style={{fontSize:10,lineHeight:"1",color:isT?T.bg:T.text,fontWeight:isT?700:400,fontFamily:F}}>{day}</span>
               </div>;
             })}
           </div>
-          {/* Event span bars */}
+          {/* Event span bars with names */}
           {wEvs.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,gridAutoFlow:"row dense",marginTop:2}}>
             {wEvs.map((ev,ei)=>{
               let sc=wDates.findIndex(d=>d&&d>=ev.s);
@@ -563,12 +638,18 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode}){
               for(let i=6;i>=0;i--){if(wDates[i]&&wDates[i]<=ev.e){ec=i;break;}}
               if(sc===-1||ec===-1||sc>ec) return null;
               const rL=wDates[sc]===ev.s, rR=wDates[ec]===ev.e;
-              return <div key={ei} style={{
+              const showLabel=rL&&ev.label;
+              return <div key={ei} title={ev.label||""} style={{
                 gridColumn:`${sc+1}/${ec+2}`,
-                height:4,
+                height:showLabel?13:5,
                 borderRadius:`${rL?3:0}px ${rR?3:0}px ${rR?3:0}px ${rL?3:0}px`,
-                background:ev.color,opacity:0.88,
-              }}/>;
+                background:alpha(ev.color,.75),
+                display:"flex",alignItems:"center",paddingLeft:showLabel?4:0,
+                overflow:"hidden",
+              }}>
+                {showLabel&&<span style={{fontSize:8,color:"#fff",fontFamily:F,fontWeight:600,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1}}>{ev.label}</span>}
+              </div>;
             })}
           </div>}
         </div>;
@@ -726,10 +807,10 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
       {days.map((day,idx)=>{
         const ds=toStr(day),isT=ds===todayStr,isPast=ds<todayStr;
         const dayTasks=tasksForDay(ds);
-        return <div key={ds} className="day-cell" style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?130:88,background:isT?T.mintX:isPast?T.bg+"44":T.cardAlt,border:`1px solid ${isT?T.mint+"55":T.borderSft}`,opacity:isPast?0.55:1}}>
-          <div style={{textAlign:"center",marginBottom:5}}>
-            <div style={{fontSize:8,color:T.textMd,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
-            <div onClick={()=>onFocusDay(day)} title="Focus view" style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F,cursor:"pointer"}}>{day.getDate()}</div>
+        return <div key={ds} className="day-cell" onClick={()=>onAddTask&&onAddTask(ds)} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?110:72,background:isT?T.mintX:isPast?alpha(T.bg,.45):T.cardAlt,border:`1px solid ${isT?alpha(T.mint,.45):alpha(T.border,.55)}`,opacity:isPast?0.6:1,cursor:onAddTask?"pointer":"default"}}>
+          <div style={{textAlign:"center",marginBottom:4}}>
+            <div style={{fontSize:7,color:T.textLt,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
+            <div style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F}}>{day.getDate()}</div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
             {dayTasks.slice(0,max).map(task=>{
@@ -1992,6 +2073,93 @@ function ProjectsWidget({pageMode}){
   </div>;
 }
 
+// ── TASKS WIDGET ─────────────────────────────────────
+function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
+  const T=useT();
+  const todayStr=toStr(new Date());
+  const [filter,setFilter]=useState("active"); // "active"|"overdue"|"done"
+  const [tagFilter,setTagFilter]=useState(null);
+
+  const active=tasks.filter(t=>!t.completed).sort((a,b)=>a.deadline.localeCompare(b.deadline));
+  const overdue=active.filter(t=>t.deadline<todayStr);
+  const done=tasks.filter(t=>t.completed).slice(0,pageMode?999:10);
+
+  const base=filter==="active"?active:filter==="overdue"?overdue:done;
+  const shown=(tagFilter?base.filter(t=>(t.tags||[]).includes(tagFilter)):base);
+  const displayed=pageMode?shown:shown.slice(0,8);
+
+  // All tags present in the active set
+  const allTags=[...new Set(active.flatMap(t=>t.tags||[]))];
+
+  function toggle(id){
+    setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed,manualPos:null}:t));
+  }
+  function del(id){
+    const t=tasks.find(x=>x.id===id);
+    if(t){pushUndo({type:"DELETE_TASK",payload:t});}
+    setTasks(p=>p.filter(x=>x.id!==id));
+  }
+
+  const urgency=dl=>{
+    if(dl<todayStr) return{label:"Overdue",color:T.pink};
+    if(dl===todayStr) return{label:"Today",color:T.yellow};
+    const d=Math.ceil((new Date(dl+"T12:00:00")-new Date())/86400000);
+    return d<=3?{label:`${d}d`,color:T.yellow}:{label:dl.slice(5),color:T.textLt};
+  };
+
+  const tabBg=(id)=>filter===id?{background:T.card,color:T.text,fontWeight:700}:{background:"transparent",color:T.textMd,fontWeight:400};
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+    {/* Filter tabs */}
+    <div style={{display:"flex",gap:1,background:T.cardAlt,borderRadius:7,padding:2,flexShrink:0}}>
+      {[["active","Active"],["overdue","Overdue"],["done","Done"]].map(([id,lab])=>(
+        <button key={id} onClick={()=>setFilter(id)}
+          style={{flex:1,padding:"3px 0",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:10,transition:"all 0.12s",...tabBg(id)}}>
+          {lab}{id==="overdue"&&overdue.length>0?<span style={{marginLeft:3,background:T.pink,color:T.bg,borderRadius:8,padding:"0 4px",fontSize:8,fontWeight:700}}>{overdue.length}</span>:null}
+        </button>
+      ))}
+    </div>
+
+    {/* Tag filter pills */}
+    {allTags.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",flexShrink:0}}>
+      {allTags.map(tag=>(
+        <button key={tag} onClick={()=>setTagFilter(tagFilter===tag?null:tag)}
+          style={{fontSize:9,fontFamily:F,padding:"2px 7px",borderRadius:10,cursor:"pointer",fontWeight:tagFilter===tag?700:400,
+            background:tagFilter===tag?(TASK_TAGS[tag]||T.mint)+"33":"transparent",
+            border:`1px solid ${tagFilter===tag?(TASK_TAGS[tag]||T.mint):T.border}`,
+            color:tagFilter===tag?(TASK_TAGS[tag]||T.mint):T.textLt}}>
+          {tag}
+        </button>
+      ))}
+    </div>}
+
+    {/* Task list */}
+    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
+      {displayed.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:T.textLt,fontSize:11,fontFamily:F}}>
+        {filter==="done"?"No completed tasks yet":"Nothing here"}
+      </div>}
+      {displayed.map(task=>{
+        const urg=filter!=="done"?urgency(task.deadline):null;
+        const taskTags=task.tags||[];
+        return <div key={task.id} className="task-row" style={{display:"flex",alignItems:"flex-start",gap:6,padding:"5px 6px",borderRadius:7,background:T.cardAlt,border:`1px solid ${T.borderSft}`}}>
+          <button onClick={()=>toggle(task.id)} style={{flexShrink:0,marginTop:1,width:14,height:14,borderRadius:3,border:`1.5px solid ${task.completed?T.mint:T.textLt}`,background:task.completed?T.mint:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {task.completed&&<span style={{fontSize:8,color:T.bg,lineHeight:1}}>✓</span>}
+          </button>
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>onEditTask&&onEditTask(task)}>
+            <div style={{fontSize:11,fontFamily:F,color:task.completed?T.textLt:T.text,textDecoration:task.completed?"line-through":"none",lineHeight:1.35,wordBreak:"break-word"}}>{task.title}</div>
+            <div style={{display:"flex",gap:4,marginTop:2,alignItems:"center",flexWrap:"wrap"}}>
+              {urg&&<span style={{fontSize:9,color:urg.color,fontFamily:F,fontWeight:500}}>{urg.label}</span>}
+              {taskTags.slice(0,2).map(tg=><span key={tg} style={{fontSize:8,color:TASK_TAGS[tg]||T.textLt,fontFamily:F}}>{tg}</span>)}
+            </div>
+          </div>
+          <button onClick={()=>del(task.id)} style={{flexShrink:0,background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:11,padding:"0 2px",lineHeight:1,opacity:0.6}}>×</button>
+        </div>;
+      })}
+      {!pageMode&&shown.length>8&&<div style={{fontSize:10,color:T.textMd,textAlign:"center",fontFamily:F,padding:"2px 0"}}>+{shown.length-8} more → open full view</div>}
+    </div>
+  </div>;
+}
+
 // ── GOAL COACH MODAL ───────────────────────────────
 function GoalCoachModal({goal,onClose,apiKey}){
   const T=useT();
@@ -2674,7 +2842,7 @@ function App(){
   const wc=WCOL(T);
 
   function addAction(id){
-    if(id==="wakuli"||id==="kanban") return <Btn small primary onClick={()=>setModal({type:"task"})}>+ Task</Btn>;
+    if(id==="wakuli"||id==="kanban"||id==="tasks") return <Btn small primary onClick={()=>setModal({type:"task"})}>+ Task</Btn>;
     if(id==="trips") return <Btn small primary onClick={()=>setModal({type:"trip"})}>+ Trip</Btn>;
     if(id==="goals") return <Btn small primary onClick={()=>setModal({type:"goal"})}>+ Goal</Btn>;
     return null;
@@ -2682,7 +2850,7 @@ function App(){
 
   function widgetBody(id,pageMode=false){
     switch(id){
-      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode}/>;
+      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})}/>;
       case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
@@ -2691,17 +2859,17 @@ function App(){
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
       case "embed":    return <EmbedWidget pageMode={pageMode}/>;
-      case "projects": return <ProjectsWidget pageMode={pageMode}/>;
+      case "tasks":    return <TasksWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
 
       default: return null;
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",entropy:"Entropy",radar:"Radar",embed:"Embed",projects:"Projects"};
-  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",entropy:"✦",radar:"🔭",embed:"⧉",projects:"⊞"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",entropy:"Entropy",radar:"Radar",embed:"Embed",tasks:"Tasks"};
+  const WICON={calendar:"◷",wakuli:"◈",kanban:"▦",trips:"◎",goals:"◉",entropy:"✦",radar:"🔭",embed:"⧉",tasks:"◫"};
 
   return <TC.Provider value={T}>
-    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bg,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
+    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
 
       {/* HEADER */}
       <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
@@ -2741,7 +2909,7 @@ function App(){
       </header>
 
       {/* DAILY BRIEF */}
-      <DailyBrief tasks={tasks} trips={trips} goals={goals}/>
+      <GreetingHeader tasks={tasks} trips={trips} goals={goals}/>
 
       {/* QUICK CAPTURE */}
       <QuickCapture captureRef={captureRef} setTasks={setTasks} setTrips={setTrips} setGoals={setGoals} setModal={setModal}/>
@@ -2794,8 +2962,8 @@ function App(){
                 onMouseEnter={()=>!isMobile&&setHoveredWidget(w.id)}
                 onMouseLeave={()=>!isMobile&&!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
-                <Card lift={false} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",
-                  boxShadow:!isMobile&&(isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 8px 32px rgba(0,0,0,.45)`:isHov?`0 4px 16px rgba(0,0,0,.25)`:"none"),transition:"box-shadow 0.18s"}}>
+                <Card lift={false} glass={true} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",
+                  boxShadow:!isMobile&&(isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 12px 40px rgba(0,0,0,.5)`:isHov?`0 6px 24px rgba(0,0,0,.3)`:"0 2px 12px rgba(0,0,0,.18)"),transition:"box-shadow 0.22s"}}>
                   <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
                     {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
                       style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
