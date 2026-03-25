@@ -768,8 +768,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
                   border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
                   cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
                 <span style={{fontSize:10,lineHeight:"1",color:isT?T.bg:T.text,fontWeight:isT?700:400,fontFamily:F}}>{day}</span>
-              </div>
-              </FadeIn>;
+              </div>;
             })}
           </div>
           {/* Event span bars with names */}
