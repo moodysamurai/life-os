@@ -154,7 +154,7 @@ function buildDark([p1,p2,p3,p4,p5]){
   return{
     bg:p5,bgGradient:p5,
     card,cardAlt:mix(p5,p4,.37),
-    cardGlass:alpha(card,.58),cardAltGlass:alpha(mix(p5,p4,.37),.52),
+    cardGlass:alpha(card,.32),cardAltGlass:alpha(mix(p5,p4,.37),.22),
     border:mix(p5,p4,.27),borderSft:mix(p5,p4,.18),inp:mix(p5,p4,.08),
     mint:p1,mintX:alpha(p1,.12),
     blue:sec,blueX:alpha(sec,.12),
@@ -172,7 +172,7 @@ function buildLight([p1,p2,p3,p4,p5]){
   return{
     bg:mix(p3,W,.6),bgGradient:`linear-gradient(145deg, ${mix(p3,W,.78)} 0%, ${mix(p3,W,.55)} 100%)`,
     card,cardAlt:mix(p3,W,.42),
-    cardGlass:alpha(card,.72),cardAltGlass:alpha(mix(p3,W,.42),.65),
+    cardGlass:alpha(card,.38),cardAltGlass:alpha(mix(p3,W,.42),.28),
     border:mix(p3,p4,.15),borderSft:mix(p3,p4,.08),inp:W,
     mint:mix(p1,p5,.18),mintX:alpha(p1,.1),
     blue:sec,blueX:alpha(p4,.1),
@@ -450,7 +450,7 @@ function Card({children,style={},lift=true,glass=false}){
   const T=useT();
   const bg=glass?T.cardGlass:T.card;
   const bd=glass?alpha(T.border,.55):T.border;
-  const glassExtra=glass?{backdropFilter:"blur(20px) saturate(1.5)",WebkitBackdropFilter:"blur(20px) saturate(1.5)"}:{};
+  const glassExtra=glass?{backdropFilter:"blur(32px) saturate(1.8)",WebkitBackdropFilter:"blur(32px) saturate(1.8)"}:{};
   return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"1.1rem",...glassExtra,...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
@@ -741,22 +741,15 @@ function GreetingHeader({tasks,trips,goals}){
   if(stats.length===0) stats.push({text:"All clear",color:T.mint});
 
   return <div className="greet-in" style={{
-    padding:"28px 1.75rem 20px",
-    borderBottom:`1px solid ${alpha(T.border,.6)}`,
-    background:`linear-gradient(to right, ${alpha(T.mint,.06)} 0%, transparent 60%)`,
-    backdropFilter:"blur(8px)",
+    padding:"22px 1.75rem 18px",
+    borderBottom:`1px solid ${alpha(T.border,.35)}`,
   }}>
-    {/* Metadata row — Palmer-style 3-col section header */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt}}>© Pratham Gupta</span>
-      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt}}>{today.toLocaleDateString("en-GB",{month:"long",year:"numeric"}).toUpperCase()}</span>
-      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:T.textLt}}>Leiden · Delhi</span>
-    </div>
+
     {/* Hero greeting */}
-    <div style={{marginBottom:scriptGreeting?4:10}}>
+    <div style={{marginBottom:scriptGreeting?6:14}}>
       <span style={{
-        fontSize:52,fontWeight:800,fontFamily:F,
-        letterSpacing:"-2.5px",color:T.text,lineHeight:0.92,
+        fontSize:56,fontWeight:900,fontFamily:F,
+        letterSpacing:"-3px",color:T.text,lineHeight:0.9,
         display:"block",transform:`translateY(${scrollY*0.22}px)`,transition:"transform 0.05s linear",
       }}>
         {greeting}
@@ -795,7 +788,7 @@ function GreetingHeader({tasks,trips,goals}){
 
     {/* Date + stats line */}
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:0}}>
-      <span style={{fontSize:11,color:T.textMd,fontFamily:F,marginRight:10}}>{dateStr}</span>
+      <span style={{fontSize:10,color:T.textLt,fontFamily:F,marginRight:10,letterSpacing:"0.01em"}}>{dateStr}</span>
       {stats.map((s,i)=><React.Fragment key={i}>
         <span style={{fontSize:10,color:T.textLt,margin:"0 6px",lineHeight:1}}>·</span>
         <span style={{fontSize:11,color:s.color,fontFamily:F,fontWeight:500,whiteSpace:"nowrap"}}>{s.text}</span>
