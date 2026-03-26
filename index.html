@@ -3212,7 +3212,7 @@ function App(){
               <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span>
             </button>
             {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {WDEFS.map(w=>{const act=page===w.id;const noPage=["entropy","embed","radar"].includes(w.id);return <button key={w.id} className="nav-item" onClick={()=>!noPage&&setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:20,padding:"3px 10px",cursor:noPage?"default":"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s",opacity:noPage?0.5:1}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
+              {WDEFS.filter(w=>!["entropy","embed","radar"].includes(w.id)).map(w=>{const act=page===w.id;return <button key={w.id} className="nav-item" onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
             </div>}
           </div>
           <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
