@@ -869,23 +869,23 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       {["M","T","W","T","F","S","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:9,color:T.textMd,fontWeight:700,fontFamily:F,aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center"}}>{d}</div>)}
     </div>
     {/* Week rows — numbers + event bars */}
-    <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:3}}>
+    <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:3,justifyContent:"space-evenly"}}>
       {weekRows.map((week,wi)=>{
         const wDates=week.map(day=>day?`${ms}-${String(day).padStart(2,"0")}`:null);
         const valid=wDates.filter(Boolean);
         if(!valid.length) return null;
         const wStart=valid[0],wEnd=valid[valid.length-1];
         const wEvs=evs.filter(ev=>ev.e>=wStart&&ev.s<=wEnd);
-        return <div key={wi} style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+        return <div key={wi}>
           {/* Day numbers */}
-          <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {week.map((day,di)=>{
-              if(!day) return <div key={"p"+di} style={{border:`1px solid transparent`}}/>;
+              if(!day) return <div key={"p"+di} style={{minHeight:26,border:`1px solid transparent`}}/>;
               const ds=wDates[di],isT=ds===todayStr;
               return <div key={ds}
                 onClick={()=>onAddTask&&onAddTask(ds)}
                 title="Add task for this day"
-                style={{display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
+                style={{minHeight:26,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
                   background:isT?T.mint:"transparent",
                   border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
                   cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
@@ -3326,7 +3326,7 @@ function App(){
                     </div>
                   )}
                   {!isMin&&(isHeadless
-                    ?<div style={{flex:1,overflow:"hidden",minHeight:0,paddingTop:1,display:"flex",flexDirection:"column"}}>{widgetBody(w.id,false)}</div>
+                    ?<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:1,display:"flex",flexDirection:"column"}}>{widgetBody(w.id,false)}</div>
                     :<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:10}}>{widgetBody(w.id,false)}</div>
                   )}
                 </Card>
