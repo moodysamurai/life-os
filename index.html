@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Pratham's Life OS</title>
+<title>受付係</title>
 <link rel="manifest" href="manifest.json"/>
 <meta name="theme-color" content="#4ade80"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="Life OS"/>
+<meta name="apple-mobile-web-app-title" content="受付係"/>
 <link rel="apple-touch-icon" href="icon.svg"/>
+<link rel="icon" type="image/svg+xml" href="icon.svg"/>
 <link rel="stylesheet" href="https://fonts.bunny.net/css?family=geist:300,400,500,600,700,800,900&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -107,6 +108,29 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 
 /* ── NOISE OVERLAY ──────────────────────────────── */
 .noise-layer{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.055;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.42' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-repeat:repeat;background-size:320px 320px;}
+
+/* ── ANIMATED BACKGROUND BLOBS ─────────────────── */
+.bg-anim{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.bg-blob{position:absolute;border-radius:50%;filter:blur(100px);will-change:transform;}
+.b1{width:80vw;height:70vh;background:#fff;opacity:0.042;top:-30%;left:-30%;animation:blobMove1 24s ease-in-out infinite alternate;}
+.b2{width:60vw;height:58vh;background:#fff;opacity:0.033;bottom:-18%;right:-20%;animation:blobMove2 30s ease-in-out infinite alternate;}
+.b3{width:50vw;height:48vh;background:#fff;opacity:0.026;top:20%;left:30%;animation:blobMove3 20s ease-in-out infinite alternate;}
+@keyframes blobMove1{from{transform:translate(0,0) scale(1)}to{transform:translate(20vw,14vh) scale(1.15)}}
+@keyframes blobMove2{from{transform:translate(0,0) scale(1)}to{transform:translate(-16vw,-12vh) scale(0.86)}}
+@keyframes blobMove3{from{transform:translate(0,0) rotate(0deg)}to{transform:translate(12vw,-20vh) rotate(28deg)}}
+
+/* ── NAV CASCADE ────────────────────────────────── */
+.nav-cascade-wrap .nav-item{opacity:0.35;transition:opacity 0.22s ease,color 0.1s,background 0.1s,border-color 0.1s !important;}
+.nav-cascade-wrap:hover .nav-item{opacity:1;}
+.nav-cascade-wrap:hover .nav-item:nth-child(1){transition-delay:0ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(2){transition-delay:38ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(3){transition-delay:76ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(4){transition-delay:114ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(5){transition-delay:152ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(6){transition-delay:190ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(7){transition-delay:228ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(8){transition-delay:266ms !important;}
+.nav-cascade-wrap:hover .nav-item:nth-child(9){transition-delay:304ms !important;}
 </style>
 </head>
 <body>
@@ -137,7 +161,7 @@ function buildDark([p1,p2,p3,p4,p5]){
   const yel=mix(p1,p3,.22);
   const card=mix(p5,p4,.52);
   return{
-    bg:p5,bgGradient:`radial-gradient(ellipse at 22% -8%, ${mix(p5,p1,.16)} 0%, ${p5} 58%)`,
+    bg:p5,bgGradient:p5,
     card,cardAlt:mix(p5,p4,.37),
     cardGlass:alpha(card,.58),cardAltGlass:alpha(mix(p5,p4,.37),.52),
     border:mix(p5,p4,.27),borderSft:mix(p5,p4,.18),inp:mix(p5,p4,.08),
@@ -332,8 +356,8 @@ function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}
   const bo=active||primary?ac:danger?T.pink:color?color:T.border;
   const glow=(primary||active)&&h?`0 3px 12px ${alpha(ac,.38)}`:"none";
   return <button onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{
-    padding:small?"3px 8px":"6px 13px",fontSize:small?"11px":"12px",fontFamily:F,fontWeight:600,
-    background:bg,color:co,border:`1px solid ${bo}`,borderRadius:7,cursor:"pointer",
+    padding:small?"4px 11px":"6px 13px",fontSize:small?"11px":"12px",fontFamily:F,fontWeight:600,
+    background:bg,color:co,border:`1px solid ${bo}`,borderRadius:small?20:9,cursor:"pointer",
     opacity:h&&!primary&&!active?0.76:1,
     transform:h?"scale(0.97)":"scale(1)",
     boxShadow:glow,
@@ -676,7 +700,7 @@ function GreetingHeader({tasks,trips,goals}){
 }
 
 // ── QUICK CAPTURE ──────────────────────────────────
-function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
+function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal,onClose,inline}){
   const T=useT();
   const [val,sV]=useState("");
   const [hint,sH]=useState(null);
@@ -688,14 +712,14 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal}){
       if(p.type==="task"&&p.title){setTasks(prev=>[...prev,{id:uid(),title:p.title,deadline:p.deadline,priority:p.priority,recurring:p.recurring||null,notes:"",completed:false,timeBlock:null}]);}
       else if(p.type==="trip"&&p.startDate){setTrips(prev=>[...prev,{id:uid(),destination:p.destination,startDate:p.startDate,endDate:p.endDate,notes:"",phase:"planning",packingList:[]}]);}
       else if(p.type==="goal"&&p.title){setGoals(prev=>[...prev,{id:uid(),title:p.title,targetDate:p.targetDate||"",description:"",progress:0,completed:false,lastTouched:null}]);}
-      else{setModal({type:p.type==="trip"?"trip":p.type==="goal"?"goal":"task"});sV("");sH(null);return;}
-      sV("");sH(null);
+      else{setModal({type:p.type==="trip"?"trip":p.type==="goal"?"goal":"task"});sV("");sH(null);onClose&&onClose();return;}
+      sV("");sH(null);onClose&&onClose();
     }
-    if(e.key==="Escape"){sV("");sH(null);e.target.blur();}
+    if(e.key==="Escape"){sV("");sH(null);e.target.blur();onClose&&onClose();}
   }
   const typeColor=hint?{task:T.yellow,trip:T.mint,goal:T.blue}[hint.type]||T.textMd:T.textMd;
-  return <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`,padding:"6px 1rem"}}>
-    <div style={{margin:"0 auto",display:"flex",alignItems:"center",gap:8}}>
+  return <div style={{padding:0}}>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
       <span style={{fontSize:12,color:T.textLt,flexShrink:0}}>⌘</span>
       <input ref={captureRef} value={val} onChange={onChange} onKeyDown={onKey} placeholder='Quick capture — task, "!trip Paris apr 10-15", "!goal learn piano" → Enter' style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:12,color:T.text,fontFamily:F}}/>
       {hint&&<span style={{fontSize:10,fontWeight:700,color:typeColor,fontFamily:F,flexShrink:0,textTransform:"uppercase",letterSpacing:"0.05em"}}>{hint.type}</span>}
@@ -2805,7 +2829,16 @@ function App(){
     const s=lg("plo3_widgets",null);
     return s?WDEFS.map(d=>({...d,...(s.find(w=>w.id===d.id)||{})})):WDEFS;
   });
-  const [layout,setLayout]=useState(()=>{const s=lg("plo3_layout",null);return s?{...DEFAULT_LAYOUT,...s}:DEFAULT_LAYOUT;});
+  const [layout,setLayout]=useState(()=>{
+  const s=lg("plo3_layout",null);
+  if(!s) return DEFAULT_LAYOUT;
+  const merged={...DEFAULT_LAYOUT,...s};
+  for(const k of Object.keys(merged)){
+    if(DEFAULT_LAYOUT[k]&&(merged[k].row>35||merged[k].col<1||merged[k].col>GCOLS))
+      merged[k]={...DEFAULT_LAYOUT[k]};
+  }
+  return merged;
+});
   const [minimised,setMinimised]=useState(()=>new Set(lg("plo3_minimised",[])));
   const toggleMin=id=>setMinimised(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
   const [isMobile,setIsMobile]=useState(()=>window.innerWidth<768);
@@ -2819,7 +2852,7 @@ function App(){
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
-  const [zoom,setZoom]=useState(()=>lg("plo3_zoom",1));
+  const zoom=1.35;
 
   // ── Cloud sync ──
   const [syncToken,setSyncToken]=useState(()=>lg("plo3_sync_token",""));
@@ -2851,6 +2884,7 @@ function App(){
   const [modal,setModal]=useState(null);
   const [focusDay,setFocusDay]=useState(null);
   const [searchOpen,setSearchOpen]=useState(false);
+  const [showCapture,setShowCapture]=useState(false);
   const [tripSugg,setTripSugg]=useState({});
   const [loadingSugg,setLoadingSugg]=useState(null);
   const captureRef=useRef(null);
@@ -2879,7 +2913,6 @@ function App(){
   useEffect(()=>ls("plo3_photos",photos),[photos]);
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
-  useEffect(()=>ls("plo3_zoom",zoom),[zoom]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
   useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
 
@@ -2925,6 +2958,8 @@ function App(){
     }
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey);
   },[modal,searchOpen,focusDay]);
+
+  useEffect(()=>{if(showCapture)setTimeout(()=>captureRef.current?.focus(),60);},[showCapture]);
 
   // ── 2D drag + resize handlers (ref-based, single registration) ──
   function mouseToCell(e){
@@ -3059,7 +3094,9 @@ function App(){
   const WICON={calendar:"calendar-blank",wakuli:"diamond-four",kanban:"squares-four",trips:"airplane-tilt",goals:"target",entropy:"sparkle",radar:"telescope",embed:"browsers",tasks:"list-checks"};
 
   return <TC.Provider value={T}>
-    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom}}>
+    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
+      {/* Animated background */}
+      <div className="bg-anim"><div className="bg-blob b1"/><div className="bg-blob b2"/><div className="bg-blob b3"/></div>
       <div className="noise-layer"/>
       {/* Floating scroll dot */}
       <ScrollDot/>
@@ -3070,30 +3107,21 @@ function App(){
           <div style={{display:"flex",alignItems:"center",gap:2}}>
             <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",padding:"3px 10px 3px 0",display:"flex",alignItems:"center",gap:5,color:T.text}}>
               <span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
-              <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"-0.8px"}}>Life OS</span>
+              <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span>
             </button>
-            {!isMobile&&<div style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
+            {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
+              {WDEFS.map(w=>{const act=page===w.id;return <button key={w.id} className="nav-item" onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
             </div>}
           </div>
           <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
             {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}><Ico n="magnifying-glass" size={13}/> <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
-            {!isMobile&&<div style={{display:"flex",alignItems:"center",gap:5,padding:"2px 7px",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7}} title="Page zoom">
-              <span style={{fontSize:9,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
-              <input type="range" min={0.7} max={1.35} step={0.05} value={zoom}
-                onChange={e=>setZoom(+e.target.value)}
-                style={{width:52,cursor:"pointer",accentColor:T.mint,margin:0}}/>
-              <span style={{fontSize:12,color:T.textLt,fontFamily:F,userSelect:"none"}}>A</span>
-            </div>}
-            <Btn small onClick={cycleTheme} title={`Theme: ${activePreset.label} — click to cycle`} style={{fontSize:11}}>{activePreset.icon}</Btn>
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
             <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:syncGistId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
             </Btn>
-            <Btn small onClick={()=>setShowWeeklyReview(true)} title="Weekly Review" style={{position:"relative",fontSize:11}}>
-              <Ico n="book-open" size={13}/>{isSunday&&<span style={{position:"absolute",top:1,right:1,width:5,height:5,borderRadius:"50%",background:T.mint,pointerEvents:"none"}}/>}
-            </Btn>
-            <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}><Ico n="grid-four" size={13}/></Btn>
+            <Btn small onClick={()=>setShowColorPanel(true)} title="Custom palette" style={{fontSize:11}}><Ico n="palette" size={13}/></Btn>
+            <Btn small onClick={()=>setShowCapture(c=>!c)} active={showCapture} title="Quick capture"><Ico n="plus" size={13}/></Btn>
+            <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}><Ico n="sliders-horizontal" size={13}/></Btn>
             {!isMobile&&<Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>}
             {!isMobile&&<Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>}
             {!isMobile&&<Btn small primary onClick={exportICS} style={{fontSize:10}}>📅</Btn>}
@@ -3104,12 +3132,15 @@ function App(){
       {/* DAILY BRIEF */}
       <GreetingHeader tasks={tasks} trips={trips} goals={goals}/>
 
-      {/* MARQUEE TICKER */}
-      {!page&&<MarqueeTicker/>}
 
-      {/* QUICK CAPTURE */}
-      <QuickCapture captureRef={captureRef} setTasks={setTasks} setTrips={setTrips} setGoals={setGoals} setModal={setModal}/>
 
+      {/* CAPTURE OVERLAY */}
+      {showCapture&&<div onClick={e=>e.target===e.currentTarget&&setShowCapture(false)} className="overlay-in" style={{position:"fixed",inset:0,zIndex:300,backdropFilter:"blur(14px) brightness(0.6)",WebkitBackdropFilter:"blur(14px) brightness(0.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"22vh"}}>
+        <div className="modal-pop" style={{background:T.card,border:`1px solid ${alpha(T.border,.8)}`,borderRadius:16,width:"90%",maxWidth:520,padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.8)"}}>
+          <div style={{fontSize:9,fontWeight:700,color:T.textLt,fontFamily:F,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:10}}>Quick Capture</div>
+          <QuickCapture captureRef={captureRef} setTasks={setTasks} setTrips={setTrips} setGoals={setGoals} setModal={setModal} onClose={()=>setShowCapture(false)} inline/>
+        </div>
+      </div>}
       {/* CUSTOMIZE */}
       {customizing&&<CustomizePanel widgets={widgets} setWidgets={setWidgets} onResetLayout={()=>setLayout(DEFAULT_LAYOUT)} onClose={()=>setCustomizing(false)} onOpenColors={()=>setShowColorPanel(true)}/>}
 
@@ -3164,7 +3195,7 @@ function App(){
                     {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
                       style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
                         userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>}
-                    <div style={{flex:1,minWidth:0}}><WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&setPage(w.id)} action={addAction(w.id)}/></div>
+                    <div style={{flex:1,minWidth:0}}>{w.id!=="calendar"&&w.id!=="kanban"&&<WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&w.id!=="entropy"&&setPage(w.id)} action={addAction(w.id)}/>}</div>
                     <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
                       style={{background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
                         padding:"2px 6px",opacity:isMobile?0.6:isHov||isMin?0.7:0,transition:"opacity 0.15s",flexShrink:0,lineHeight:1}}>
@@ -3173,15 +3204,16 @@ function App(){
                   </div>
                   {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:10}}>{widgetBody(w.id,false)}</div>}
                 </Card>
-                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')}
-                  style={{position:"absolute",right:0,top:"18%",bottom:"18%",width:5,cursor:"col-resize",zIndex:20,
-                    background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 3px 3px 0",touchAction:"none"}}/>}
-                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'v')}
-                  style={{position:"absolute",bottom:0,left:"18%",right:"18%",height:5,cursor:"row-resize",zIndex:20,
-                    background:T.mint,opacity:isRes?0.9:0.5,borderRadius:"0 0 3px 3px",touchAction:"none"}}/>}
-                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'hv')}
-                  style={{position:"absolute",right:0,bottom:0,width:13,height:13,cursor:"nwse-resize",zIndex:21,
-                    background:T.mint,opacity:isRes?1:0.7,borderRadius:"0 0 3px 0",touchAction:"none"}}/>}
+                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')} style={{position:"absolute",right:1,top:"50%",transform:"translateY(-50%)",cursor:"col-resize",zIndex:20,display:"flex",flexDirection:"column",gap:"3px",padding:"5px 4px",touchAction:"none",opacity:isRes?1:0.5}}>
+                  {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/>)}
+                </div>}
+                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'v')} style={{position:"absolute",bottom:1,left:"50%",transform:"translateX(-50%)",cursor:"row-resize",zIndex:20,display:"flex",flexDirection:"row",gap:"3px",padding:"4px 5px",touchAction:"none",opacity:isRes?1:0.5}}>
+                  {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/>)}
+                </div>}
+                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'hv')} style={{position:"absolute",right:1,bottom:1,cursor:"nwse-resize",zIndex:21,display:"flex",flexDirection:"column",gap:"2px",padding:"3px",touchAction:"none",opacity:isRes?1:0.5}}>
+                  <div style={{display:"flex",gap:"2px",justifyContent:"flex-end"}}><div style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/><div style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/></div>
+                  <div style={{display:"flex",gap:"2px",justifyContent:"flex-end"}}><div style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/></div>
+                </div>}
               </div>
               </FadeIn>;
             })}
@@ -3202,7 +3234,7 @@ function App(){
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
       {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
       {showColorPanel&&<ColorCustomizePanel palette={palette} onApply={p=>{setPalette(p);setShowColorPanel(false);}} onClose={()=>setShowColorPanel(false)}/>}
-      {showWeeklyReview&&<WeeklyReviewModal onClose={()=>setShowWeeklyReview(false)} tasks={tasks} completions={completions} goals={goals} trips={trips} apiKey={apiKey}/>}
+
       {showSyncModal&&<SyncModal
         onClose={()=>setShowSyncModal(false)}
         syncToken={syncToken} setSyncToken={setSyncToken}

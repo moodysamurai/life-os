@@ -1,4 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0f0f0f"/>
-  <text x="256" y="340" font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-size="280" font-weight="700" text-anchor="middle" fill="#4ade80">◈</text>
+  <rect width="512" height="512" rx="96" fill="#080808"/>
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#g)" opacity="0.4"/>
+  <defs>
+    <radialGradient id="g" cx="30%" cy="20%" r="70%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#080808" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <text x="256" y="300" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="180" font-weight="300" text-anchor="middle" fill="#F2F2F2" opacity="0.92">受</text>
+  <text x="256" y="430" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="70" font-weight="300" text-anchor="middle" fill="#A0A0A0" letter-spacing="8">付係</text>
 </svg>
