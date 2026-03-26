@@ -361,7 +361,7 @@ const GCOLS=16,GROW_H=96,GGAP=12;
 const DEFAULT_LAYOUT={
   calendar:{col:1, row:1, cS:5,rS:6},
   wakuli:  {col:6, row:1, cS:5,rS:6},
-  kanban:  {col:11,row:1, cS:6,rS:10},
+  kanban:  {col:11,row:1, cS:6,rS:6},
   trips:   {col:1, row:7, cS:5,rS:5},
   goals:   {col:6, row:7, cS:6,rS:5},
   embed:   {col:12,row:7, cS:5,rS:5},
@@ -855,8 +855,8 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
   const weekRows=[];
   for(let i=0;i<cells.length;i+=7) weekRows.push(cells.slice(i,i+7));
 
-  const cal=<>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+  const cal=<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
       <span style={{fontFamily:F,fontWeight:700,fontSize:pageMode?16:13,letterSpacing:"-0.3px"}}>{MFULL[month]} {year}</span>
       <div style={{display:"flex",gap:3}}>
         <Btn small onClick={prev}>‹</Btn>
@@ -865,27 +865,27 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       </div>
     </div>
     {/* Day header row */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3,flexShrink:0}}>
       {["M","T","W","T","F","S","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:9,color:T.textMd,fontWeight:700,fontFamily:F,aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center"}}>{d}</div>)}
     </div>
     {/* Week rows — numbers + event bars */}
-    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+    <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:3,justifyContent:"space-between"}}>
       {weekRows.map((week,wi)=>{
         const wDates=week.map(day=>day?`${ms}-${String(day).padStart(2,"0")}`:null);
         const valid=wDates.filter(Boolean);
         if(!valid.length) return null;
         const wStart=valid[0],wEnd=valid[valid.length-1];
         const wEvs=evs.filter(ev=>ev.e>=wStart&&ev.s<=wEnd);
-        return <div key={wi}>
+        return <div key={wi} style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
           {/* Day numbers */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {week.map((day,di)=>{
-              if(!day) return <div key={"p"+di} style={{minHeight:30,border:`1px solid transparent`}}/>;
+              if(!day) return <div key={"p"+di} style={{border:`1px solid transparent`}}/>;
               const ds=wDates[di],isT=ds===todayStr;
               return <div key={ds}
                 onClick={()=>onAddTask&&onAddTask(ds)}
                 title="Add task for this day"
-                style={{minHeight:30,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
+                style={{display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
                   background:isT?T.mint:"transparent",
                   border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
                   cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
@@ -920,14 +920,14 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       })}
     </div>
     {/* Legend — thick bars instead of dots */}
-    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`}}>
+    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`,flexShrink:0}}>
       {[["Tasks",T.yellow],["Trips",T.mint],["Goals",T.blue]].map(([l,c])=>(
         <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
           <div style={{width:14,height:4,borderRadius:2,background:c}}/><span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{l}</span>
         </div>
       ))}
     </div>
-  </>;
+  </div>;
   // ── Heat map (last 91 days) ──────────────────────
   const heatDates=Array.from({length:91},(_,i)=>{const d=new Date(now);d.setDate(now.getDate()-90+i);return toStr(d);});
   const countByDate={};
@@ -2833,7 +2833,7 @@ Respond ONLY with valid JSON (no markdown):
     {/* Completed tasks list */}
     {completedTasks.length>0&&<div>
       <div style={{fontSize:10,fontWeight:700,color:T.mint,fontFamily:F,letterSpacing:"0.06em",marginBottom:6}}>✓ COMPLETED THIS WEEK</div>
-      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+      <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:3,justifyContent:"space-between"}}>
         {completedTasks.slice(0,8).map(t=>(
           <div key={t.id} style={{fontSize:11,color:T.textMd,fontFamily:F,display:"flex",alignItems:"center",gap:6}}>
             <span style={{color:T.mint,fontSize:10}}>✓</span>{t.title}
@@ -2937,11 +2937,6 @@ function App(){
     if(d&&(merged[k].row>25||merged[k].col<1||merged[k].col+merged[k].cS-1>GCOLS+1))
       merged[k]={...d};
   }
-  // One-time migration: ensure kanban/calendar never have a tiny rS
-  if(merged.kanban&&merged.kanban.rS<8)
-    merged.kanban={...merged.kanban,rS:DEFAULT_LAYOUT.kanban.rS};
-  if(merged.calendar&&merged.calendar.rS<6)
-    merged.calendar={...merged.calendar,rS:DEFAULT_LAYOUT.calendar.rS};
   return merged;
 });
   const [minimised,setMinimised]=useState(()=>new Set(lg("plo3_minimised",[])));
