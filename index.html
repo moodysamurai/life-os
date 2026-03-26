@@ -855,8 +855,8 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
   const weekRows=[];
   for(let i=0;i<cells.length;i+=7) weekRows.push(cells.slice(i,i+7));
 
-  const cal=<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
+  const cal=<>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
       <span style={{fontFamily:F,fontWeight:700,fontSize:pageMode?16:13,letterSpacing:"-0.3px"}}>{MFULL[month]} {year}</span>
       <div style={{display:"flex",gap:3}}>
         <Btn small onClick={prev}>‹</Btn>
@@ -865,11 +865,11 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       </div>
     </div>
     {/* Day header row */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3,flexShrink:0}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
       {["M","T","W","T","F","S","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:9,color:T.textMd,fontWeight:700,fontFamily:F,aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center"}}>{d}</div>)}
     </div>
     {/* Week rows — numbers + event bars */}
-    <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:3,justifyContent:"space-evenly"}}>
+    <div style={{display:"flex",flexDirection:"column",gap:3}}>
       {weekRows.map((week,wi)=>{
         const wDates=week.map(day=>day?`${ms}-${String(day).padStart(2,"0")}`:null);
         const valid=wDates.filter(Boolean);
@@ -880,12 +880,12 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
           {/* Day numbers */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {week.map((day,di)=>{
-              if(!day) return <div key={"p"+di} style={{minHeight:26,border:`1px solid transparent`}}/>;
+              if(!day) return <div key={"p"+di} style={{minHeight:30,border:`1px solid transparent`}}/>;
               const ds=wDates[di],isT=ds===todayStr;
               return <div key={ds}
                 onClick={()=>onAddTask&&onAddTask(ds)}
                 title="Add task for this day"
-                style={{minHeight:26,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
+                style={{minHeight:30,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
                   background:isT?T.mint:"transparent",
                   border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
                   cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
@@ -920,14 +920,14 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       })}
     </div>
     {/* Legend — thick bars instead of dots */}
-    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`,flexShrink:0}}>
+    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`}}>
       {[["Tasks",T.yellow],["Trips",T.mint],["Goals",T.blue]].map(([l,c])=>(
         <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
           <div style={{width:14,height:4,borderRadius:2,background:c}}/><span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{l}</span>
         </div>
       ))}
     </div>
-  </div>;
+  </>;
   // ── Heat map (last 91 days) ──────────────────────
   const heatDates=Array.from({length:91},(_,i)=>{const d=new Date(now);d.setDate(now.getDate()-90+i);return toStr(d);});
   const countByDate={};
@@ -978,7 +978,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
     return evts.sort((a,b)=>a.date.localeCompare(b.date));
   }
   const TYPE_ICON={task:"◈",trip:"◎",goal:"◉"};
-  const timeline=<div style={{flex:1,minHeight:0,overflowY:"auto"}}>
+  const timeline=<div style={{height:"100%",overflowY:"auto"}}>
     {(()=>{
       const evts=buildTimeline();
       if(!evts.length) return <div style={{padding:"24px 0",textAlign:"center",color:T.textLt,fontSize:12,fontFamily:F}}>No upcoming events</div>;
