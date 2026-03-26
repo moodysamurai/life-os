@@ -111,8 +111,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 
 
 /* ── NAV CASCADE ────────────────────────────────── */
-.nav-cascade-wrap .nav-item{opacity:0.35;transition:opacity 0.22s ease,color 0.1s,background 0.1s,border-color 0.1s !important;}
+.nav-cascade-wrap .nav-item{opacity:0.6;transition:opacity 0.22s ease,color 0.1s,background 0.12s,border-color 0.1s !important;}
 .nav-cascade-wrap:hover .nav-item{opacity:1;}
+.nav-cascade-wrap .nav-item:hover{background:rgba(255,255,255,0.07) !important;}
 .nav-cascade-wrap:hover .nav-item:nth-child(1){transition-delay:0ms !important;}
 .nav-cascade-wrap:hover .nav-item:nth-child(2){transition-delay:38ms !important;}
 .nav-cascade-wrap:hover .nav-item:nth-child(3){transition-delay:76ms !important;}
@@ -451,7 +452,7 @@ function Card({children,style={},lift=true,glass=false}){
   const bg=glass?T.cardGlass:T.card;
   const bd=glass?alpha(T.border,.55):T.border;
   const glassExtra=glass?{backdropFilter:"blur(32px) saturate(1.8)",WebkitBackdropFilter:"blur(32px) saturate(1.8)"}:{};
-  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"1.1rem",...glassExtra,...style}}>{children}</div>;
+  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"14px",...glassExtra,...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
   const T=useT();const[h,sH]=useState(false);
@@ -499,11 +500,12 @@ function Empty({msg}){
 }
 function WidgetHead({id,title,icon,onPage,action}){
   const T=useT(),wc=WCOL(T);
-  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${alpha(T.border,.5)}`}}>
-    <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5,color:T.text}}>
-      <span style={{color:wc[id]||T.mint,opacity:0.7,display:"flex"}}><Ico n={icon} size={11}/></span>
-      <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:F,color:T.textMd}}>{title}</span>
-      <span style={{fontSize:8,color:T.textLt,opacity:0.5}}>↗</span>
+  const ac=wc[id]||T.mint;
+  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,borderBottom:`1px solid ${alpha(T.border,.65)}`}}>
+    <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
+      <span style={{color:ac,display:"flex",background:alpha(ac,.13),borderRadius:5,padding:"3px 4px"}}><Ico n={icon} size={12}/></span>
+      <span style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:F,color:T.text}}>{title}</span>
+      <span style={{fontSize:9,color:T.textLt,opacity:0.4}}>↗</span>
     </button>
     {action}
   </div>;
@@ -1087,6 +1089,10 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
               </div>;
             })}
             {dayTasks.length>max&&<div style={{fontSize:8,color:T.textLt,textAlign:"center",fontFamily:F}}>+{dayTasks.length-max}</div>}
+            {dayTasks.length===0&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",paddingTop:6,gap:3,opacity:0.3}}>
+              {isT&&<span style={{fontSize:7,color:T.mint,fontFamily:F,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase"}}>today</span>}
+              <div style={{width:14,height:1,background:T.border,borderRadius:1}}/>
+            </div>}
           </div>
         </div>;
       })}
@@ -2041,11 +2047,12 @@ Respond ONLY with valid JSON (no markdown):
         borderLeft:`3px solid ${cat.color}`,paddingLeft:10,
       }}>{s.title}</div>
       {/* Description */}
-      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.6,flex:1}}>
+      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.6,flex:pageMode?1:undefined,
+        overflow:pageMode?undefined:"hidden",display:"-webkit-box",WebkitLineClamp:pageMode?9999:3,WebkitBoxOrient:"vertical"}}>
         {s.description}
       </div>
-      {/* Why */}
-      {s.why&&<div style={{fontSize:pageMode?11:10,color:cat.color,fontFamily:F,fontStyle:"italic",lineHeight:1.5,opacity:0.85}}>
+      {/* Why — only in page/expanded mode */}
+      {s.why&&pageMode&&<div style={{fontSize:11,color:cat.color,fontFamily:F,fontStyle:"italic",lineHeight:1.5,opacity:0.85,flex:1}}>
         "{s.why}"
       </div>}
       {/* Actions */}
@@ -2653,12 +2660,13 @@ Respond ONLY with valid JSON (no markdown):
       </div>
 
       {/* Why it's interesting */}
-      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.7,flex:1,overflowY:"auto"}}>
+      <div style={{fontSize:pageMode?13:11,color:T.textMd,fontFamily:F,lineHeight:1.7,flex:pageMode?1:undefined,
+        overflow:pageMode?undefined:"hidden",display:"-webkit-box",WebkitLineClamp:pageMode?9999:3,WebkitBoxOrient:"vertical"}}>
         {s.why}
       </div>
 
       {/* Bottom row: read link + refresh */}
-      <div style={{display:"flex",gap:6,alignItems:"center",marginTop:2}}>
+      <div style={{display:"flex",gap:6,alignItems:"center",marginTop:pageMode?2:8}}>
         <a href={readLink(s)} target="_blank" rel="noopener noreferrer"
           style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,
             background:"#38bdf822",border:"1px solid #38bdf844",borderRadius:7,
@@ -3212,7 +3220,7 @@ function App(){
               <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span>
             </button>
             {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {WDEFS.filter(w=>!["entropy","embed","radar"].includes(w.id)).map(w=>{const act=page===w.id;return <button key={w.id} className="nav-item" onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"45":"transparent"}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.1s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
+              {WDEFS.filter(w=>!["entropy","embed","radar"].includes(w.id)).map(w=>{const act=page===w.id;return <button key={w.id} className="nav-item" onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"55":alpha(T.border,.38)}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.15s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
             </div>}
           </div>
           <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
