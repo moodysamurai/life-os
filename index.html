@@ -197,7 +197,7 @@ const F="'Geist','Helvetica Neue',system-ui,sans-serif";
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
 
-// ── BACKGROUND CANVAS (portfolite-style silk fold noise) ────────────────────
+// ── BACKGROUND CANVAS (portfolite-style domain-warped silk) ─────────────────
 function BackgroundCanvas(){
   const ref=useRef(null);
   useEffect(()=>{
@@ -206,21 +206,31 @@ function BackgroundCanvas(){
     const ctx=canvas.getContext('2d');
     let animId,t=0;
 
-    // Value noise helpers
+    // Smooth value noise (hash + bicubic interpolation)
     function frc(x){return x-Math.floor(x);}
-    function hsh(n){return frc(Math.sin(n)*43758.5453123);}
-    function smt(x){return x*x*(3-2*x);}
+    function hsh(n){return frc(Math.sin(n)*127.1+Math.cos(n)*311.7)*0.5+0.5;}
+    function smt(x){return x*x*x*(x*(x*6-15)+10);} // smootherstep
     function lp(a,b,t){return a+(b-a)*t;}
     function n2(x,y){
       const ix=Math.floor(x),iy=Math.floor(y);
       const fx=frc(x),fy=frc(y);
       const ux=smt(fx),uy=smt(fy);
-      const a=hsh(ix+hsh(iy)),b=hsh(ix+1+hsh(iy));
-      const c=hsh(ix+hsh(iy+1)),d=hsh(ix+1+hsh(iy+1));
+      const a=hsh(ix*127.1+iy*311.7);
+      const b=hsh((ix+1)*127.1+iy*311.7);
+      const c=hsh(ix*127.1+(iy+1)*311.7);
+      const d=hsh((ix+1)*127.1+(iy+1)*311.7);
       return lp(lp(a,b,ux),lp(c,d,ux),uy);
     }
-    // fBm noise (3 octaves for smooth organic look)
-    function fbm(x,y){return n2(x,y)*0.5+n2(x*2.1,y*2.1)*0.25+n2(x*4.3,y*4.3)*0.125;}
+    function fbm(x,y){
+      return n2(x,y)*0.5+n2(x*2.03+0.1,y*2.03)*0.25+n2(x*4.1,y*4.07+0.3)*0.125;
+    }
+    // Domain warp: use noise to warp input coords before sampling
+    // This creates the dramatic folded/knotted shapes like portfolite
+    function warp(x,y){
+      const px=fbm(x+0.0, y+0.0);
+      const py=fbm(x+5.2, y+1.3);
+      return fbm(x+3.2*px, y+3.2*py);
+    }
 
     function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
 
@@ -228,51 +238,62 @@ function BackgroundCanvas(){
       const w=canvas.width,h=canvas.height;
       ctx.clearRect(0,0,w,h);
 
-      const LINES=90;
-      const SPEED=0.000055; // very slow drift
-      const AMP=h*0.62;
-      const STEP=5;
+      const LINES=48;      // Fewer, more dramatic lines
+      const SPEED=0.000042; // Very slow drift
+      const AMP=h*0.92;    // Large amplitude — big sweeping folds
+      const STEP=4;
+
+      const tv=t*SPEED;
 
       for(let i=0;i<LINES;i++){
         const base=i/LINES;
         const pts=[];
-        for(let px=-STEP;px<=w+STEP;px+=STEP){
-          const nx=px/w*2.8;
-          const ny=base*3.2;
-          const n=fbm(nx,ny+t*SPEED);
-          pts.push([px, h*base+(n-0.5)*AMP]);
+        for(let px=0;px<=w;px+=STEP){
+          const nx=px/w*1.6;
+          const ny=base*1.6+tv;
+          const wv=warp(nx,ny);
+          pts.push([px, h*base+(wv-0.5)*AMP]);
         }
 
-        // Ridge technique: fold noise around 0.5 to create sharp silk highlights
-        const cn=fbm(1.4, base*3.2+t*SPEED);
-        const ridge=1-Math.abs(cn*2-1);
-        const bright=Math.pow(Math.max(0,ridge-0.1),2.2)*0.72;
-
-        if(bright<0.008) continue;
+        // Sample warp at a few x positions and average for line brightness
+        // Ridge = how close to a peak (0.5 → bright, 0 or 1 → dark)
+        let avgRidge=0;
+        for(let k=0;k<6;k++){
+          const sx=(k/5)*1.6;
+          const wv=warp(sx,base*1.6+tv);
+          avgRidge+=1-Math.abs(wv*2-1);
+        }
+        avgRidge/=6;
+        const bright=Math.pow(Math.max(0,avgRidge-0.05),2.8)*0.78;
+        if(bright<0.012) continue;
 
         ctx.beginPath();
-        ctx.moveTo(pts[0][0],pts[0][1]);
-        for(let j=1;j<pts.length-2;j++){
+        // Start off-canvas
+        ctx.moveTo(-STEP, pts[0][1]);
+        for(let j=0;j<pts.length-1;j++){
           const mx=(pts[j][0]+pts[j+1][0])/2;
           const my=(pts[j][1]+pts[j+1][1])/2;
           ctx.quadraticCurveTo(pts[j][0],pts[j][1],mx,my);
         }
+        // End off-canvas
+        ctx.lineTo(w+STEP, pts[pts.length-1][1]);
         ctx.strokeStyle=`rgba(255,255,255,${bright.toFixed(3)})`;
-        ctx.lineWidth=1.4;
+        ctx.lineWidth=1.3;
         ctx.stroke();
       }
 
-      // Large soft blob — bottom-left, like portfolite
-      const g=ctx.createRadialGradient(w*0.12,h*0.88,0,w*0.12,h*0.88,w*0.5);
-      g.addColorStop(0,'rgba(255,255,255,0.13)');
-      g.addColorStop(0.45,'rgba(255,255,255,0.04)');
+      // Large glow — bottom left (primary, like portfolite)
+      const g=ctx.createRadialGradient(w*0.1,h*0.9,0,w*0.1,h*0.9,w*0.55);
+      g.addColorStop(0,'rgba(255,255,255,0.18)');
+      g.addColorStop(0.35,'rgba(255,255,255,0.07)');
+      g.addColorStop(0.7,'rgba(255,255,255,0.02)');
       g.addColorStop(1,'rgba(255,255,255,0)');
       ctx.fillStyle=g;
       ctx.fillRect(0,0,w,h);
 
-      // Subtle secondary blob — upper right
-      const g2=ctx.createRadialGradient(w*0.88,h*0.1,0,w*0.88,h*0.1,w*0.35);
-      g2.addColorStop(0,'rgba(255,255,255,0.06)');
+      // Secondary glow — centre-right mid-height
+      const g2=ctx.createRadialGradient(w*0.75,h*0.4,0,w*0.75,h*0.4,w*0.3);
+      g2.addColorStop(0,'rgba(255,255,255,0.07)');
       g2.addColorStop(1,'rgba(255,255,255,0)');
       ctx.fillStyle=g2;
       ctx.fillRect(0,0,w,h);
