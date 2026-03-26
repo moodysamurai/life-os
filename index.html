@@ -855,7 +855,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
   const weekRows=[];
   for(let i=0;i<cells.length;i+=7) weekRows.push(cells.slice(i,i+7));
 
-  const cal=<div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+  const cal=<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
       <span style={{fontFamily:F,fontWeight:700,fontSize:pageMode?16:13,letterSpacing:"-0.3px"}}>{MFULL[month]} {year}</span>
       <div style={{display:"flex",gap:3}}>
@@ -978,7 +978,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
     return evts.sort((a,b)=>a.date.localeCompare(b.date));
   }
   const TYPE_ICON={task:"◈",trip:"◎",goal:"◉"};
-  const timeline=<div style={{height:"100%",overflowY:"auto"}}>
+  const timeline=<div style={{flex:1,minHeight:0,overflowY:"auto"}}>
     {(()=>{
       const evts=buildTimeline();
       if(!evts.length) return <div style={{padding:"24px 0",textAlign:"center",color:T.textLt,fontSize:12,fontFamily:F}}>No upcoming events</div>;
@@ -1054,7 +1054,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   const max=pageMode?9:5;
   const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline>=ds);
   const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
-  return <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Week Planner</span>}
@@ -3325,7 +3325,10 @@ function App(){
                       </button>
                     </div>
                   )}
-                  {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:isHeadless?1:10}}>{widgetBody(w.id,false)}</div>}
+                  {!isMin&&(isHeadless
+                    ?<div style={{flex:1,overflow:"hidden",minHeight:0,paddingTop:1,display:"flex",flexDirection:"column"}}>{widgetBody(w.id,false)}</div>
+                    :<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:10}}>{widgetBody(w.id,false)}</div>
+                  )}
                 </Card>
                 {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')} style={{position:"absolute",right:1,top:"50%",transform:"translateY(-50%)",cursor:"col-resize",zIndex:20,display:"flex",flexDirection:"column",gap:"3px",padding:"5px 4px",touchAction:"none",opacity:isRes?1:0.5}}>
                   {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/>)}
