@@ -2833,9 +2833,11 @@ function App(){
   const s=lg("plo3_layout",null);
   if(!s) return DEFAULT_LAYOUT;
   const merged={...DEFAULT_LAYOUT,...s};
+  // Clamp any runaway rows or invalid columns back to defaults
   for(const k of Object.keys(merged)){
-    if(DEFAULT_LAYOUT[k]&&(merged[k].row>35||merged[k].col<1||merged[k].col>GCOLS))
-      merged[k]={...DEFAULT_LAYOUT[k]};
+    const d=DEFAULT_LAYOUT[k];
+    if(d&&(merged[k].row>25||merged[k].col<1||merged[k].col+merged[k].cS-1>GCOLS+1))
+      merged[k]={...d};
   }
   return merged;
 });
@@ -2965,9 +2967,11 @@ function App(){
   function mouseToCell(e){
     if(!gridRef.current)return{col:1,row:1};
     const rect=gridRef.current.getBoundingClientRect();
-    const cellW=(rect.width-(GCOLS-1)*GGAP)/GCOLS;
-    const x=Math.max(0,e.clientX-rect.left);
-    const y=Math.max(0,e.clientY-rect.top);
+    // Divide by zoom to convert screen px → CSS px (zoom=1.35 inflates rect)
+    const cssW=rect.width/zoom;
+    const cellW=(cssW-(GCOLS-1)*GGAP)/GCOLS;
+    const x=Math.max(0,(e.clientX-rect.left)/zoom);
+    const y=Math.max(0,(e.clientY-rect.top)/zoom);
     return{col:Math.max(1,Math.min(GCOLS,Math.floor(x/(cellW+GGAP))+1)),
            row:Math.max(1,Math.floor(y/(GROW_H+GGAP))+1)};
   }
@@ -3177,6 +3181,7 @@ function App(){
               const isMin=minimised.has(w.id);
               const mobileH=isMin?"auto":`${l.rS*GROW_H+(l.rS-1)*GGAP}px`;
               const enterDelay=wi*55;
+              const isHeadless=w.id==="calendar"||w.id==="kanban";
               return <FadeIn key={w.id} delay={enterDelay} style={isMobile
                   ?{position:"relative",width:"100%",height:mobileH,minHeight:0}
                   :{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${isMin?1:l.rS}`,position:"relative",minHeight:0,
@@ -3189,20 +3194,35 @@ function App(){
                 onMouseEnter={()=>!isMobile&&setHoveredWidget(w.id)}
                 onMouseLeave={()=>!isMobile&&!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
-                <Card lift={false} glass={true} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",
+                <Card lift={false} glass={true} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative",padding:isHeadless?"0.3rem":undefined,
                   boxShadow:!isMobile&&(isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 12px 40px rgba(0,0,0,.5)`:isHov?`0 6px 24px rgba(0,0,0,.3)`:"0 2px 12px rgba(0,0,0,.18)"),transition:"box-shadow 0.22s"}}>
-                  <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
-                    {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
-                      style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
-                        userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>}
-                    <div style={{flex:1,minWidth:0}}>{w.id!=="calendar"&&w.id!=="kanban"&&<WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&w.id!=="entropy"&&setPage(w.id)} action={addAction(w.id)}/>}</div>
-                    <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
-                      style={{background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
-                        padding:"2px 6px",opacity:isMobile?0.6:isHov||isMin?0.7:0,transition:"opacity 0.15s",flexShrink:0,lineHeight:1}}>
-                      {isMin?"▽":"△"}
-                    </button>
-                  </div>
-                  {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:10}}>{widgetBody(w.id,false)}</div>}
+                  {isHeadless?(
+                    /* Headless: float drag + minimise as invisible overlay, no flow cost */
+                    <div style={{position:"absolute",top:5,right:6,left:6,display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:6,pointerEvents:"none"}}>
+                      {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
+                        style={{cursor:isDrag?"grabbing":"grab",padding:"3px 7px",color:T.textLt,fontSize:11,
+                          userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",touchAction:"none",pointerEvents:"all",background:alpha(T.card,.85),borderRadius:6}}>⠿</div>}
+                      <span style={{flex:1}}/>
+                      <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
+                        style={{background:alpha(T.card,.85),border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
+                          padding:"2px 7px",opacity:isHov||isMin?0.72:0,transition:"opacity 0.15s",lineHeight:1,borderRadius:5,pointerEvents:"all"}}>
+                        {isMin?"▽":"△"}
+                      </button>
+                    </div>
+                  ):(
+                    <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
+                      {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
+                        style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
+                          userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>}
+                      <div style={{flex:1,minWidth:0}}><WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&w.id!=="entropy"&&setPage(w.id)} action={addAction(w.id)}/></div>
+                      <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
+                        style={{background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
+                          padding:"2px 6px",opacity:isMobile?0.6:isHov||isMin?0.7:0,transition:"opacity 0.15s",flexShrink:0,lineHeight:1}}>
+                        {isMin?"▽":"△"}
+                      </button>
+                    </div>
+                  )}
+                  {!isMin&&<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:isHeadless?1:10}}>{widgetBody(w.id,false)}</div>}
                 </Card>
                 {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')} style={{position:"absolute",right:1,top:"50%",transform:"translateY(-50%)",cursor:"col-resize",zIndex:20,display:"flex",flexDirection:"column",gap:"3px",padding:"5px 4px",touchAction:"none",opacity:isRes?1:0.5}}>
                   {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/>)}
