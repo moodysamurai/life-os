@@ -862,8 +862,8 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
   const weekRows=[];
   for(let i=0;i<cells.length;i+=7) weekRows.push(cells.slice(i,i+7));
 
-  const cal=<>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+  const cal=<div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
       <span style={{fontFamily:F,fontWeight:700,fontSize:pageMode?16:13,letterSpacing:"-0.3px"}}>{MFULL[month]} {year}</span>
       <div style={{display:"flex",gap:3}}>
         <Btn small onClick={prev}>‹</Btn>
@@ -872,27 +872,27 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       </div>
     </div>
     {/* Day header row */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3,flexShrink:0}}>
       {["M","T","W","T","F","S","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:9,color:T.textMd,fontWeight:700,fontFamily:F,aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center"}}>{d}</div>)}
     </div>
     {/* Week rows — numbers + event bars */}
-    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+    <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:3}}>
       {weekRows.map((week,wi)=>{
         const wDates=week.map(day=>day?`${ms}-${String(day).padStart(2,"0")}`:null);
         const valid=wDates.filter(Boolean);
         if(!valid.length) return null;
         const wStart=valid[0],wEnd=valid[valid.length-1];
         const wEvs=evs.filter(ev=>ev.e>=wStart&&ev.s<=wEnd);
-        return <div key={wi}>
+        return <div key={wi} style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
           {/* Day numbers */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {week.map((day,di)=>{
-              if(!day) return <div key={"p"+di} style={{height:22,border:`1px solid transparent`}}/>;
+              if(!day) return <div key={"p"+di} style={{border:`1px solid transparent`}}/>;
               const ds=wDates[di],isT=ds===todayStr;
               return <div key={ds}
                 onClick={()=>onAddTask&&onAddTask(ds)}
                 title="Add task for this day"
-                style={{height:22,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
+                style={{display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
                   background:isT?T.mint:"transparent",
                   border:`1px solid ${isT?alpha(T.mint,.5):alpha(T.border,.4)}`,
                   cursor:onAddTask?"pointer":"default",transition:"background 0.12s"}}>
@@ -927,14 +927,14 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       })}
     </div>
     {/* Legend — thick bars instead of dots */}
-    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`}}>
+    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`,flexShrink:0}}>
       {[["Tasks",T.yellow],["Trips",T.mint],["Goals",T.blue]].map(([l,c])=>(
         <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
           <div style={{width:14,height:4,borderRadius:2,background:c}}/><span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{l}</span>
         </div>
       ))}
     </div>
-  </>;
+  </div>;
   // ── Heat map (last 91 days) ──────────────────────
   const heatDates=Array.from({length:91},(_,i)=>{const d=new Date(now);d.setDate(now.getDate()-90+i);return toStr(d);});
   const countByDate={};
@@ -1061,8 +1061,8 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   const max=pageMode?9:5;
   const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline>=ds);
   const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
-  return <>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+  return <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Week Planner</span>}
         <Badge label={wkLabel} color={T.blue}/>
@@ -1074,11 +1074,11 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
         <Btn small primary onClick={onAddTask}>+ Task</Btn>
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:pageMode?6:4}}>
+    <div style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:pageMode?6:4}}>
       {days.map((day,idx)=>{
         const ds=toStr(day),isT=ds===todayStr,isPast=ds<todayStr;
         const dayTasks=tasksForDay(ds);
-        return <div key={ds} className="day-cell" onClick={()=>onAddTask&&onAddTask(ds)} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?110:72,background:isT?T.mintX:isPast?alpha(T.bg,.45):T.cardAlt,border:`1px solid ${isT?alpha(T.mint,.45):alpha(T.border,.55)}`,opacity:isPast?0.6:1,cursor:onAddTask?"pointer":"default"}}>
+        return <div key={ds} className="day-cell" onClick={()=>onAddTask&&onAddTask(ds)} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?110:40,background:isT?T.mintX:isPast?alpha(T.bg,.45):T.cardAlt,border:`1px solid ${isT?alpha(T.mint,.45):alpha(T.border,.55)}`,opacity:isPast?0.6:1,cursor:onAddTask?"pointer":"default"}}>
           <div style={{textAlign:"center",marginBottom:4}}>
             <div style={{fontSize:7,color:T.textLt,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
             <div style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F}}>{day.getDate()}</div>
@@ -1098,8 +1098,8 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
         </div>;
       })}
     </div>
-    <div style={{marginTop:6,fontSize:9,color:T.textLt,fontFamily:F}}>Click a date to open focus view · Tick = done for that day</div>
-  </>;
+    <div style={{marginTop:6,fontSize:9,color:T.textLt,fontFamily:F,flexShrink:0}}>Click a date to open focus view · Tick = done for that day</div>
+  </div>;
 }
 
 // ── WAKULI ─────────────────────────────────────────
