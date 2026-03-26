@@ -198,118 +198,144 @@ const F="'Geist','Helvetica Neue',system-ui,sans-serif";
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
 
-// ── BACKGROUND CANVAS (portfolite-style domain-warped silk) ─────────────────
+// ── BACKGROUND CANVAS (WebGL shader — sine-warp fluid) ───────────────────────
 function BackgroundCanvas(){
   const ref=useRef(null);
   useEffect(()=>{
     const canvas=ref.current;
-    if(!canvas)return;
-    const ctx=canvas.getContext('2d');
-    let animId,t=0;
+    if(!canvas) return;
+    const gl=canvas.getContext('webgl')||canvas.getContext('experimental-webgl');
+    if(!gl){ console.warn('WebGL not available'); return; }
 
-    // Smooth value noise (hash + bicubic interpolation)
-    function frc(x){return x-Math.floor(x);}
-    function hsh(n){return frc(Math.sin(n)*127.1+Math.cos(n)*311.7)*0.5+0.5;}
-    function smt(x){return x*x*x*(x*(x*6-15)+10);} // smootherstep
-    function lp(a,b,t){return a+(b-a)*t;}
-    function n2(x,y){
-      const ix=Math.floor(x),iy=Math.floor(y);
-      const fx=frc(x),fy=frc(y);
-      const ux=smt(fx),uy=smt(fy);
-      const a=hsh(ix*127.1+iy*311.7);
-      const b=hsh((ix+1)*127.1+iy*311.7);
-      const c=hsh(ix*127.1+(iy+1)*311.7);
-      const d=hsh((ix+1)*127.1+(iy+1)*311.7);
-      return lp(lp(a,b,ux),lp(c,d,ux),uy);
-    }
-    function fbm(x,y){
-      return n2(x,y)*0.5+n2(x*2.03+0.1,y*2.03)*0.25+n2(x*4.1,y*4.07+0.3)*0.125;
-    }
-    // Domain warp: use noise to warp input coords before sampling
-    // This creates the dramatic folded/knotted shapes like portfolite
-    function warp(x,y){
-      const px=fbm(x+0.0, y+0.0);
-      const py=fbm(x+5.2, y+1.3);
-      return fbm(x+3.2*px, y+3.2*py);
-    }
+    // ── Vertex shader: fullscreen quad ──
+    const vsrc=`
+      attribute vec2 a_pos;
+      void main(){ gl_Position=vec4(a_pos,0.0,1.0); }
+    `;
 
-    function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+    // ── Fragment shader: ported from Shadertoy WXKBRm ──
+    const fsrc=`
+      precision mediump float;
+      uniform vec2  iResolution;
+      uniform float iTime;
 
-    function draw(){
-      const w=canvas.width,h=canvas.height;
-      ctx.clearRect(0,0,w,h);
-
-      const LINES=48;      // Fewer, more dramatic lines
-      const SPEED=0.000126; // 3× drift
-      const AMP=h*0.92;    // Large amplitude — big sweeping folds
-      const STEP=4;
-
-      const tv=t*SPEED;
-
-      for(let i=0;i<LINES;i++){
-        const base=i/LINES;
-        const pts=[];
-        for(let px=0;px<=w;px+=STEP){
-          const nx=px/w*1.6;
-          const ny=base*1.6+tv;
-          const wv=warp(nx,ny);
-          pts.push([px, h*base+(wv-0.5)*AMP]);
-        }
-
-        // Sample warp at a few x positions and average for line brightness
-        // Ridge = how close to a peak (0.5 → bright, 0 or 1 → dark)
-        let avgRidge=0;
-        for(let k=0;k<6;k++){
-          const sx=(k/5)*1.6;
-          const wv=warp(sx,base*1.6+tv);
-          avgRidge+=1-Math.abs(wv*2-1);
-        }
-        avgRidge/=6;
-        const bright=Math.pow(Math.max(0,avgRidge-0.05),2.8)*0.78;
-        if(bright<0.012) continue;
-
-        ctx.beginPath();
-        // Start off-canvas
-        ctx.moveTo(-STEP, pts[0][1]);
-        for(let j=0;j<pts.length-1;j++){
-          const mx=(pts[j][0]+pts[j+1][0])/2;
-          const my=(pts[j][1]+pts[j+1][1])/2;
-          ctx.quadraticCurveTo(pts[j][0],pts[j][1],mx,my);
-        }
-        // End off-canvas
-        ctx.lineTo(w+STEP, pts[pts.length-1][1]);
-        ctx.strokeStyle=`rgba(255,255,255,${bright.toFixed(3)})`;
-        ctx.lineWidth=1.3;
-        ctx.stroke();
+      float hash(vec2 p){
+        return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
       }
 
-      // Large glow — bottom left (primary, like portfolite)
-      const g=ctx.createRadialGradient(w*0.1,h*0.9,0,w*0.1,h*0.9,w*0.55);
-      g.addColorStop(0,'rgba(255,255,255,0.18)');
-      g.addColorStop(0.35,'rgba(255,255,255,0.07)');
-      g.addColorStop(0.7,'rgba(255,255,255,0.02)');
-      g.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle=g;
-      ctx.fillRect(0,0,w,h);
+      vec2 sineWarp(vec2 p, float t){
+        float a=1.5;
+        for(int i=0;i<6;i++){
+          float phase=float(i)*1.618;
+          p.x+=a*sin(p.y*1.4+t*0.18+phase*2.39);
+          p.y+=a*cos(p.x*1.6+t*0.14+phase*1.73);
+          a*=0.50;
+        }
+        return p;
+      }
 
-      // Secondary glow — centre-right mid-height
-      const g2=ctx.createRadialGradient(w*0.75,h*0.4,0,w*0.75,h*0.4,w*0.3);
-      g2.addColorStop(0,'rgba(255,255,255,0.07)');
-      g2.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle=g2;
-      ctx.fillRect(0,0,w,h);
+      void main(){
+        vec2 uv=gl_FragCoord.xy/iResolution.xy;
+        vec2 st=uv-0.5;
+        st.x*=iResolution.x/iResolution.y;
+        st*=2.2;
 
-      t++;
+        vec2 wp=sineWarp(st,iTime);
+        float m1=sin(wp.x*1.8+wp.y*0.7)*0.5+0.5;
+        float m2=sin(wp.x*0.9-wp.y*1.4+iTime*0.08)*0.5+0.5;
+        float pattern=mix(m1,m2,0.08);
+
+        vec3 deepNavy=vec3(0.047,0.102,0.141);
+        vec3 navy    =vec3(0.231,0.424,0.502);
+        vec3 orange  =vec3(0.929,0.576,0.306);
+        vec3 cream   =vec3(0.569,0.039,0.024);
+
+        vec3 color=deepNavy;
+        color=mix(color,navy,  smoothstep(0.08,0.52,pattern));
+        color=mix(color,orange,smoothstep(0.60,0.86,pattern));
+        color=mix(color,cream, smoothstep(0.84,0.97,pattern));
+
+        float sheenWave=sin(wp.x*0.2+wp.y*0.1-iTime*0.4)*0.5+0.5;
+        float sheen=pow(sheenWave,8.0);
+        float isNavyRegion=1.0-smoothstep(0.50,0.66,pattern);
+        color+=orange*0.22*sheen*isNavyRegion;
+        color+=cream *0.38*sheen*(1.0-isNavyRegion);
+
+        float frameTime=floor(iTime*24.0);
+        vec2 px=floor(gl_FragCoord.xy/2.5);
+        float gRaw=(hash(px+frameTime*13.7)+hash(px*1.3+frameTime*27.1+5.5))*0.5;
+        float g=smoothstep(0.2,0.8,gRaw)-0.5;
+        float luma=dot(color,vec3(0.299,0.587,0.114));
+        float grainMask=luma*(1.0-luma)*4.0;
+        color+=g*grainMask*0.18;
+
+        gl_FragColor=vec4(clamp(color,0.0,1.0),1.0);
+      }
+    `;
+
+    function compile(type,src){
+      const sh=gl.createShader(type);
+      gl.shaderSource(sh,src);
+      gl.compileShader(sh);
+      if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){
+        console.error('Shader error:',gl.getShaderInfoLog(sh));
+        gl.deleteShader(sh);
+        return null;
+      }
+      return sh;
+    }
+
+    const vs=compile(gl.VERTEX_SHADER,vsrc);
+    const fs=compile(gl.FRAGMENT_SHADER,fsrc);
+    if(!vs||!fs) return;
+
+    const prog=gl.createProgram();
+    gl.attachShader(prog,vs);
+    gl.attachShader(prog,fs);
+    gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)){
+      console.error('Program link error:',gl.getProgramInfoLog(prog));
+      return;
+    }
+    gl.useProgram(prog);
+
+    // Fullscreen quad — two triangles covering clip space
+    const buf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    gl.bufferData(gl.ARRAY_BUFFER,
+      new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),
+      gl.STATIC_DRAW);
+    const posLoc=gl.getAttribLocation(prog,'a_pos');
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc,2,gl.FLOAT,false,0,0);
+
+    const resLoc =gl.getUniformLocation(prog,'iResolution');
+    const timeLoc=gl.getUniformLocation(prog,'iTime');
+
+    let animId;
+    const start=performance.now();
+
+    function resize(){
+      canvas.width =window.innerWidth;
+      canvas.height=window.innerHeight;
+      gl.viewport(0,0,canvas.width,canvas.height);
+    }
+
+    function draw(){
+      const t=(performance.now()-start)*0.001;
+      gl.uniform2f(resLoc,canvas.width,canvas.height);
+      gl.uniform1f(timeLoc,t);
+      gl.drawArrays(gl.TRIANGLES,0,6);
       animId=requestAnimationFrame(draw);
     }
 
     resize();
     window.addEventListener('resize',resize);
     draw();
-    return()=>{cancelAnimationFrame(animId);window.removeEventListener('resize',resize);};
+    return()=>{ cancelAnimationFrame(animId); window.removeEventListener('resize',resize); };
   },[]);
 
-  return <canvas ref={ref} style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}}/>;
+  return <canvas ref={ref} style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:0.5}}/>;
 }
 
 // ── FADE-IN ON SCROLL (IntersectionObserver) ────────────────────────────────
