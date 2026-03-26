@@ -198,6 +198,16 @@ const F="'Geist','Helvetica Neue',system-ui,sans-serif";
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
 
+// ── BACKGROUND PALETTE — edit these 4 colours to remap the shader ────────────
+// Each entry is [R, G, B] in 0–1 range.
+// Col0 = darkest base, Col1 = mid tone, Col2 = highlight, Col3 = peak sheen
+const BG_PALETTE = {
+  col0: [0.047, 0.102, 0.141],   // deep navy  (darkest base)
+  col1: [0.231, 0.424, 0.502],   // teal/navy  (mid-tone)
+  col2: [0.929, 0.576, 0.306],   // warm orange (highlight)
+  col3: [0.569, 0.039, 0.024],   // deep red   (peak sheen)
+};
+
 // ── BACKGROUND CANVAS (WebGL shader — sine-warp fluid) ───────────────────────
 function BackgroundCanvas(){
   const ref=useRef(null);
@@ -213,11 +223,15 @@ function BackgroundCanvas(){
       void main(){ gl_Position=vec4(a_pos,0.0,1.0); }
     `;
 
-    // ── Fragment shader: ported from Shadertoy WXKBRm ──
+    // ── Fragment shader: ported from Shadertoy WXKBRm — colours driven by uniforms ──
     const fsrc=`
       precision mediump float;
       uniform vec2  iResolution;
       uniform float iTime;
+      uniform vec3  u_col0;
+      uniform vec3  u_col1;
+      uniform vec3  u_col2;
+      uniform vec3  u_col3;
 
       float hash(vec2 p){
         return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
@@ -245,21 +259,16 @@ function BackgroundCanvas(){
         float m2=sin(wp.x*0.9-wp.y*1.4+iTime*0.08)*0.5+0.5;
         float pattern=mix(m1,m2,0.08);
 
-        vec3 deepNavy=vec3(0.047,0.102,0.141);
-        vec3 navy    =vec3(0.231,0.424,0.502);
-        vec3 orange  =vec3(0.929,0.576,0.306);
-        vec3 cream   =vec3(0.569,0.039,0.024);
-
-        vec3 color=deepNavy;
-        color=mix(color,navy,  smoothstep(0.08,0.52,pattern));
-        color=mix(color,orange,smoothstep(0.60,0.86,pattern));
-        color=mix(color,cream, smoothstep(0.84,0.97,pattern));
+        vec3 color=u_col0;
+        color=mix(color,u_col1,smoothstep(0.08,0.52,pattern));
+        color=mix(color,u_col2,smoothstep(0.60,0.86,pattern));
+        color=mix(color,u_col3,smoothstep(0.84,0.97,pattern));
 
         float sheenWave=sin(wp.x*0.2+wp.y*0.1-iTime*0.4)*0.5+0.5;
         float sheen=pow(sheenWave,8.0);
         float isNavyRegion=1.0-smoothstep(0.50,0.66,pattern);
-        color+=orange*0.22*sheen*isNavyRegion;
-        color+=cream *0.38*sheen*(1.0-isNavyRegion);
+        color+=u_col2*0.22*sheen*isNavyRegion;
+        color+=u_col3*0.38*sheen*(1.0-isNavyRegion);
 
         float frameTime=floor(iTime*24.0);
         vec2 px=floor(gl_FragCoord.xy/2.5);
@@ -312,6 +321,12 @@ function BackgroundCanvas(){
     const resLoc =gl.getUniformLocation(prog,'iResolution');
     const timeLoc=gl.getUniformLocation(prog,'iTime');
 
+    // Upload palette uniforms once — static per session
+    gl.uniform3fv(gl.getUniformLocation(prog,'u_col0'), BG_PALETTE.col0);
+    gl.uniform3fv(gl.getUniformLocation(prog,'u_col1'), BG_PALETTE.col1);
+    gl.uniform3fv(gl.getUniformLocation(prog,'u_col2'), BG_PALETTE.col2);
+    gl.uniform3fv(gl.getUniformLocation(prog,'u_col3'), BG_PALETTE.col3);
+
     let animId;
     const start=performance.now();
 
@@ -335,7 +350,8 @@ function BackgroundCanvas(){
     return()=>{ cancelAnimationFrame(animId); window.removeEventListener('resize',resize); };
   },[]);
 
-  return <canvas ref={ref} style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:0.5}}/>;
+  // opacity:0.4 dims the whole canvas; blur(20px) melts hard edges into the bg
+  return <canvas ref={ref} style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:0.4,filter:"blur(20px)",WebkitFilter:"blur(20px)"}}/>;
 }
 
 // ── FADE-IN ON SCROLL (IntersectionObserver) ────────────────────────────────
