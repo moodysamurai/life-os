@@ -256,7 +256,7 @@ const GCOLS=16,GROW_H=96,GGAP=12;
 const DEFAULT_LAYOUT={
   calendar:{col:1, row:1, cS:5,rS:6},
   wakuli:  {col:6, row:1, cS:5,rS:6},
-  kanban:  {col:11,row:1, cS:6,rS:6},
+  kanban:  {col:11,row:1, cS:6,rS:10},
   trips:   {col:1, row:7, cS:5,rS:5},
   goals:   {col:6, row:7, cS:6,rS:5},
   embed:   {col:12,row:7, cS:5,rS:5},
@@ -2839,6 +2839,11 @@ function App(){
     if(d&&(merged[k].row>25||merged[k].col<1||merged[k].col+merged[k].cS-1>GCOLS+1))
       merged[k]={...d};
   }
+  // One-time migration: ensure kanban/calendar never have a tiny rS
+  if(merged.kanban&&merged.kanban.rS<8)
+    merged.kanban={...merged.kanban,rS:DEFAULT_LAYOUT.kanban.rS};
+  if(merged.calendar&&merged.calendar.rS<6)
+    merged.calendar={...merged.calendar,rS:DEFAULT_LAYOUT.calendar.rS};
   return merged;
 });
   const [minimised,setMinimised]=useState(()=>new Set(lg("plo3_minimised",[])));
