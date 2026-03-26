@@ -3194,7 +3194,7 @@ function App(){
                 onMouseEnter={()=>!isMobile&&setHoveredWidget(w.id)}
                 onMouseLeave={()=>!isMobile&&!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
               >
-                <Card lift={false} glass={true} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative",padding:isHeadless?"0.3rem":undefined,
+                <Card lift={false} glass={true} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative",...(isHeadless?{padding:"0.3rem"}:{}),
                   boxShadow:!isMobile&&(isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 12px 40px rgba(0,0,0,.5)`:isHov?`0 6px 24px rgba(0,0,0,.3)`:"0 2px 12px rgba(0,0,0,.18)"),transition:"box-shadow 0.22s"}}>
                   {isHeadless?(
                     /* Headless: float drag + minimise as invisible overlay, no flow cost */
