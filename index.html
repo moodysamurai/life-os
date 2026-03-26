@@ -109,15 +109,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 /* ── NOISE OVERLAY ──────────────────────────────── */
 .noise-layer{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.055;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.42' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-repeat:repeat;background-size:320px 320px;}
 
-/* ── ANIMATED BACKGROUND BLOBS ─────────────────── */
-.bg-anim{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
-.bg-blob{position:absolute;border-radius:50%;filter:blur(100px);will-change:transform;}
-.b1{width:80vw;height:70vh;background:#fff;opacity:0.042;top:-30%;left:-30%;animation:blobMove1 24s ease-in-out infinite alternate;}
-.b2{width:60vw;height:58vh;background:#fff;opacity:0.033;bottom:-18%;right:-20%;animation:blobMove2 30s ease-in-out infinite alternate;}
-.b3{width:50vw;height:48vh;background:#fff;opacity:0.026;top:20%;left:30%;animation:blobMove3 20s ease-in-out infinite alternate;}
-@keyframes blobMove1{from{transform:translate(0,0) scale(1)}to{transform:translate(20vw,14vh) scale(1.15)}}
-@keyframes blobMove2{from{transform:translate(0,0) scale(1)}to{transform:translate(-16vw,-12vh) scale(0.86)}}
-@keyframes blobMove3{from{transform:translate(0,0) rotate(0deg)}to{transform:translate(12vw,-20vh) rotate(28deg)}}
 
 /* ── NAV CASCADE ────────────────────────────────── */
 .nav-cascade-wrap .nav-item{opacity:0.35;transition:opacity 0.22s ease,color 0.1s,background 0.1s,border-color 0.1s !important;}
@@ -205,6 +196,99 @@ const F="'Geist','Helvetica Neue',system-ui,sans-serif";
 
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
+
+// ── BACKGROUND CANVAS (portfolite-style silk fold noise) ────────────────────
+function BackgroundCanvas(){
+  const ref=useRef(null);
+  useEffect(()=>{
+    const canvas=ref.current;
+    if(!canvas)return;
+    const ctx=canvas.getContext('2d');
+    let animId,t=0;
+
+    // Value noise helpers
+    function frc(x){return x-Math.floor(x);}
+    function hsh(n){return frc(Math.sin(n)*43758.5453123);}
+    function smt(x){return x*x*(3-2*x);}
+    function lp(a,b,t){return a+(b-a)*t;}
+    function n2(x,y){
+      const ix=Math.floor(x),iy=Math.floor(y);
+      const fx=frc(x),fy=frc(y);
+      const ux=smt(fx),uy=smt(fy);
+      const a=hsh(ix+hsh(iy)),b=hsh(ix+1+hsh(iy));
+      const c=hsh(ix+hsh(iy+1)),d=hsh(ix+1+hsh(iy+1));
+      return lp(lp(a,b,ux),lp(c,d,ux),uy);
+    }
+    // fBm noise (3 octaves for smooth organic look)
+    function fbm(x,y){return n2(x,y)*0.5+n2(x*2.1,y*2.1)*0.25+n2(x*4.3,y*4.3)*0.125;}
+
+    function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+
+    function draw(){
+      const w=canvas.width,h=canvas.height;
+      ctx.clearRect(0,0,w,h);
+
+      const LINES=90;
+      const SPEED=0.000055; // very slow drift
+      const AMP=h*0.62;
+      const STEP=5;
+
+      for(let i=0;i<LINES;i++){
+        const base=i/LINES;
+        const pts=[];
+        for(let px=-STEP;px<=w+STEP;px+=STEP){
+          const nx=px/w*2.8;
+          const ny=base*3.2;
+          const n=fbm(nx,ny+t*SPEED);
+          pts.push([px, h*base+(n-0.5)*AMP]);
+        }
+
+        // Ridge technique: fold noise around 0.5 to create sharp silk highlights
+        const cn=fbm(1.4, base*3.2+t*SPEED);
+        const ridge=1-Math.abs(cn*2-1);
+        const bright=Math.pow(Math.max(0,ridge-0.1),2.2)*0.72;
+
+        if(bright<0.008) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let j=1;j<pts.length-2;j++){
+          const mx=(pts[j][0]+pts[j+1][0])/2;
+          const my=(pts[j][1]+pts[j+1][1])/2;
+          ctx.quadraticCurveTo(pts[j][0],pts[j][1],mx,my);
+        }
+        ctx.strokeStyle=`rgba(255,255,255,${bright.toFixed(3)})`;
+        ctx.lineWidth=1.4;
+        ctx.stroke();
+      }
+
+      // Large soft blob — bottom-left, like portfolite
+      const g=ctx.createRadialGradient(w*0.12,h*0.88,0,w*0.12,h*0.88,w*0.5);
+      g.addColorStop(0,'rgba(255,255,255,0.13)');
+      g.addColorStop(0.45,'rgba(255,255,255,0.04)');
+      g.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=g;
+      ctx.fillRect(0,0,w,h);
+
+      // Subtle secondary blob — upper right
+      const g2=ctx.createRadialGradient(w*0.88,h*0.1,0,w*0.88,h*0.1,w*0.35);
+      g2.addColorStop(0,'rgba(255,255,255,0.06)');
+      g2.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=g2;
+      ctx.fillRect(0,0,w,h);
+
+      t++;
+      animId=requestAnimationFrame(draw);
+    }
+
+    resize();
+    window.addEventListener('resize',resize);
+    draw();
+    return()=>{cancelAnimationFrame(animId);window.removeEventListener('resize',resize);};
+  },[]);
+
+  return <canvas ref={ref} style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}}/>;
+}
 
 // ── FADE-IN ON SCROLL (IntersectionObserver) ────────────────────────────────
 function FadeIn({children,delay=0,style={}}){
@@ -3104,8 +3188,8 @@ function App(){
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
-      {/* Animated background */}
-      <div className="bg-anim"><div className="bg-blob b1"/><div className="bg-blob b2"/><div className="bg-blob b3"/></div>
+      {/* Animated silk background */}
+      <BackgroundCanvas/>
       <div className="noise-layer"/>
       {/* Floating scroll dot */}
       <ScrollDot/>
