@@ -198,19 +198,35 @@ const F="'Geist','Helvetica Neue',system-ui,sans-serif";
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
 
-// ── BACKGROUND PALETTE — edit these 4 colours to remap the shader ────────────
-// Each entry is [R, G, B] in 0–1 range.
-// Col0 = darkest base, Col1 = mid tone, Col2 = highlight, Col3 = peak sheen
-const BG_PALETTE = {
-  col0: [0.047, 0.102, 0.141],   // deep navy  (darkest base)
-  col1: [0.231, 0.424, 0.502],   // teal/navy  (mid-tone)
-  col2: [0.929, 0.576, 0.306],   // warm orange (highlight)
-  col3: [0.569, 0.039, 0.024],   // deep red   (peak sheen)
-};
+// ── BACKGROUND PALETTE HELPERS ───────────────────────────────────────────────
+function hexToRgb01(hex){
+  const h=hex.replace('#','');
+  return [parseInt(h.slice(0,2),16)/255, parseInt(h.slice(2,4),16)/255, parseInt(h.slice(4,6),16)/255];
+}
+function rgb01ToHex(arr){
+  return '#'+arr.map(v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0')).join('');
+}
+// Default bg palette — each entry is [R,G,B] in 0–1 range
+// Col0=base dark, Col1=mid-tone, Col2=highlight, Col3=peak sheen
+const DEFAULT_BGPAL=[
+  [0.047, 0.102, 0.141],   // deep navy
+  [0.231, 0.424, 0.502],   // teal/navy
+  [0.929, 0.576, 0.306],   // warm orange
+  [0.569, 0.039, 0.024],   // deep red
+];
 
 // ── BACKGROUND CANVAS (WebGL shader — sine-warp fluid) ───────────────────────
-function BackgroundCanvas(){
+function BackgroundCanvas({palette=DEFAULT_BGPAL}){
   const ref=useRef(null);
+  const colLocsRef=useRef(null); // stores {gl, locs:[loc0,loc1,loc2,loc3]} after mount
+
+  // Re-upload palette uniforms whenever palette prop changes
+  useEffect(()=>{
+    const d=colLocsRef.current;
+    if(!d) return;
+    d.locs.forEach((loc,i)=>d.gl.uniform3fv(loc, palette[i]||DEFAULT_BGPAL[i]));
+  },[palette]);
+
   useEffect(()=>{
     const canvas=ref.current;
     if(!canvas) return;
@@ -321,11 +337,10 @@ function BackgroundCanvas(){
     const resLoc =gl.getUniformLocation(prog,'iResolution');
     const timeLoc=gl.getUniformLocation(prog,'iTime');
 
-    // Upload palette uniforms once — static per session
-    gl.uniform3fv(gl.getUniformLocation(prog,'u_col0'), BG_PALETTE.col0);
-    gl.uniform3fv(gl.getUniformLocation(prog,'u_col1'), BG_PALETTE.col1);
-    gl.uniform3fv(gl.getUniformLocation(prog,'u_col2'), BG_PALETTE.col2);
-    gl.uniform3fv(gl.getUniformLocation(prog,'u_col3'), BG_PALETTE.col3);
+    // Upload palette uniforms and store locations for live updates
+    const colLocs=[0,1,2,3].map(i=>gl.getUniformLocation(prog,`u_col${i}`));
+    colLocs.forEach((loc,i)=>gl.uniform3fv(loc, palette[i]||DEFAULT_BGPAL[i]));
+    colLocsRef.current={gl, locs:colLocs};
 
     let animId;
     const start=performance.now();
@@ -1790,9 +1805,15 @@ function ApiKeyModal({current,onClose,onSave}){
 const PAL_LABELS=["Primary","Danger","Text","Surface","Background"];
 const PAL_TIPS=["CTA, highlights","Alerts, priority","Body text","Card bg tint","Page bg"];
 
-function ColorCustomizePanel({palette,onApply,onClose}){
+const BG_COL_LABELS=["Base dark","Mid-tone","Highlight","Peak sheen"];
+const BG_COL_TIPS=["Deepest bg","Flowing mid","Bright wave","Sheen burst"];
+
+function ColorCustomizePanel({palette,bgPalette,onApply,onClose}){
   const T=useT();
   const [draft,setDraft]=useState([...palette]);
+  const [bgDraft,setBgDraft]=useState((bgPalette||DEFAULT_BGPAL).map(rgb01ToHex));
+  function updateBgHex(i,hex){setBgDraft(p=>{const n=[...p];n[i]=hex;return n;});}
+  function bgPreviewStyle(i){return bgDraft[i]&&bgDraft[i].length===7?bgDraft[i]:"#888";}
   const [urlInput,setUrlInput]=useState("");
   const [urlErr,setUrlErr]=useState("");
   const [urlOk,setUrlOk]=useState(false);
@@ -1947,11 +1968,43 @@ function ColorCustomizePanel({palette,onApply,onClose}){
         </div>
       </div>
 
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <Btn small onClick={()=>setDraft([...DEFAULT_PALETTE])}>Reset defaults</Btn>
+      {/* ── Background shader palette ── */}
+      <div style={{marginTop:18,paddingTop:14,borderTop:`1px solid ${alpha(T.border,.6)}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <span style={{fontFamily:F,fontWeight:700,fontSize:13}}>🌊 Background Shader</span>
+          <Btn small onClick={()=>setBgDraft(DEFAULT_BGPAL.map(rgb01ToHex))}>Reset</Btn>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+          {BG_COL_LABELS.map((label,i)=>(
+            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <div style={{fontFamily:F,fontSize:9,fontWeight:700,color:T.textMd,textTransform:"uppercase",
+                letterSpacing:"0.06em",textAlign:"center",lineHeight:1.3}}>{label}</div>
+              <div style={{width:"100%",aspectRatio:"1",borderRadius:9,background:bgPreviewStyle(i),
+                border:`2px solid ${T.border}`,cursor:"pointer",position:"relative",overflow:"hidden",
+                boxShadow:"0 2px 8px rgba(0,0,0,.3)",transition:"border-color 0.1s"}}
+                onClick={()=>document.getElementById(`bgcp${i}`).click()}>
+                <input id={`bgcp${i}`} type="color" value={bgPreviewStyle(i)}
+                  onChange={e=>updateBgHex(i,e.target.value)}
+                  style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}/>
+              </div>
+              <input value={bgDraft[i]} onChange={e=>updateBgHex(i,e.target.value)}
+                placeholder="#000000"
+                style={{width:"100%",padding:"3px 5px",borderRadius:5,border:`1px solid ${T.border}`,
+                  background:T.inp,color:T.text,fontSize:10,fontFamily:F,outline:"none",textAlign:"center"}}/>
+              <div style={{fontSize:8,color:T.textLt,fontFamily:F,textAlign:"center",lineHeight:1.3}}>{BG_COL_TIPS[i]}</div>
+            </div>
+          ))}
+        </div>
+        {/* Mini bg preview strip */}
+        <div style={{height:28,borderRadius:7,overflow:"hidden",border:`1px solid ${T.border}`,
+          background:`linear-gradient(to right,${bgDraft[0]},${bgDraft[1]},${bgDraft[2]},${bgDraft[3]})`}}/>
+      </div>
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16}}>
+        <Btn small onClick={()=>{setDraft([...DEFAULT_PALETTE]);setBgDraft(DEFAULT_BGPAL.map(rgb01ToHex));}}>Reset all</Btn>
         <div style={{display:"flex",gap:6}}>
           <Btn small onClick={onClose}>Cancel</Btn>
-          <Btn primary onClick={()=>onApply(draft)}>Apply ✓</Btn>
+          <Btn primary onClick={()=>onApply(draft, bgDraft.map(hexToRgb01))}>Apply ✓</Btn>
         </div>
       </div>
     </div>
@@ -2965,6 +3018,7 @@ function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onCo
 function App(){
   const [theme,setTheme]=useState(()=>lg("plo3_theme","dark"));
   const [palette,setPalette]=useState(()=>lg("plo3_palette",DEFAULT_PALETTE));
+  const [bgPalette,setBgPalette]=useState(()=>lg("plo3_bgpal",DEFAULT_BGPAL));
   function cycleTheme(){
     const idx=THEME_PRESETS.findIndex(p=>p.name===theme);
     const next=THEME_PRESETS[(idx+1)%THEME_PRESETS.length];
@@ -3248,7 +3302,7 @@ function App(){
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
       {/* Animated silk background */}
-      <BackgroundCanvas/>
+      <BackgroundCanvas palette={bgPalette}/>
       <div className="noise-layer"/>
       {/* Floating scroll dot */}
       <ScrollDot/>
@@ -3404,7 +3458,9 @@ function App(){
       {modal?.type==="apikey" &&<ApiKeyModal current={apiKey} onClose={()=>setModal(null)} onSave={k=>{setApiKey(k);setModal(null);}}/>}
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
       {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
-      {showColorPanel&&<ColorCustomizePanel palette={palette} onApply={p=>{setPalette(p);setShowColorPanel(false);}} onClose={()=>setShowColorPanel(false)}/>}
+      {showColorPanel&&<ColorCustomizePanel palette={palette} bgPalette={bgPalette}
+        onApply={(p,bp)=>{setPalette(p);if(bp){setBgPalette(bp);ls("plo3_bgpal",bp);}setShowColorPanel(false);}}
+        onClose={()=>setShowColorPanel(false)}/>}
 
       {showSyncModal&&<SyncModal
         onClose={()=>setShowSyncModal(false)}
