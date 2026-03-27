@@ -1118,7 +1118,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   const days=Array.from({length:7},(_,i)=>addDays(ws,i));
   const wkLabel=offset===0?"This Week":offset===1?"Next Week":offset===-1?"Last Week":`Wk ${offset>0?"+"+offset:offset}`;
   const max=pageMode?9:5;
-  const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline>=ds);
+  const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline&&t.deadline>=ds&&ds>=todayStr);
   const appleForDay=ds=>appleEvents.filter(e=>e.start<=ds&&e.end>=ds);
   const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
   return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
