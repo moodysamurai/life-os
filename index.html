@@ -885,7 +885,7 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal,onClose,in
 }
 
 // ── CALENDAR ───────────────────────────────────────
-function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
+function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask,appleEvents=[]}){
   const T=useT();
   const now=new Date(),todayStr=toStr(now);
   const [calTab,setCalTab]=useState("calendar"); // "calendar" | "timeline"
@@ -909,6 +909,9 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
     .forEach(t=>evs.push({s:t.deadline,e:t.deadline,color:T.yellow,label:t.title}));
   goals.filter(g=>g.targetDate&&g.targetDate.startsWith(ms))
     .forEach(g=>evs.push({s:g.targetDate,e:g.targetDate,color:T.blue,label:g.title}));
+  const appleColor="#FA243C";
+  appleEvents.filter(e=>e.end>=`${ms}-01`&&e.start<=mEnd)
+    .forEach(e=>evs.push({s:e.start,e:e.end,color:appleColor,label:e.summary,source:"apple"}));
 
   // Group cells into rows of 7
   const weekRows=[];
@@ -979,8 +982,9 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
       })}
     </div>
     {/* Legend — thick bars instead of dots */}
-    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`,flexShrink:0}}>
-      {[["Tasks",T.yellow],["Trips",T.mint],["Goals",T.blue]].map(([l,c])=>(
+    <div style={{display:"flex",gap:9,marginTop:8,paddingTop:7,borderTop:`1px solid ${T.border}`,flexShrink:0,flexWrap:"wrap"}}>
+      {[["Tasks",T.yellow],["Trips",T.mint],["Goals",T.blue],...(appleEvents.length?[["Apple Cal","#FA243C"]]:[])]
+        .map(([l,c])=>(
         <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
           <div style={{width:14,height:4,borderRadius:2,background:c}}/><span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{l}</span>
         </div>
@@ -1103,7 +1107,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask}){
 }
 
 // ── KANBAN ─────────────────────────────────────────
-function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pageMode}){
+function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pageMode,appleEvents=[]}){
   const T=useT();
   const [offset,setOffset]=useState(0);
   const today=new Date(),todayStr=toStr(today);
@@ -1112,6 +1116,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   const wkLabel=offset===0?"This Week":offset===1?"Next Week":offset===-1?"Last Week":`Wk ${offset>0?"+"+offset:offset}`;
   const max=pageMode?9:5;
   const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline>=ds);
+  const appleForDay=ds=>appleEvents.filter(e=>e.start<=ds&&e.end>=ds);
   const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
   return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
@@ -1146,7 +1151,13 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
               </div>;
             })}
             {dayTasks.length>max&&<div style={{fontSize:8,color:T.textLt,textAlign:"center",fontFamily:F}}>+{dayTasks.length-max}</div>}
-            {dayTasks.length===0&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",paddingTop:6,gap:3,opacity:0.3}}>
+            {appleForDay(ds).slice(0,pageMode?6:3).map((ev,i)=>(
+              <div key={ev.uid+i} title={`${ev.summary} (${ev.calName})`} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 3px",borderRadius:4,background:"#FA243C1a",border:"1px solid #FA243C44"}}>
+                <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:"#FA243C"}}/>
+                <span style={{fontSize:8,color:"#FA243C",lineHeight:1.25,flex:1,fontFamily:F,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical",fontWeight:600}}>{ev.summary}</span>
+              </div>
+            ))}
+            {dayTasks.length===0&&appleForDay(ds).length===0&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",paddingTop:6,gap:3,opacity:0.3}}>
               {isT&&<span style={{fontSize:7,color:T.mint,fontFamily:F,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase"}}>today</span>}
               <div style={{width:14,height:1,background:T.border,borderRadius:1}}/>
             </div>}
@@ -3114,6 +3125,229 @@ function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onCo
   </ModalShell>;
 }
 
+// ── APPLE CALDAV INTEGRATION ───────────────────────
+const APPLE_WORKER_URL="https://caldav-proxy.pratham-gupta0611.workers.dev";
+
+function icsToDate(s){
+  if(!s) return null;
+  const d=s.replace(/T.*$/,"").replace(/[-:]/g,"");
+  if(d.length!==8) return null;
+  return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+}
+
+function parseICSText(icsText){
+  const events=[];
+  const unfolded=icsText.replace(/\r\n[ \t]/g,"").replace(/\n[ \t]/g,"");
+  const lines=unfolded.split(/\r\n|\n/);
+  let ev=null;
+  for(const line of lines){
+    if(line==="BEGIN:VEVENT"){ev={};}
+    else if(line==="END:VEVENT"){
+      if(ev&&ev.SUMMARY&&ev.DTSTART) events.push(ev);
+      ev=null;
+    } else if(ev!==null){
+      const ci=line.indexOf(":");
+      if(ci===-1) continue;
+      const rawKey=line.slice(0,ci);
+      const val=line.slice(ci+1);
+      const key=rawKey.split(";")[0].toUpperCase();
+      ev[key]=val;
+      ev["_raw_"+key]=rawKey;
+    }
+  }
+  return events.map(e=>{
+    const isAllDay=!e.DTSTART.includes("T")||((e["_raw_DTSTART"]||"").includes("VALUE=DATE"));
+    const start=icsToDate(e.DTSTART);
+    let end=icsToDate(e.DTEND||e.DTSTART);
+    if(isAllDay&&e.DTEND){
+      const dt=new Date(end+"T12:00:00");
+      dt.setDate(dt.getDate()-1);
+      end=toStr(dt);
+    }
+    return {uid:e.UID||"",summary:e.SUMMARY||"(No title)",start,end:end||start,allDay:isAllDay,rrule:e.RRULE||null};
+  }).filter(e=>e.start);
+}
+
+function expandEvent(ev,windowStart,windowEnd){
+  if(!ev.rrule) return [ev];
+  const params={};
+  ev.rrule.split(";").forEach(p=>{const [k,v]=p.split("=");params[k]=v;});
+  const freq=params.FREQ;
+  if(!freq) return [ev];
+  const maxIter=params.COUNT?Math.min(parseInt(params.COUNT),500):500;
+  const until=params.UNTIL?new Date(icsToDate(params.UNTIL)+"T23:59:59"):null;
+  const interval=parseInt(params.INTERVAL||"1");
+  const startMs=new Date(ev.start+"T12:00:00");
+  const endMs=new Date(ev.end+"T12:00:00");
+  const durMs=endMs-startMs;
+  const ws=new Date(windowStart+"T00:00:00");
+  const we=new Date(windowEnd+"T23:59:59");
+  const cur=new Date(startMs);
+  const results=[];
+  let iter=0;
+  while(cur<=we&&iter<maxIter){
+    if(until&&cur>until) break;
+    const evEndCur=new Date(cur.getTime()+Math.max(durMs,0));
+    if(evEndCur>=ws){
+      results.push({...ev,start:toStr(cur),end:toStr(evEndCur),rrule:null});
+    }
+    switch(freq){
+      case "DAILY": cur.setDate(cur.getDate()+interval); break;
+      case "WEEKLY": cur.setDate(cur.getDate()+7*interval); break;
+      case "MONTHLY": cur.setMonth(cur.getMonth()+interval); break;
+      case "YEARLY": cur.setFullYear(cur.getFullYear()+interval); break;
+      default: return results.length?results:[ev];
+    }
+    iter++;
+  }
+  return results.length?results:[ev];
+}
+
+async function caldavReq(workerUrl,user,pass,method,path,body=null,extra={}){
+  const base=workerUrl.replace(/\/$/,"");
+  const auth=btoa(`${user}:${pass}`);
+  const res=await fetch(base+path,{
+    method,
+    headers:{
+      "Authorization":`Basic ${auth}`,
+      "Content-Type":"application/xml; charset=utf-8",
+      "Depth":extra.depth||"0",
+    },
+    body:body||undefined,
+  });
+  const text=await res.text();
+  return {status:res.status,text};
+}
+
+function parseXMLProp(xmlText,...selectors){
+  try{
+    const parser=new DOMParser();
+    const doc=parser.parseFromString(xmlText,"application/xml");
+    for(const sel of selectors){
+      const el=doc.querySelector(sel);
+      if(el){const h=el.querySelector("href");return (h||el).textContent.trim();}
+    }
+    return null;
+  }catch(e){return null;}
+}
+
+function parseCalendarList(xmlText){
+  try{
+    const parser=new DOMParser();
+    const doc=parser.parseFromString(xmlText,"application/xml");
+    const responses=[...doc.querySelectorAll("response")];
+    const cals=[];
+    for(const r of responses){
+      const href=r.querySelector("href")?.textContent?.trim();
+      const resType=r.querySelector("resourcetype")?.innerHTML||"";
+      if(!href||!resType.includes("calendar")) continue;
+      const name=r.querySelector("displayname")?.textContent||href;
+      cals.push({href,name});
+    }
+    return cals;
+  }catch(e){return [];}
+}
+
+function parseCalendarData(xmlText){
+  try{
+    const parser=new DOMParser();
+    const doc=parser.parseFromString(xmlText,"application/xml");
+    return [...doc.querySelectorAll("calendar-data")].map(n=>n.textContent).filter(Boolean);
+  }catch(e){return [];}
+}
+
+async function fetchAppleCalendarEvents(cfg){
+  const{workerUrl,user,pass}=cfg;
+  const principalBody=`<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>`;
+  const pr=await caldavReq(workerUrl,user,pass,"PROPFIND","/",principalBody,{depth:"0"});
+  let pPath=parseXMLProp(pr.text,"current-user-principal href","current-user-principal");
+  if(!pPath) throw new Error("Could not discover principal. Verify your Apple ID and app-specific password.");
+  if(pPath.startsWith("https://")) pPath=new URL(pPath).pathname;
+
+  const homeBody=`<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-home-set/></d:prop></d:propfind>`;
+  const hr=await caldavReq(workerUrl,user,pass,"PROPFIND",pPath,homeBody,{depth:"0"});
+  let hPath=parseXMLProp(hr.text,"calendar-home-set href","calendar-home-set");
+  if(!hPath) throw new Error("Could not find calendar home set.");
+  if(hPath.startsWith("https://")) hPath=new URL(hPath).pathname;
+
+  const listBody=`<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>`;
+  const lr=await caldavReq(workerUrl,user,pass,"PROPFIND",hPath,listBody,{depth:"1"});
+  const calendars=parseCalendarList(lr.text);
+  if(!calendars.length) throw new Error("No calendars found. You may need to re-authenticate.");
+
+  const now=new Date();
+  const past=new Date(now);past.setDate(now.getDate()-14);
+  const future=new Date(now);future.setDate(now.getDate()+90);
+  const fmt=d=>d.getFullYear().toString().padStart(4,"0")+(d.getMonth()+1).toString().padStart(2,"0")+d.getDate().toString().padStart(2,"0")+"T000000Z";
+  const windowStart=toStr(past),windowEnd=toStr(future);
+
+  const allEvents=[];
+  for(const cal of calendars){
+    const reportBody=`<?xml version="1.0"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="${fmt(past)}" end="${fmt(future)}"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`;
+    try{
+      const er=await caldavReq(workerUrl,user,pass,"REPORT",cal.href,reportBody,{depth:"1"});
+      const dataList=parseCalendarData(er.text);
+      for(const icsText of dataList){
+        const evs=parseICSText(icsText);
+        for(const ev of evs){
+          expandEvent(ev,windowStart,windowEnd).forEach(e=>allEvents.push({...e,calName:cal.name,source:"apple"}));
+        }
+      }
+    }catch(e){console.warn("CalDAV cal error:",cal.name,e);}
+  }
+  return allEvents;
+}
+
+function AppleCalModal({cfg,onSave,onClose}){
+  const T=useT();
+  const [workerUrl,setWorkerUrl]=useState(cfg.workerUrl||APPLE_WORKER_URL);
+  const [user,setUser]=useState(cfg.user||"");
+  const [pass,setPass]=useState(cfg.pass||"");
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");
+  const [calendars,setCalendars]=useState([]);
+  const inp={width:"100%",padding:"7px 10px",borderRadius:7,border:`1px solid ${T.border}`,background:T.cardAlt,color:T.text,fontSize:12,fontFamily:F,outline:"none",boxSizing:"border-box"};
+  async function handleConnect(){
+    setErr("");setBusy(true);setCalendars([]);
+    try{
+      const evs=await fetchAppleCalendarEvents({workerUrl,user,pass});
+      const names=[...new Set(evs.map(e=>e.calName))];
+      setCalendars(names);
+      onSave({workerUrl,user,pass,enabled:true});
+    }catch(e){setErr(e.message||"Connection failed.");}
+    finally{setBusy(false);}
+  }
+  return <ModalShell onClose={onClose} title="Apple Calendar Sync">
+    <p style={{fontSize:11,color:T.textMd,marginBottom:12,lineHeight:1.6}}>
+      Connect via CalDAV. Use an <strong>app-specific password</strong> from{" "}
+      <a href="https://appleid.apple.com" target="_blank" rel="noopener" style={{color:T.mint}}>appleid.apple.com</a>{" "}
+      (not your regular Apple ID password).
+    </p>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>CalDAV Proxy URL</label>
+    <input value={workerUrl} onChange={e=>setWorkerUrl(e.target.value)} style={{...inp,marginBottom:10}} autoComplete="off"/>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>Apple ID (email)</label>
+    <input value={user} onChange={e=>setUser(e.target.value)} placeholder="you@icloud.com" style={{...inp,marginBottom:10}} autoComplete="off"/>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>App-Specific Password</label>
+    <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="xxxx-xxxx-xxxx-xxxx" type="password" style={{...inp,marginBottom:10}} autoComplete="off"/>
+    {err&&<div style={{fontSize:11,color:"#f87171",marginBottom:10,padding:"6px 9px",background:"#f871711a",borderRadius:6}}>{err}</div>}
+    {calendars.length>0&&<div style={{marginBottom:12,padding:"9px 11px",background:T.mintX,borderRadius:7,border:`1px solid ${alpha(T.mint,.3)}`}}>
+      <div style={{fontSize:10,fontWeight:700,color:T.mint,marginBottom:5,fontFamily:F,letterSpacing:"0.06em",textTransform:"uppercase"}}>✓ Connected — {calendars.length} calendar{calendars.length!==1?"s":""}</div>
+      {calendars.map(n=><div key={n} style={{fontSize:11,color:T.textMd,fontFamily:F,marginBottom:2}}>◈ {n}</div>)}
+    </div>}
+    <div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center"}}>
+      {cfg.enabled&&<Btn small onClick={()=>{onSave({...cfg,enabled:false,pass:""});onClose();}} style={{color:"#f87171"}}>Disconnect</Btn>}
+      <span style={{flex:1}}/>
+      <Btn small onClick={onClose}>Cancel</Btn>
+      <Btn small primary onClick={handleConnect} disabled={busy||!user.trim()||!pass.trim()}>
+        {busy?"Connecting…":"Connect & Sync"}
+      </Btn>
+    </div>
+    <div style={{marginTop:12,padding:"8px 10px",background:T.cardAlt,borderRadius:7,fontSize:10,color:T.textLt,lineHeight:1.5}}>
+      Events sync read-only. Recurring events and all-day events are supported. Refreshes every 15 minutes.
+    </div>
+  </ModalShell>;
+}
+
 // ── APP ────────────────────────────────────────────
 function App(){
   const [theme,setTheme]=useState(()=>lg("plo3_theme","dark"));
@@ -3156,6 +3390,10 @@ function App(){
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
+  const [appleCal,setAppleCal]=useState(()=>lg("plo3_apple_cal",{workerUrl:APPLE_WORKER_URL,user:"",pass:"",enabled:false}));
+  const [appleEvents,setAppleEvents]=useState([]);
+  const [appleStatus,setAppleStatus]=useState("idle");
+  const [showAppleCal,setShowAppleCal]=useState(false);
   const zoom=1.35;
 
   // ── Cloud sync ──
@@ -3217,6 +3455,7 @@ function App(){
   useEffect(()=>ls("plo3_photos",photos),[photos]);
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
+  useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
   useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
 
@@ -3245,6 +3484,21 @@ function App(){
     },2500);
     return()=>clearTimeout(syncTimerRef.current);
   },[tasks,trips,goals,bingo,completions,notes,scratchpads]);// eslint-disable-line
+
+  // Apple CalDAV auto-fetch
+  useEffect(()=>{
+    if(!appleCal.enabled||!appleCal.workerUrl||!appleCal.user||!appleCal.pass){setAppleEvents([]);return;}
+    setAppleStatus("loading");
+    fetchAppleCalendarEvents(appleCal)
+      .then(evs=>{setAppleEvents(evs);setAppleStatus("ok");})
+      .catch(e=>{console.error("Apple Cal:",e);setAppleStatus("err");});
+    const t=setInterval(()=>{
+      fetchAppleCalendarEvents(appleCal)
+        .then(evs=>{setAppleEvents(evs);setAppleStatus("ok");})
+        .catch(()=>setAppleStatus("err"));
+    },900000);
+    return()=>clearInterval(t);
+  },[appleCal.enabled,appleCal.workerUrl,appleCal.user,appleCal.pass]);// eslint-disable-line
 
   // Keyboard shortcuts
   useEffect(()=>{
@@ -3381,9 +3635,9 @@ function App(){
 
   function widgetBody(id,pageMode=false){
     switch(id){
-      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})}/>;
+      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>;
       case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
-      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode}/>;
+      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
 
@@ -3424,6 +3678,9 @@ function App(){
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
             <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:syncGistId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
+            </Btn>
+            <Btn small onClick={()=>setShowAppleCal(true)} title={appleCal.enabled?"Apple Calendar synced — click to manage":"Connect Apple Calendar"} style={{fontSize:11,color:appleStatus==="ok"?"#FA243C":appleStatus==="err"?"#f87171":appleStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
+              <Ico n={appleCal.enabled?"calendar-check":"calendar-plus"} size={13}/>
             </Btn>
             <Btn small onClick={()=>setShowColorPanel(true)} title="Custom palette" style={{fontSize:11}}><Ico n="palette" size={13}/></Btn>
             <Btn small onClick={()=>setShowCapture(c=>!c)} active={showCapture} title="Quick capture"><Ico n="plus" size={13}/></Btn>
@@ -3558,6 +3815,7 @@ function App(){
       {modal?.type==="apikey" &&<ApiKeyModal current={apiKey} onClose={()=>setModal(null)} onSave={k=>{setApiKey(k);setModal(null);}}/>}
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
       {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
+      {showAppleCal&&<AppleCalModal cfg={appleCal} onSave={c=>{setAppleCal(c);setShowAppleCal(false);}} onClose={()=>setShowAppleCal(false)}/>}
       {showColorPanel&&<ColorCustomizePanel palette={palette} bgPalette={bgPalette}
         onApply={(p,bp)=>{setPalette(p);if(bp){setBgPalette(bp);ls("plo3_bgpal",bp);}setShowColorPanel(false);}}
         onClose={()=>setShowColorPanel(false)}/>}
