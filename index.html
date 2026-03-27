@@ -871,9 +871,37 @@ function geoDistKm(a,b){
 }
 // Map Buienradar wind direction codes to arrow glyphs
 const WDIR={N:"↓",NNO:"↓",NO:"↙",ONO:"←",O:"←",OZO:"↖",ZO:"↖",ZZO:"↑",Z:"↑",ZZW:"↑",ZW:"↗",WZW:"→",W:"→",WNW:"↘",NW:"↘",NNW:"↓"};
+// Dutch → English weather description lookup (Buienradar API always returns Dutch)
+const NL2EN={
+  "zonnig":"Sunny","zonnige periodes":"Sunny spells","heldere nacht":"Clear night",
+  "licht bewolkt":"Partly cloudy","half bewolkt":"Partly cloudy","gedeeltelijk bewolkt":"Partly cloudy",
+  "afwisselend bewolkt":"Partly cloudy","wisselend bewolkt":"Partly cloudy",
+  "bewolkt":"Cloudy","overwegend bewolkt":"Mostly cloudy","zwaar bewolkt":"Overcast",
+  "betrokken":"Overcast",
+  "lichte regen":"Light rain","motregen":"Drizzle","lichte motregen":"Light drizzle",
+  "regen":"Rain","matige regen":"Moderate rain","zware regen":"Heavy rain",
+  "buien":"Showers","regenbuien":"Rain showers",
+  "licht bewolkt en regen":"Partly cloudy with rain","bewolkt en regen":"Cloudy with rain",
+  "zwaar bewolkt en regen":"Overcast with rain","zwaar bewolkt met regen":"Overcast with rain",
+  "licht bewolkt met regen":"Partly cloudy with rain","half bewolkt met regen":"Partly cloudy with rain",
+  "onweer":"Thunderstorm","onweer met regen":"Thunderstorm with rain","zwaar onweer":"Severe thunderstorm",
+  "hagel":"Hail","nevel":"Mist","mist":"Fog","dichte mist":"Dense fog",
+  "sneeuw":"Snow","lichte sneeuw":"Light snow","matige sneeuw":"Moderate snow","zware sneeuw":"Heavy snow",
+  "sneeuwbuien":"Snow showers","ijzel":"Freezing rain","gladheid":"Icy conditions",
+};
+function nlToEn(s){
+  if(!s) return "";
+  const key=s.toLowerCase().trim();
+  if(NL2EN[key]) return NL2EN[key];
+  // partial match — find longest key that the description contains
+  let best="",bestLen=0;
+  for(const [k,v] of Object.entries(NL2EN)){
+    if(key.includes(k)&&k.length>bestLen){best=v;bestLen=k.length;}
+  }
+  return best||s.replace(/^\w/,c=>c.toUpperCase());
+}
 
 function WeatherWidget(){
-  const T=useT();
   const [w,setW]=useState(null);
   const [err,setErr]=useState(false);
 
@@ -901,11 +929,11 @@ function WeatherWidget(){
   },[]);// eslint-disable-line
 
   if(err) return null;
-  if(!w) return <div style={{width:80,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F,paddingTop:8}}>…</div>;
+  if(!w) return <div style={{width:80,opacity:0.3,fontSize:11,color:"rgba(255,255,255,0.5)",fontFamily:F,paddingTop:8}}>…</div>;
 
   const temp=w.temperature!=null?`${Math.round(w.temperature)}°`:"–";
   const feel=w.feeltemperature!=null?`${Math.round(w.feeltemperature)}°`:"";
-  const desc=(w.weatherdescription||"").replace(/^\w/,c=>c.toUpperCase());
+  const desc=nlToEn(w.weatherdescription||"");
   const wind=w.windspeedBft!=null?`${w.windspeedBft} bft`:w.windspeed!=null?`${Math.round(w.windspeed)} m/s`:"";
   const dir=WDIR[w.winddirection]||"";
   const rain=w.rainFallLastHour>0?`${w.rainFallLastHour} mm/h`:"";
@@ -913,19 +941,19 @@ function WeatherWidget(){
   return <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0,paddingTop:4}}>
     {/* Temp + icon */}
     <div style={{display:"flex",alignItems:"center",gap:10}}>
-      {w.iconurl&&<img src={w.iconurl} width={36} height={36} alt={desc} style={{imageRendering:"crisp-edges",filter:T.isDark?"brightness(0.92)":"none"}}/>}
-      <span style={{fontSize:42,fontWeight:900,fontFamily:F,letterSpacing:"-2px",lineHeight:1,color:T.text}}>{temp}</span>
+      {w.iconurl&&<img src={w.iconurl} width={36} height={36} alt={desc} style={{imageRendering:"crisp-edges",filter:"brightness(1.1)"}}/>}
+      <span style={{fontSize:42,fontWeight:900,fontFamily:F,letterSpacing:"-2px",lineHeight:1,color:"#ffffff"}}>{temp}</span>
     </div>
     {/* Description */}
-    <span style={{fontSize:11,color:T.textMd,fontFamily:F,textAlign:"right",maxWidth:160,lineHeight:1.3}}>{desc}</span>
+    <span style={{fontSize:11,color:"rgba(255,255,255,0.85)",fontFamily:F,textAlign:"right",maxWidth:160,lineHeight:1.3}}>{desc}</span>
     {/* Wind / rain row */}
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      {wind&&<span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{dir} {wind}</span>}
-      {rain&&<span style={{fontSize:10,color:T.blue,fontFamily:F}}>🌧 {rain}</span>}
-      {feel&&feel!==temp&&<span style={{fontSize:10,color:T.textLt,fontFamily:F}}>feels {feel}</span>}
+      {wind&&<span style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontFamily:F}}>{dir} {wind}</span>}
+      {rain&&<span style={{fontSize:10,color:"rgba(180,220,255,0.9)",fontFamily:F}}>🌧 {rain}</span>}
+      {feel&&feel!==temp&&<span style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontFamily:F}}>feels {feel}</span>}
     </div>
     {/* Location + source */}
-    <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.55,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+    <span style={{fontSize:9,color:"rgba(255,255,255,0.4)",fontFamily:F,letterSpacing:"0.05em",textTransform:"uppercase"}}>
       Leiderdorp · Buienradar
     </span>
   </div>;
