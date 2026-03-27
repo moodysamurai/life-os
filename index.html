@@ -917,7 +917,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask,appleE
   for(let i=0;i<cells.length;i+=7) weekRows.push(cells.slice(i,i+7));
 
   const cal=<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0,position:"relative",zIndex:10}}>
       <span style={{fontFamily:F,fontWeight:700,fontSize:pageMode?16:13,letterSpacing:"-0.3px"}}>{MFULL[month]} {year}</span>
       <div style={{display:"flex",gap:3}}>
         <Btn small onClick={prev}>‹</Btn>
@@ -1122,7 +1122,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   const appleForDay=ds=>appleEvents.filter(e=>e.start<=ds&&e.end>=ds);
   const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
   return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0,position:"relative",zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Week Planner</span>}
         <Badge label={wkLabel} color={T.blue}/>
