@@ -1838,8 +1838,8 @@ function ColorCustomizePanel({palette,bgPalette,onApply,onClose}){
 
   const prev=buildDark(draft);
 
-  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:450,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto",padding:"1.2rem",boxShadow:"0 32px 80px rgba(0,0,0,.85)"}}>
+  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:450,overflowY:"auto",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"3vh 1rem 4vh"}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,width:"100%",maxWidth:600,padding:"1.2rem",boxShadow:"0 32px 80px rgba(0,0,0,.85)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <span style={{fontFamily:F,fontWeight:700,fontSize:16}}>🎨 Theme Colors</span>
         <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:20,color:T.textLt}}>×</button>
