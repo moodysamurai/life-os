@@ -3786,11 +3786,11 @@ function App(){
                     <div style={{position:"absolute",top:5,right:6,left:6,display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:6,pointerEvents:"none"}}>
                       {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
                         style={{cursor:isDrag?"grabbing":"grab",padding:"3px 7px",color:T.textLt,fontSize:11,
-                          userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",touchAction:"none",pointerEvents:"all",background:alpha(T.card,.85),borderRadius:6}}>⠿</div>}
+                          userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",touchAction:"none",pointerEvents:isHov||isDrag?"all":"none",background:alpha(T.card,.85),borderRadius:6}}>⠿</div>}
                       <span style={{flex:1}}/>
                       <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
                         style={{background:alpha(T.card,.85),border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
-                          padding:"2px 7px",opacity:isHov||isMin?0.72:0,transition:"opacity 0.15s",lineHeight:1,borderRadius:5,pointerEvents:"all"}}>
+                          padding:"2px 7px",opacity:isHov||isMin?0.72:0,transition:"opacity 0.15s",lineHeight:1,borderRadius:5,pointerEvents:isHov||isMin?"all":"none"}}>
                         {isMin?"▽":"△"}
                       </button>
                     </div>
