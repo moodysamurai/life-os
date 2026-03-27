@@ -802,7 +802,9 @@ function GreetingHeader({tasks,trips,goals}){
   return <div className="greet-in" style={{
     padding:"22px 1.75rem 18px",
     borderBottom:`1px solid ${alpha(T.border,.35)}`,
+    display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:24,
   }}>
+  <div style={{flex:1,minWidth:0}}>
 
     {/* Hero greeting */}
     <div style={{marginBottom:scriptGreeting?6:14}}>
@@ -853,6 +855,79 @@ function GreetingHeader({tasks,trips,goals}){
         <span style={{fontSize:11,color:s.color,fontFamily:F,fontWeight:500,whiteSpace:"nowrap"}}>{s.text}</span>
       </React.Fragment>)}
     </div>
+  </div>
+  {/* Weather — right side */}
+  <WeatherWidget/>
+  </div>;
+}
+
+// ── WEATHER (Buienradar) ────────────────────────────
+// Leiderdorp, NL
+const LEIDERDORP={lat:52.1578,lon:4.5353};
+function geoDistKm(a,b){
+  const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lon-a.lon)*Math.PI/180;
+  const s=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
+}
+// Map Buienradar wind direction codes to arrow glyphs
+const WDIR={N:"↓",NNO:"↓",NO:"↙",ONO:"←",O:"←",OZO:"↖",ZO:"↖",ZZO:"↑",Z:"↑",ZZW:"↑",ZW:"↗",WZW:"→",W:"→",WNW:"↘",NW:"↘",NNW:"↓"};
+
+function WeatherWidget(){
+  const T=useT();
+  const [w,setW]=useState(null);
+  const [err,setErr]=useState(false);
+
+  function load(){
+    fetch("https://data.buienradar.nl/2.0/feed/json")
+      .then(r=>r.json())
+      .then(data=>{
+        const stations=(data.actual?.stationmeasurements)||[];
+        let best=null,bestD=Infinity;
+        for(const s of stations){
+          if(s.lat==null||s.lon==null) continue;
+          const d=geoDistKm(LEIDERDORP,{lat:s.lat,lon:s.lon});
+          if(d<bestD){bestD=d;best=s;}
+        }
+        if(best) setW(best);
+        else setErr(true);
+      })
+      .catch(()=>setErr(true));
+  }
+
+  useEffect(()=>{
+    load();
+    const t=setInterval(load,900000);
+    return()=>clearInterval(t);
+  },[]);// eslint-disable-line
+
+  if(err) return null;
+  if(!w) return <div style={{width:80,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F,paddingTop:8}}>…</div>;
+
+  const temp=w.temperature!=null?`${Math.round(w.temperature)}°`:"–";
+  const feel=w.feeltemperature!=null?`${Math.round(w.feeltemperature)}°`:"";
+  const desc=(w.weatherdescription||"").replace(/^\w/,c=>c.toUpperCase());
+  const wind=w.windspeedBft!=null?`${w.windspeedBft} bft`:w.windspeed!=null?`${Math.round(w.windspeed)} m/s`:"";
+  const dir=WDIR[w.winddirection]||"";
+  const rain=w.rainFallLastHour>0?`${w.rainFallLastHour} mm/h`:"";
+
+  return <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0,paddingTop:4}}>
+    {/* Temp + icon */}
+    <div style={{display:"flex",alignItems:"center",gap:10}}>
+      {w.iconurl&&<img src={w.iconurl} width={36} height={36} alt={desc} style={{imageRendering:"crisp-edges",filter:T.isDark?"brightness(0.92)":"none"}}/>}
+      <span style={{fontSize:42,fontWeight:900,fontFamily:F,letterSpacing:"-2px",lineHeight:1,color:T.text}}>{temp}</span>
+    </div>
+    {/* Description */}
+    <span style={{fontSize:11,color:T.textMd,fontFamily:F,textAlign:"right",maxWidth:160,lineHeight:1.3}}>{desc}</span>
+    {/* Wind / rain row */}
+    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+      {wind&&<span style={{fontSize:10,color:T.textLt,fontFamily:F}}>{dir} {wind}</span>}
+      {rain&&<span style={{fontSize:10,color:T.blue,fontFamily:F}}>🌧 {rain}</span>}
+      {feel&&feel!==temp&&<span style={{fontSize:10,color:T.textLt,fontFamily:F}}>feels {feel}</span>}
+    </div>
+    {/* Location + source */}
+    <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.55,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+      Leiderdorp · Buienradar
+    </span>
   </div>;
 }
 
