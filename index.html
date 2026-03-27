@@ -1808,6 +1808,105 @@ const PAL_TIPS=["CTA, highlights","Alerts, priority","Body text","Card bg tint",
 const BG_COL_LABELS=["Base dark","Mid-tone","Highlight","Peak sheen"];
 const BG_COL_TIPS=["Deepest bg","Flowing mid","Bright wave","Sheen burst"];
 
+// ── LIVE SHADER PREVIEW (mini version of BackgroundCanvas) ───────────────────
+function BgShaderPreview({hexPalette}){
+  const ref=useRef(null);
+  const glStateRef=useRef(null);
+
+  // Re-upload colours whenever hexPalette changes
+  useEffect(()=>{
+    const s=glStateRef.current;
+    if(!s) return;
+    hexPalette.forEach((hex,i)=>{
+      const rgb=hexToRgb01(hex.length===7?hex:'#888888');
+      s.gl.uniform3fv(s.locs[i], rgb);
+    });
+  },[hexPalette]);
+
+  useEffect(()=>{
+    const canvas=ref.current;
+    if(!canvas) return;
+    const gl=canvas.getContext('webgl')||canvas.getContext('experimental-webgl');
+    if(!gl) return;
+
+    const vsrc=`attribute vec2 a_pos;void main(){gl_Position=vec4(a_pos,0.0,1.0);}`;
+    const fsrc=`
+      precision mediump float;
+      uniform vec2 iResolution;uniform float iTime;
+      uniform vec3 u_col0;uniform vec3 u_col1;uniform vec3 u_col2;uniform vec3 u_col3;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      vec2 sineWarp(vec2 p,float t){
+        float a=1.5;
+        for(int i=0;i<6;i++){float ph=float(i)*1.618;p.x+=a*sin(p.y*1.4+t*0.18+ph*2.39);p.y+=a*cos(p.x*1.6+t*0.14+ph*1.73);a*=0.50;}
+        return p;
+      }
+      void main(){
+        vec2 uv=gl_FragCoord.xy/iResolution.xy;
+        vec2 st=uv-0.5;st.x*=iResolution.x/iResolution.y;st*=2.2;
+        vec2 wp=sineWarp(st,iTime);
+        float m1=sin(wp.x*1.8+wp.y*0.7)*0.5+0.5;
+        float m2=sin(wp.x*0.9-wp.y*1.4+iTime*0.08)*0.5+0.5;
+        float pattern=mix(m1,m2,0.08);
+        vec3 color=u_col0;
+        color=mix(color,u_col1,smoothstep(0.08,0.52,pattern));
+        color=mix(color,u_col2,smoothstep(0.60,0.86,pattern));
+        color=mix(color,u_col3,smoothstep(0.84,0.97,pattern));
+        float sheenWave=sin(wp.x*0.2+wp.y*0.1-iTime*0.4)*0.5+0.5;
+        float sheen=pow(sheenWave,8.0);
+        float isNav=1.0-smoothstep(0.50,0.66,pattern);
+        color+=u_col2*0.22*sheen*isNav;
+        color+=u_col3*0.38*sheen*(1.0-isNav);
+        float ft=floor(iTime*24.0);
+        vec2 px=floor(gl_FragCoord.xy/2.5);
+        float gRaw=(hash(px+ft*13.7)+hash(px*1.3+ft*27.1+5.5))*0.5;
+        float g=smoothstep(0.2,0.8,gRaw)-0.5;
+        float luma=dot(color,vec3(0.299,0.587,0.114));
+        color+=g*luma*(1.0-luma)*4.0*0.18;
+        gl_FragColor=vec4(clamp(color,0.0,1.0),1.0);
+      }
+    `;
+    function compile(type,src){
+      const sh=gl.createShader(type);gl.shaderSource(sh,src);gl.compileShader(sh);
+      if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){console.error(gl.getShaderInfoLog(sh));return null;}
+      return sh;
+    }
+    const vs=compile(gl.VERTEX_SHADER,vsrc),fs=compile(gl.FRAGMENT_SHADER,fsrc);
+    if(!vs||!fs) return;
+    const prog=gl.createProgram();
+    gl.attachShader(prog,vs);gl.attachShader(prog,fs);gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
+    const buf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+    const posLoc=gl.getAttribLocation(prog,'a_pos');
+    gl.enableVertexAttribArray(posLoc);gl.vertexAttribPointer(posLoc,2,gl.FLOAT,false,0,0);
+    const resLoc=gl.getUniformLocation(prog,'iResolution');
+    const timeLoc=gl.getUniformLocation(prog,'iTime');
+    const colLocs=[0,1,2,3].map(i=>gl.getUniformLocation(prog,`u_col${i}`));
+    // Upload initial palette
+    hexPalette.forEach((hex,i)=>gl.uniform3fv(colLocs[i],hexToRgb01(hex.length===7?hex:'#888888')));
+    glStateRef.current={gl,locs:colLocs};
+    // Size canvas to its CSS box
+    canvas.width=canvas.offsetWidth||520;canvas.height=canvas.offsetHeight||96;
+    gl.viewport(0,0,canvas.width,canvas.height);
+    const start=performance.now();
+    let animId;
+    function draw(){
+      const t=(performance.now()-start)*0.001;
+      gl.uniform2f(resLoc,canvas.width,canvas.height);
+      gl.uniform1f(timeLoc,t);
+      gl.drawArrays(gl.TRIANGLES,0,6);
+      animId=requestAnimationFrame(draw);
+    }
+    draw();
+    return()=>{cancelAnimationFrame(animId);glStateRef.current=null;};
+  // eslint-disable-next-line
+  },[]);
+
+  return <canvas ref={ref} style={{width:"100%",height:96,borderRadius:8,display:"block"}}/>;
+}
+
 function ColorCustomizePanel({palette,bgPalette,onApply,onClose}){
   const T=useT();
   const [draft,setDraft]=useState([...palette]);
@@ -1995,9 +2094,10 @@ function ColorCustomizePanel({palette,bgPalette,onApply,onClose}){
             </div>
           ))}
         </div>
-        {/* Mini bg preview strip */}
-        <div style={{height:28,borderRadius:7,overflow:"hidden",border:`1px solid ${T.border}`,
-          background:`linear-gradient(to right,${bgDraft[0]},${bgDraft[1]},${bgDraft[2]},${bgDraft[3]})`}}/>
+        {/* Live shader preview */}
+        <div style={{borderRadius:8,overflow:"hidden",border:`1px solid ${alpha(T.border,.7)}`}}>
+          <BgShaderPreview hexPalette={bgDraft}/>
+        </div>
       </div>
 
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16}}>
