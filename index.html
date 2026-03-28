@@ -405,6 +405,7 @@ const WDEFS=[
   {id:"kanban",  label:"Week",    icon:"▦",visible:true},
   {id:"trips",   label:"Trips",   icon:"◎",visible:true},
   {id:"goals",   label:"Goals",   icon:"◉",visible:true},
+  {id:"budget",  label:"Budget",  icon:"◐",visible:true},
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
   {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
   {id:"embed",   label:"Embed",   icon:"⧉",visible:true},
@@ -802,7 +803,7 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
   return <div className="greet-in" style={{
     padding:"22px 1.75rem 18px",
     borderBottom:`1px solid ${alpha(T.border,.35)}`,
-    display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:24,
+    display:"flex",justifyContent:"space-between",alignItems:"center",gap:24,
   }}>
   <div style={{flex:1,minWidth:0}}>
 
@@ -856,6 +857,12 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
       </React.Fragment>)}
     </div>
   </div>
+  {/* Middle column: sunrise, countdown, quote */}
+  <div style={{display:"flex",flexDirection:"column",gap:10,flexShrink:0,alignItems:"flex-start",borderLeft:`1px solid rgba(255,255,255,0.10)`,borderRight:`1px solid rgba(255,255,255,0.10)`,padding:"0 20px"}}>
+    <SunriseStrip/>
+    <CountdownStrip tasks={tasks} trips={trips}/>
+    <QuoteStrip/>
+  </div>
   {/* Right column: weather + week peek */}
   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}}>
     <WeatherWidget/>
@@ -888,6 +895,101 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
       </div>;
     })()}
   </div>
+  </div>;
+}
+
+// ── HERO BAR STRIPS ─────────────────────────────────
+
+// Sunrise / sunset (NOAA algorithm, no API needed)
+function calcSunTimes(lat,lon,date){
+  const rad=Math.PI/180;
+  const N=Math.floor((date-new Date(date.getFullYear(),0,0))/86400000);
+  const lngH=lon/15;
+  const calc=(isRise)=>{
+    const t=N+(((isRise?6:18)-lngH)/24);
+    const M=(0.9856*t)-3.289;
+    let L=M+(1.916*Math.sin(M*rad))+(0.020*Math.sin(2*M*rad))+282.634;
+    L=((L%360)+360)%360;
+    let RA=Math.atan(0.91764*Math.tan(L*rad))/rad;
+    RA=((RA%360)+360)%360;
+    RA=(RA+(Math.floor(L/90)*90-Math.floor(RA/90)*90))/15;
+    const sinD=0.39782*Math.sin(L*rad);
+    const cosD=Math.cos(Math.asin(sinD));
+    const cosH=(Math.cos(90.833*rad)-(sinD*Math.sin(lat*rad)))/(cosD*Math.cos(lat*rad));
+    if(cosH>1||cosH<-1) return null;
+    const H=(isRise?360-Math.acos(cosH)/rad:Math.acos(cosH)/rad)/15;
+    const T=H+RA-(0.06571*t)-6.622;
+    const off=-date.getTimezoneOffset()/60;
+    return (((T-lngH)%24+24)%24+off+24)%24;
+  };
+  const rise=calc(true),set=calc(false);
+  if(rise==null||set==null) return null;
+  const fmt=h=>`${String(Math.floor(h)).padStart(2,"0")}:${String(Math.floor((h%1)*60)).padStart(2,"0")}`;
+  return {rise:fmt(rise),set:fmt(set),golden:fmt(((set-1)+24)%24)};
+}
+
+function SunriseStrip(){
+  const sun=useMemo(()=>calcSunTimes(52.1578,4.5353,new Date()),[]);
+  if(!sun) return null;
+  return <div style={{display:"flex",gap:10,alignItems:"center"}}>
+    <span style={{fontSize:8,color:"rgba(255,255,255,0.38)",fontFamily:F,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Sun</span>
+    <span style={{fontSize:11,color:"rgba(255,255,255,0.82)",fontFamily:F}}>↑ {sun.rise}</span>
+    <span style={{fontSize:11,color:"rgba(255,255,255,0.82)",fontFamily:F}}>↓ {sun.set}</span>
+    <span style={{fontSize:10,color:"rgba(255,200,90,0.85)",fontFamily:F}} title="Golden hour starts">✦ {sun.golden}</span>
+  </div>;
+}
+
+// Daily quote (IR / political philosophy, rotates by day of year)
+const IR_QUOTES=[
+  {q:"The strong do what they can and the weak suffer what they must.",a:"Thucydides"},
+  {q:"War is the continuation of politics by other means.",a:"Carl von Clausewitz"},
+  {q:"Power is not an institution but the name one attributes to a complex strategical situation.",a:"Michel Foucault"},
+  {q:"The colonial world is a Manichean world.",a:"Frantz Fanon"},
+  {q:"Hegemony is intellectual and moral leadership.",a:"Antonio Gramsci"},
+  {q:"The nation is an imagined political community.",a:"Benedict Anderson"},
+  {q:"Justice is the first virtue of social institutions.",a:"John Rawls"},
+  {q:"Power tends to corrupt, and absolute power corrupts absolutely.",a:"Lord Acton"},
+  {q:"Soft power is the ability to affect others through co-optive means.",a:"Joseph Nye"},
+  {q:"Not everything that is faced can be changed, but nothing can be changed until it is faced.",a:"James Baldwin"},
+  {q:"The price of apathy towards public affairs is to be ruled by evil men.",a:"Plato"},
+  {q:"Nationalism is an infantile disease. It is the measles of mankind.",a:"Albert Einstein"},
+  {q:"Those who cannot remember the past are condemned to repeat it.",a:"George Santayana"},
+  {q:"The oppressed, instead of striving for liberation, tend themselves to become oppressors.",a:"Paulo Freire"},
+  {q:"History is a set of lies agreed upon.",a:"Napoleon Bonaparte"},
+  {q:"No man is an island, entire of itself.",a:"John Donne"},
+  {q:"Sovereignty is not given, it is taken.",a:"Mustafa Kemal Atatürk"},
+  {q:"The subaltern cannot speak.",a:"Gayatri Chakravorty Spivak"},
+  {q:"The purpose of education is to replace an empty mind with an open one.",a:"Malcolm Forbes"},
+  {q:"It is not power that corrupts but fear.",a:"Aung San Suu Kyi"},
+  {q:"The world is a fine place and worth fighting for.",a:"Ernest Hemingway"},
+  {q:"One does not simply see identity — one performs it.",a:"Judith Butler"},
+  {q:"History is philosophy teaching by examples.",a:"Thucydides"},
+];
+
+function QuoteStrip(){
+  const doy=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000);
+  const q=IR_QUOTES[doy%IR_QUOTES.length];
+  return <div style={{maxWidth:260}}>
+    <div style={{fontSize:9,color:"rgba(255,255,255,0.68)",fontFamily:F,fontStyle:"italic",lineHeight:1.45}}>"{q.q}"</div>
+    <div style={{fontSize:8,color:"rgba(255,255,255,0.35)",fontFamily:F,marginTop:2}}>— {q.a}</div>
+  </div>;
+}
+
+function CountdownStrip({tasks,trips}){
+  const todayStr=toStr(new Date());
+  const candidates=[];
+  tasks.filter(t=>!t.completed&&t.deadline&&t.deadline>todayStr)
+    .forEach(t=>candidates.push({label:t.title,date:t.deadline}));
+  trips.filter(t=>t.startDate&&t.startDate>todayStr)
+    .forEach(t=>candidates.push({label:t.destination,date:t.startDate}));
+  if(!candidates.length) return null;
+  candidates.sort((a,b)=>a.date.localeCompare(b.date));
+  const next=candidates[0];
+  const days=Math.ceil((fromStr(next.date)-new Date())/86400000);
+  return <div style={{display:"flex",alignItems:"baseline",gap:5}}>
+    <span style={{fontSize:26,fontWeight:900,fontFamily:F,color:"rgba(255,255,255,0.92)",letterSpacing:"-1.5px",lineHeight:1}}>{days}</span>
+    <span style={{fontSize:8,color:"rgba(255,255,255,0.38)",fontFamily:F,textTransform:"uppercase",letterSpacing:"0.07em"}}>days</span>
+    <span style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontFamily:F,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{next.label}</span>
   </div>;
 }
 
@@ -1352,6 +1454,151 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
       </div>;
     })()}
     <div style={{marginTop:4,fontSize:9,color:T.textLt,fontFamily:F,flexShrink:0}}>Click a date to open focus view · Tick = done for that day</div>
+  </div>;
+}
+
+// ── BUDGET ─────────────────────────────────────────
+const BUDGET_EXP_CATS=["Food","Transport","Rent","Health","Education","Entertainment","Shopping","Travel","Other"];
+const BUDGET_INC_CATS=["Stipend","Freelance","Gift","Other"];
+const CAT_ICONS={"Food":"🍜","Transport":"🚲","Rent":"🏠","Health":"💊","Education":"📚","Entertainment":"🎬","Shopping":"🛍","Travel":"✈️","Other":"·","Stipend":"🎓","Freelance":"💻","Gift":"🎁"};
+
+function BudgetWidget({budget,setBudget,pageMode}){
+  const T=useT();
+  const today=new Date(),todayStr=toStr(today);
+  const ym0=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
+  const [mon,setMon]=useState(ym0);
+  const [showAdd,setShowAdd]=useState(false);
+  const [form,setForm]=useState({date:todayStr,amount:"",type:"expense",category:"Food",description:""});
+  const [editId,setEditId]=useState(null);
+
+  const monthName=d=>{const p=d.split("-");return `${MFULL[parseInt(p[1])-1]} ${p[0]}`;};
+  const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
+  const nextMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()+1);setMon(toStr(d).slice(0,7));};
+
+  const entries=budget.filter(e=>e.date.startsWith(mon)).sort((a,b)=>b.date.localeCompare(a.date));
+  const income=entries.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
+  const expense=entries.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+  const net=income-expense;
+
+  const catTotals={};
+  entries.filter(e=>e.type==="expense").forEach(e=>{catTotals[e.category]=(catTotals[e.category]||0)+e.amount;});
+  const topCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+
+  function startAdd(){
+    setForm({date:todayStr,amount:"",type:"expense",category:"Food",description:""});
+    setEditId(null);setShowAdd(true);
+  }
+  function startEdit(e){
+    setForm({date:e.date,amount:String(e.amount),type:e.type,category:e.category,description:e.description||""});
+    setEditId(e.id);setShowAdd(true);
+  }
+  function saveEntry(){
+    const amt=parseFloat(form.amount);
+    if(!amt||isNaN(amt)) return;
+    const entry={id:editId||uid(),date:form.date,amount:amt,type:form.type,category:form.category,description:form.description};
+    setBudget(p=>editId?p.map(e=>e.id===editId?entry:e):[...p,entry]);
+    setShowAdd(false);setEditId(null);
+  }
+  function delEntry(id){setBudget(p=>p.filter(e=>e.id!==id));}
+
+  const SummaryCard=({label,val,color,bg})=>(
+    <div style={{flex:1,textAlign:"center",padding:pageMode?"10px 8px":"6px 4px",borderRadius:8,background:bg,border:`1px solid ${alpha(color,.3)}`}}>
+      <div style={{fontSize:8,color,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{label}</div>
+      <div style={{fontSize:pageMode?18:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>{val>=0?"+":""}{val<0?"-":""}€{Math.abs(val).toFixed(0)}</div>
+    </div>
+  );
+
+  const AddForm=()=>(
+    <div style={{display:"flex",flexDirection:"column",gap:5,padding:"10px",borderRadius:8,background:alpha(T.border,.18),border:`1px solid ${alpha(T.border,.4)}`}}>
+      <div style={{display:"flex",gap:4}}>
+        <select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value,category:e.target.value==="income"?"Stipend":"Food"}))} style={{fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+        </select>
+        <input value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="Amount €" type="number" min="0" step="0.01"
+          style={{flex:1,fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+      </div>
+      <div style={{display:"flex",gap:4}}>
+        <select value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}
+          style={{flex:1,fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
+          {(form.type==="expense"?BUDGET_EXP_CATS:BUDGET_INC_CATS).map(c=><option key={c}>{c}</option>)}
+        </select>
+        <input value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} type="date"
+          style={{flex:1,fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+      </div>
+      <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Description (optional)"
+        style={{fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+      <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+        <Btn small ghost onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancel</Btn>
+        <Btn small primary onClick={saveEntry}>{editId?"Save":"Add"}</Btn>
+      </div>
+    </div>
+  );
+
+  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:8}}>
+    {/* Nav row */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,position:"relative",zIndex:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Budget</span>}
+        <Badge label={monthName(mon)} color={T.mint}/>
+      </div>
+      <div style={{display:"flex",gap:3}}>
+        <Btn small onClick={prevMon}>‹</Btn>
+        {mon!==ym0&&<Btn small ghost onClick={()=>setMon(ym0)} style={{fontSize:9}}>Now</Btn>}
+        <Btn small onClick={nextMon}>›</Btn>
+        <Btn small primary onClick={startAdd}>+ Add</Btn>
+      </div>
+    </div>
+
+    {/* Summary cards */}
+    <div style={{display:"flex",gap:6,flexShrink:0}}>
+      <SummaryCard label="Income" val={income} color={T.mint} bg={T.mintX}/>
+      <SummaryCard label="Expenses" val={-expense} color={T.pink} bg={T.pinkX}/>
+      <SummaryCard label="Net" val={net} color={net>=0?T.mint:T.pink} bg={net>=0?T.mintX:T.pinkX}/>
+    </div>
+
+    {/* Category breakdown */}
+    {topCats.length>0&&expense>0&&<div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
+      {topCats.slice(0,pageMode?topCats.length:3).map(([cat,amt])=>(
+        <div key={cat} style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:10,fontFamily:F,width:14}}>{CAT_ICONS[cat]||"·"}</span>
+          <span style={{fontSize:9,color:T.textMd,fontFamily:F,width:pageMode?90:72,flexShrink:0}}>{cat}</span>
+          <div style={{flex:1,height:4,borderRadius:2,background:alpha(T.border,.5),overflow:"hidden"}}>
+            <div style={{width:`${Math.min(100,(amt/expense)*100)}%`,height:"100%",background:T.pink,borderRadius:2,transition:"width 0.4s"}}/>
+          </div>
+          <span style={{fontSize:9,color:T.textLt,fontFamily:F,width:48,textAlign:"right"}}>€{amt.toFixed(2)}</span>
+        </div>
+      ))}
+    </div>}
+
+    {/* Add / edit form */}
+    {showAdd&&<AddForm/>}
+
+    {/* Entry list */}
+    <div style={{display:"flex",flexDirection:"column",gap:2,flex:1,minHeight:0,overflowY:"auto"}}>
+      {entries.slice(0,pageMode?9999:8).map(e=>(
+        <div key={e.id} onClick={()=>startEdit(e)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px",borderRadius:6,background:alpha(T.border,.15),cursor:"pointer",transition:"background .15s"}}
+          onMouseEnter={ev=>ev.currentTarget.style.background=alpha(T.border,.3)}
+          onMouseLeave={ev=>ev.currentTarget.style.background=alpha(T.border,.15)}>
+          <span style={{fontSize:11}}>{CAT_ICONS[e.category]||"·"}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <span style={{fontSize:9,color:T.textMd,fontFamily:F,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {e.category}{e.description?` · ${e.description}`:""}
+            </span>
+          </div>
+          <span style={{fontSize:10,color:e.type==="income"?T.mint:T.pink,fontFamily:F,fontWeight:700,flexShrink:0}}>
+            {e.type==="income"?"+":"-"}€{e.amount.toFixed(2)}
+          </span>
+          <span style={{fontSize:8,color:T.textLt,fontFamily:F,flexShrink:0}}>{e.date.slice(5)}</span>
+          <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,padding:"0 2px",lineHeight:1,flexShrink:0}}>×</button>
+        </div>
+      ))}
+      {!showAdd&&entries.length===0&&(
+        <div style={{textAlign:"center",padding:24,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F}}>
+          No entries for {monthName(mon)}
+        </div>
+      )}
+    </div>
   </div>;
 }
 
@@ -3598,6 +3845,7 @@ function App(){
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
+  const [budget,setBudget]=useState(()=>lg("plo3_budget",[]));
   const [appleCal,setAppleCal]=useState(()=>lg("plo3_apple_cal",{workerUrl:APPLE_WORKER_URL,user:"",pass:"",enabled:false}));
   const [appleEvents,setAppleEvents]=useState([]);
   const [appleStatus,setAppleStatus]=useState("idle");
@@ -3663,6 +3911,7 @@ function App(){
   useEffect(()=>ls("plo3_photos",photos),[photos]);
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
+  useEffect(()=>ls("plo3_budget",budget),[budget]);
   useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
   useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
@@ -3848,6 +4097,7 @@ function App(){
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
+      case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} pageMode={pageMode}/>;
 
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
