@@ -1582,12 +1582,39 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
 }
 
 // ── BUDGET PLANNER ─────────────────────────────────────────
-const BUDGET_EXP_CATS=["Food","Transport","Rent","Health","Education","Entertainment","Shopping","Travel","Other"];
-const BUDGET_INC_CATS=["Stipend","Freelance","Gift","Other"];
-const CAT_ICONS={"Food":"🍜","Transport":"🚲","Rent":"🏠","Health":"💊","Education":"📚","Entertainment":"🎬","Shopping":"🛍","Travel":"✈️","Other":"·","Stipend":"🎓","Freelance":"💻","Gift":"🎁"};
-const CAT_COLS=["#A78BFA","#60A5FA","#34D399","#F87171","#FBBF24","#F472B6","#38BDF8","#A3E635","#FB923C"];
+const BUDGET_ICONS=[
+  "fork-knife","coffee","beer-bottle","pizza-slice","cooking-pot","wine","hamburger","orange","cake","ice-cream",
+  "car","bus","bicycle","airplane","train","taxi","motorcycle","boat","rocket","scooter",
+  "house","buildings","key","bathtub","couch","lamp","door","armchair",
+  "heart","pill","first-aid-kit","stethoscope","baby","bandaids","tooth",
+  "graduation-cap","book-open","books","pencil","chalkboard","certificate",
+  "film-slate","game-controller","music-note","television","ticket","headphones","camera","popcorn",
+  "shopping-bag","shopping-cart","tag","handbag","package",
+  "globe","suitcase","map-pin","compass","tent","beach-ball",
+  "currency-circle-dollar","piggy-bank","bank","credit-card","wallet","coins","chart-line","receipt",
+  "device-mobile","laptop","wifi","cloud","monitor","keyboard",
+  "paw-print","t-shirt","gift","star","lightning","fire","leaf","flower","plant",
+  "dots-three","question","minus-circle","plus-circle","x-circle"
+];
+const DEFAULT_BUDGET_CATS=[
+  {id:"c1",label:"Food",type:"expense",icon:"fork-knife"},
+  {id:"c2",label:"Transport",type:"expense",icon:"car"},
+  {id:"c3",label:"Rent",type:"expense",icon:"house"},
+  {id:"c4",label:"Health",type:"expense",icon:"heart"},
+  {id:"c5",label:"Education",type:"expense",icon:"graduation-cap"},
+  {id:"c6",label:"Entertainment",type:"expense",icon:"film-slate"},
+  {id:"c7",label:"Shopping",type:"expense",icon:"shopping-bag"},
+  {id:"c8",label:"Travel",type:"expense",icon:"airplane"},
+  {id:"c9",label:"Subscriptions",type:"expense",icon:"wifi"},
+  {id:"c10",label:"Other",type:"expense",icon:"dots-three"},
+  {id:"c11",label:"Stipend",type:"income",icon:"graduation-cap"},
+  {id:"c12",label:"Freelance",type:"income",icon:"laptop"},
+  {id:"c13",label:"Gift",type:"income",icon:"gift"},
+  {id:"c14",label:"Other",type:"income",icon:"dots-three"},
+];
+const CAT_COLS=["#A78BFA","#60A5FA","#34D399","#F87171","#FBBF24","#F472B6","#38BDF8","#A3E635","#FB923C","#818CF8","#2DD4BF","#E879F9"];
 
-function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
+function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats,pageMode}){
   const T=useT();
   const today=new Date(),todayStr=toStr(today);
   const ym0=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
@@ -1598,6 +1625,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
   const [editId,setEditId]=useState(null);
   const [showEnvEdit,setShowEnvEdit]=useState(null);
   const [envForm,setEnvForm]=useState({category:"Food",type:"expense",budgeted:"",isFixed:false});
+  const [pickerFor,setPickerFor]=useState(null);
+  const [catEditId,setCatEditId]=useState(null);
+  const [catEditLabel,setCatEditLabel]=useState("");
+  const [catAdd,setCatAdd]=useState(null);
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
@@ -1617,7 +1648,28 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
 
   const catActuals=useMemo(()=>{const m={};entries.filter(e=>e.type==="expense").forEach(e=>{m[e.category]=(m[e.category]||0)+e.amount;});return m;},[entries]);
 
-  function catColor(cat){const i=BUDGET_EXP_CATS.indexOf(cat);return CAT_COLS[i>=0?i:7];}
+  const expCats=useMemo(()=>budgetCats.filter(c=>c.type==="expense"),[budgetCats]);
+  const incCats=useMemo(()=>budgetCats.filter(c=>c.type==="income"),[budgetCats]);
+  function getCatIcon(label){return(budgetCats.find(c=>c.label===label)||{icon:"dots-three"}).icon;}
+  function getCatColor(label){const i=budgetCats.findIndex(c=>c.label===label);return CAT_COLS[i>=0?i%CAT_COLS.length:0];}
+
+  // Category management
+  function pickIcon(icon){
+    if(pickerFor==="new"){setCatAdd(p=>({...p,icon}));}
+    else if(pickerFor){setBudgetCats(p=>p.map(c=>c.id===pickerFor?{...c,icon}:c));}
+    setPickerFor(null);
+  }
+  function saveCatLabel(){
+    if(!catEditLabel.trim()){setCatEditId(null);return;}
+    setBudgetCats(p=>p.map(c=>c.id===catEditId?{...c,label:catEditLabel.trim()}:c));
+    setCatEditId(null);
+  }
+  function deleteCat(id){setBudgetCats(p=>p.filter(c=>c.id!==id));}
+  function addCat(){
+    if(!catAdd||!catAdd.label.trim())return;
+    setBudgetCats(p=>[...p,{id:uid(),label:catAdd.label.trim(),type:catAdd.type,icon:catAdd.icon}]);
+    setCatAdd(null);setPickerFor(null);
+  }
 
   function seedFromFixed(){
     const seen={};
@@ -1626,7 +1678,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
     if(toAdd.length>0)setEnvelopes(p=>[...p.filter(e=>e.month!==mon),...toAdd]);
   }
 
-  function openNewEnv(type){setEnvForm({category:type==="income"?"Stipend":"Food",type,budgeted:"",isFixed:false});setShowEnvEdit("new");}
+  function openNewEnv(type){const def=budgetCats.find(c=>c.type===type);setEnvForm({category:def?.label||"Other",type,budgeted:"",isFixed:false});setShowEnvEdit("new");}
   function openEditEnv(env){setEnvForm({category:env.category,type:env.type,budgeted:String(env.budgeted),isFixed:!!env.isFixed});setShowEnvEdit(env.id);}
   function saveEnvelope(){
     const amt=parseFloat(envForm.budgeted);if(!amt||isNaN(amt))return;
@@ -1636,7 +1688,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
   }
   function removeEnvelope(id){setEnvelopes(p=>p.filter(e=>e.id!==id));}
 
-  function startAdd(){setForm({date:todayStr,amount:"",type:"expense",category:"Food",description:""});setEditId(null);setShowAdd(true);}
+  function startAdd(){const def=budgetCats.find(c=>c.type==="expense");setForm({date:todayStr,amount:"",type:"expense",category:def?.label||"Other",description:""});setEditId(null);setShowAdd(true);}
   function startEdit(en){setForm({date:en.date,amount:String(en.amount),type:en.type,category:en.category,description:en.description||""});setEditId(en.id);setShowAdd(true);}
   function saveEntry(){
     const amt=parseFloat(form.amount);if(!amt||isNaN(amt))return;
@@ -1645,7 +1697,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
     setShowAdd(false);setEditId(null);
   }
   function delEntry(id){setBudget(p=>p.filter(x=>x.id!==id));}
-  const cats=form.type==="expense"?BUDGET_EXP_CATS:BUDGET_INC_CATS;
+  const formCats=form.type==="expense"?expCats:incCats;
+  const envFormCats=envForm.type==="expense"?expCats:incCats;
+  const curPickerIcon=pickerFor==="new"?catAdd?.icon:(budgetCats.find(c=>c.id===pickerFor)||{}).icon;
 
   const trendData=useMemo(()=>{
     const ms=[];
@@ -1666,7 +1720,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
 
   const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
 
-  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:6}}>
+  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:6,position:"relative"}}>
 
     {/* Nav row */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,position:"relative",zIndex:10}}>
@@ -1683,8 +1737,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
 
     {/* Tab strip */}
     <div style={{display:"flex",gap:3,flexShrink:0,background:alpha(T.border,.2),borderRadius:8,padding:3}}>
-      {["plan","log","trends"].map(t=>(
-        <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"4px 0",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:10,fontWeight:tab===t?700:400,background:tab===t?T.card:"transparent",color:tab===t?T.text:T.textLt,transition:"all 0.12s",textTransform:"capitalize"}}>{t}</button>
+      {[["plan","Plan"],["log","Log"],["trends","Trends"],["cats","Categories"]].map(([id,label])=>(
+        <button key={id} onClick={()=>{setTab(id);setPickerFor(null);}} style={{flex:1,padding:"4px 0",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:9,fontWeight:tab===id?700:400,background:tab===id?T.card:"transparent",color:tab===id?T.text:T.textLt,transition:"all 0.12s"}}>{label}</button>
       ))}
     </div>
 
@@ -1725,7 +1779,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
         {incomeEnv.map(env=>(
           <div key={env.id}>
             <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.18)}`}}>
-              <span style={{fontSize:10}}>{CAT_ICONS[env.category]||"💰"}</span>
+              <Ico n={getCatIcon(env.category)} size={12}/>
               <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
               {env.isFixed&&<span style={{fontSize:7,color:T.mint,fontFamily:F,background:alpha(T.mint,.15),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
               <span style={{fontSize:11,color:T.mint,fontFamily:F,fontWeight:700}}>€{env.budgeted.toFixed(0)}</span>
@@ -1736,7 +1790,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
               <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4}}>
                   <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
-                    {BUDGET_INC_CATS.map(c=><option key={c}>{c}</option>)}
+                    {incCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
                   </select>
                   <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:80}}/>
                 </div>
@@ -1765,11 +1819,11 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
           const actual=catActuals[env.category]||0;
           const pct=env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):0;
           const over=actual>env.budgeted;
-          const cc=catColor(env.category);
+          const cc=getCatColor(env.category);
           return <div key={env.id}>
             <div style={{display:"flex",flexDirection:"column",gap:3,padding:"6px 8px",borderRadius:7,background:over?alpha(T.pink,.07):alpha(T.border,.1),border:`1px solid ${over?alpha(T.pink,.22):alpha(T.border,.22)}`}}>
               <div style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{fontSize:10}}>{CAT_ICONS[env.category]||"·"}</span>
+                <Ico n={getCatIcon(env.category)} size={12}/>
                 <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
                 {env.isFixed&&<span style={{fontSize:7,color:T.textLt,fontFamily:F,background:alpha(T.border,.3),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
                 <span style={{fontSize:9,fontFamily:F,color:over?T.pink:T.textMd}}>€{actual.toFixed(0)}<span style={{color:T.textLt}}> / €{env.budgeted.toFixed(0)}</span></span>
@@ -1784,7 +1838,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
               <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4}}>
                   <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
-                    {BUDGET_EXP_CATS.map(c=><option key={c}>{c}</option>)}
+                    {expCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
                   </select>
                   <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:80}}/>
                 </div>
@@ -1810,7 +1864,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
                 <option value="income">Income</option>
               </select>
               <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
-                {(envForm.type==="income"?BUDGET_INC_CATS:BUDGET_EXP_CATS).map(c=><option key={c}>{c}</option>)}
+                {envFormCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
               </select>
               <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:70}}/>
             </div>
@@ -1846,10 +1900,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
             const pct=env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):100;
             const over=actual>env.budgeted;
             return <div key={env.category} style={{display:"flex",alignItems:"center",gap:5}}>
-              <span style={{fontSize:9,width:13}}>{CAT_ICONS[env.category]||"·"}</span>
+              <Ico n={getCatIcon(env.category)} size={11}/>
               <span style={{fontSize:8,color:T.textMd,fontFamily:F,width:pageMode?80:58,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{env.category}</span>
               <div style={{flex:1,height:4,borderRadius:2,background:alpha(T.border,.45),overflow:"hidden"}}>
-                <div style={{width:pct+"%",height:"100%",background:over?T.pink:catColor(env.category),borderRadius:2}}/>
+                <div style={{width:pct+"%",height:"100%",background:over?T.pink:getCatColor(env.category),borderRadius:2}}/>
               </div>
               <span style={{fontSize:8,color:over?T.pink:T.textLt,fontFamily:F,width:pageMode?76:50,textAlign:"right",flexShrink:0}}>€{actual.toFixed(0)}{pageMode?` / €${env.budgeted.toFixed(0)}`:""}</span>
             </div>;
@@ -1873,7 +1927,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
           <div style={{display:"flex",gap:4}}>
             <select value={form.category} onChange={ev=>setForm(p=>({...p,category:ev.target.value}))}
               style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
-              {cats.map(c=><option key={c}>{c}</option>)}
+              {formCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
             </select>
             <input value={form.date} onChange={ev=>setForm(p=>({...p,date:ev.target.value}))} type="date"
               style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
@@ -1891,7 +1945,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
         {entries.slice(0,pageMode?9999:12).map(en=>
           <div key={en.id} onClick={()=>startEdit(en)}
             style={{display:"flex",alignItems:"center",gap:5,padding:"4px 7px",borderRadius:6,background:alpha(T.border,.14),cursor:"pointer"}}>
-            <span style={{fontSize:10}}>{CAT_ICONS[en.category]||"·"}</span>
+            <Ico n={getCatIcon(en.category)} size={12}/>
             <span style={{fontSize:9,color:T.textMd,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
               {en.category}{en.description?" · "+en.description:""}
             </span>
@@ -1960,6 +2014,72 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
         ))}
       </div>
     </div>}
+
+    {/* ── CATS TAB ── */}
+    {tab==="cats"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:pickerFor?160:0}}>
+      {["expense","income"].map(type=>(
+        <div key={type}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{type==="income"?"Income":"Expenses"}</span>
+            <button onClick={()=>{setCatAdd({type,label:"",icon:"dots-three"});setPickerFor(null);}} style={{background:"none",border:"none",cursor:"pointer",color:type==="income"?T.mint:T.pink,fontSize:13,fontFamily:F,lineHeight:1,padding:"0 2px"}}>+</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            {budgetCats.filter(c=>c.type===type).map(cat=>(
+              <div key={cat.id} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.2)}`}}>
+                <button onClick={()=>{setCatAdd(null);setPickerFor(pickerFor===cat.id?null:cat.id);}}
+                  style={{width:26,height:26,borderRadius:6,border:`1px solid ${pickerFor===cat.id?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor===cat.id?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
+                  <Ico n={cat.icon||"dots-three"} size={13}/>
+                </button>
+                {catEditId===cat.id
+                  ?<input value={catEditLabel} onChange={ev=>setCatEditLabel(ev.target.value)}
+                      onBlur={saveCatLabel} onKeyDown={ev=>{if(ev.key==="Enter")saveCatLabel();if(ev.key==="Escape")setCatEditId(null);}}
+                      autoFocus style={{...IS,flex:1,padding:"2px 6px",fontSize:11}}/>
+                  :<span onClick={()=>{setCatEditId(cat.id);setCatEditLabel(cat.label);}}
+                      style={{flex:1,fontSize:11,color:T.text,fontFamily:F,cursor:"text",padding:"2px 0"}} title="Click to rename">{cat.label}</span>
+                }
+                <span style={{fontSize:8,color:T.textLt,fontFamily:F,opacity:.5}}>{type}</span>
+                <button onClick={()=>deleteCat(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
+              </div>
+            ))}
+            {catAdd?.type===type&&
+              <div style={{display:"flex",alignItems:"center",gap:4,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.08),border:`1px dashed ${alpha(T.border,.35)}`}}>
+                <button onClick={()=>setPickerFor(pickerFor==="new"?null:"new")}
+                  style={{width:26,height:26,borderRadius:6,border:`1px solid ${pickerFor==="new"?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor==="new"?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
+                  <Ico n={catAdd.icon} size={13}/>
+                </button>
+                <input value={catAdd.label} onChange={ev=>setCatAdd(p=>({...p,label:ev.target.value}))}
+                  onKeyDown={ev=>{if(ev.key==="Enter")addCat();if(ev.key==="Escape")setCatAdd(null);}}
+                  autoFocus placeholder="Category name"
+                  style={{...IS,flex:1,padding:"2px 6px",fontSize:11}}/>
+                <Btn small primary onClick={addCat}>Add</Btn>
+                <button onClick={()=>{setCatAdd(null);setPickerFor(null);}} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:13,lineHeight:1,padding:"0 2px"}}>×</button>
+              </div>
+            }
+          </div>
+        </div>
+      ))}
+      {budgetCats.length===0&&
+        <Btn small ghost onClick={()=>setBudgetCats(DEFAULT_BUDGET_CATS)}>Restore defaults</Btn>
+      }
+    </div>}
+
+    {/* ── ICON PICKER OVERLAY ── */}
+    {pickerFor&&
+      <div style={{position:"absolute",bottom:0,left:0,right:0,zIndex:30,background:T.card,borderTop:`1px solid ${alpha(T.border,.5)}`,borderRadius:"0 0 10px 10px",padding:"8px 10px",boxShadow:`0 -6px 20px ${alpha("#000",.25)}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <span style={{fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>Choose icon</span>
+          <button onClick={()=>setPickerFor(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:15,lineHeight:1,padding:"0 2px"}}>×</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3,maxHeight:140,overflowY:"auto"}}>
+          {BUDGET_ICONS.map(icon=>(
+            <button key={icon} onClick={()=>pickIcon(icon)} title={icon.replace(/-/g," ")}
+              style={{padding:5,borderRadius:5,border:`1px solid ${curPickerIcon===icon?alpha(T.mint,.55):"transparent"}`,background:curPickerIcon===icon?alpha(T.mint,.15):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.1s",color:T.text}}>
+              <Ico n={icon} size={14}/>
+            </button>
+          ))}
+        </div>
+      </div>
+    }
 
   </div>;
 }
@@ -4217,6 +4337,7 @@ function App(){
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
   const [budget,setBudget]=useState(()=>lg("plo3_budget",[]));
   const [envelopes,setEnvelopes]=useState(()=>lg("plo3_envelopes",[]));
+  const [budgetCats,setBudgetCats]=useState(()=>lg("plo3_budget_cats",DEFAULT_BUDGET_CATS));
   const [appleCal,setAppleCal]=useState(()=>lg("plo3_apple_cal",{workerUrl:APPLE_WORKER_URL,user:"",pass:"",enabled:false}));
   const [appleEvents,setAppleEvents]=useState([]);
   const [appleStatus,setAppleStatus]=useState("idle");
@@ -4293,6 +4414,7 @@ function App(){
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
   useEffect(()=>ls("plo3_budget",budget),[budget]);
   useEffect(()=>ls("plo3_envelopes",envelopes),[envelopes]);
+  useEffect(()=>ls("plo3_budget_cats",budgetCats),[budgetCats]);
   useEffect(()=>ls("plo3_nav_order",navOrder),[navOrder]);
   useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
@@ -4482,7 +4604,7 @@ function App(){
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
-      case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} pageMode={pageMode}/>;
+      case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={pageMode}/>;
 
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
