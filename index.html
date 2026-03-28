@@ -1581,40 +1581,65 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   </div>;
 }
 
-// ── BUDGET ─────────────────────────────────────────
+// ── BUDGET PLANNER ─────────────────────────────────────────
 const BUDGET_EXP_CATS=["Food","Transport","Rent","Health","Education","Entertainment","Shopping","Travel","Other"];
 const BUDGET_INC_CATS=["Stipend","Freelance","Gift","Other"];
 const CAT_ICONS={"Food":"🍜","Transport":"🚲","Rent":"🏠","Health":"💊","Education":"📚","Entertainment":"🎬","Shopping":"🛍","Travel":"✈️","Other":"·","Stipend":"🎓","Freelance":"💻","Gift":"🎁"};
+const CAT_COLS=["#A78BFA","#60A5FA","#34D399","#F87171","#FBBF24","#F472B6","#38BDF8","#A3E635","#FB923C"];
 
-function BudgetWidget({budget,setBudget,pageMode}){
+function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
   const T=useT();
   const today=new Date(),todayStr=toStr(today);
   const ym0=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
   const [mon,setMon]=useState(ym0);
+  const [tab,setTab]=useState("plan");
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({date:todayStr,amount:"",type:"expense",category:"Food",description:""});
   const [editId,setEditId]=useState(null);
+  const [showEnvEdit,setShowEnvEdit]=useState(null);
+  const [envForm,setEnvForm]=useState({category:"Food",type:"expense",budgeted:"",isFixed:false});
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
   const nextMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()+1);setMon(toStr(d).slice(0,7));};
 
   const entries=useMemo(()=>budget.filter(e=>e.date.startsWith(mon)).sort((a,b)=>b.date.localeCompare(a.date)),[budget,mon]);
-  const income=useMemo(()=>entries.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),[entries]);
-  const expense=useMemo(()=>entries.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0),[entries]);
-  const net=income-expense;
+  const actualIncome=useMemo(()=>entries.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),[entries]);
+  const actualExpense=useMemo(()=>entries.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0),[entries]);
+  const actualNet=actualIncome-actualExpense;
 
-  const topCats=useMemo(()=>{
-    const t={};
-    entries.filter(e=>e.type==="expense").forEach(e=>{t[e.category]=(t[e.category]||0)+e.amount;});
-    return Object.entries(t).sort((a,b)=>b[1]-a[1]);
-  },[entries]);
+  const monEnv=useMemo(()=>envelopes.filter(e=>e.month===mon),[envelopes,mon]);
+  const incomeEnv=useMemo(()=>monEnv.filter(e=>e.type==="income"),[monEnv]);
+  const expEnv=useMemo(()=>monEnv.filter(e=>e.type==="expense"),[monEnv]);
+  const budgetedIncome=useMemo(()=>incomeEnv.reduce((s,e)=>s+e.budgeted,0),[incomeEnv]);
+  const budgetedExpense=useMemo(()=>expEnv.reduce((s,e)=>s+e.budgeted,0),[expEnv]);
+  const unallocated=budgetedIncome-budgetedExpense;
+
+  const catActuals=useMemo(()=>{const m={};entries.filter(e=>e.type==="expense").forEach(e=>{m[e.category]=(m[e.category]||0)+e.amount;});return m;},[entries]);
+
+  function catColor(cat){const i=BUDGET_EXP_CATS.indexOf(cat);return CAT_COLS[i>=0?i:7];}
+
+  function seedFromFixed(){
+    const seen={};
+    [...envelopes.filter(e=>e.isFixed)].reverse().forEach(e=>{const k=`${e.type}_${e.category}`;if(!seen[k])seen[k]=e;});
+    const toAdd=Object.values(seen).map(e=>({...e,id:uid(),month:mon}));
+    if(toAdd.length>0)setEnvelopes(p=>[...p.filter(e=>e.month!==mon),...toAdd]);
+  }
+
+  function openNewEnv(type){setEnvForm({category:type==="income"?"Stipend":"Food",type,budgeted:"",isFixed:false});setShowEnvEdit("new");}
+  function openEditEnv(env){setEnvForm({category:env.category,type:env.type,budgeted:String(env.budgeted),isFixed:!!env.isFixed});setShowEnvEdit(env.id);}
+  function saveEnvelope(){
+    const amt=parseFloat(envForm.budgeted);if(!amt||isNaN(amt))return;
+    if(showEnvEdit==="new"){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:envForm.category,type:envForm.type,budgeted:amt,isFixed:envForm.isFixed}]);}
+    else{setEnvelopes(p=>p.map(e=>e.id===showEnvEdit?{...e,category:envForm.category,budgeted:amt,isFixed:envForm.isFixed}:e));}
+    setShowEnvEdit(null);
+  }
+  function removeEnvelope(id){setEnvelopes(p=>p.filter(e=>e.id!==id));}
 
   function startAdd(){setForm({date:todayStr,amount:"",type:"expense",category:"Food",description:""});setEditId(null);setShowAdd(true);}
   function startEdit(en){setForm({date:en.date,amount:String(en.amount),type:en.type,category:en.category,description:en.description||""});setEditId(en.id);setShowAdd(true);}
   function saveEntry(){
-    const amt=parseFloat(form.amount);
-    if(!amt||isNaN(amt)) return;
+    const amt=parseFloat(form.amount);if(!amt||isNaN(amt))return;
     const en={id:editId||uid(),date:form.date,amount:amt,type:form.type,category:form.category,description:form.description};
     setBudget(p=>editId?p.map(x=>x.id===editId?en:x):[...p,en]);
     setShowAdd(false);setEditId(null);
@@ -1622,97 +1647,320 @@ function BudgetWidget({budget,setBudget,pageMode}){
   function delEntry(id){setBudget(p=>p.filter(x=>x.id!==id));}
   const cats=form.type==="expense"?BUDGET_EXP_CATS:BUDGET_INC_CATS;
 
-  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:8}}>
-    {/* Nav */}
+  const trendData=useMemo(()=>{
+    const ms=[];
+    for(let i=5;i>=0;i--){
+      const d=new Date(mon+"-01");d.setMonth(d.getMonth()-i);
+      const m=toStr(d).slice(0,7);
+      const me=budget.filter(e=>e.date.startsWith(m));
+      const inc=me.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
+      const exp=me.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+      const menv=envelopes.filter(e=>e.month===m);
+      const bInc=menv.filter(e=>e.type==="income").reduce((s,e)=>s+e.budgeted,0);
+      const bExp=menv.filter(e=>e.type==="expense").reduce((s,e)=>s+e.budgeted,0);
+      ms.push({m,label:MSHORT[parseInt(m.split("-")[1])-1]||m.slice(5),inc,exp,net:inc-exp,bInc,bExp,isCur:m===mon});
+    }
+    return ms;
+  },[budget,envelopes,mon]);
+  const trendMax=useMemo(()=>Math.max(1,...trendData.map(d=>Math.max(d.inc,d.exp,d.bInc,d.bExp))),[trendData]);
+
+  const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
+
+  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:6}}>
+
+    {/* Nav row */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,position:"relative",zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
-        {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Budget</span>}
+        {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px",color:T.text}}>Budget</span>}
         <Badge label={monLabel} color={T.mint}/>
       </div>
-      <div style={{display:"flex",gap:3}}>
+      <div style={{display:"flex",gap:2}}>
         <Btn small onClick={prevMon}>‹</Btn>
         {mon!==ym0&&<Btn small ghost onClick={()=>setMon(ym0)} style={{fontSize:9}}>Now</Btn>}
         <Btn small onClick={nextMon}>›</Btn>
-        <Btn small primary onClick={startAdd}>+ Add</Btn>
       </div>
     </div>
 
-    {/* Summary row */}
-    <div style={{display:"flex",gap:6,flexShrink:0}}>
-      {[{label:"Income",val:income,color:T.mint,bg:T.mintX},{label:"Expenses",val:expense,color:T.pink,bg:T.pinkX},{label:"Net",val:net,color:net>=0?T.mint:T.pink,bg:net>=0?T.mintX:T.pinkX}].map(({label,val,color,bg})=>
-        <div key={label} style={{flex:1,textAlign:"center",padding:pageMode?"10px 8px":"6px 4px",borderRadius:8,background:bg,border:`1px solid ${alpha(color,.3)}`}}>
-          <div style={{fontSize:8,color,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{label}</div>
-          <div style={{fontSize:pageMode?18:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>{label==="Net"&&val>0?"+":label==="Net"&&val<0?"-":label==="Expenses"&&val>0?"-":""}€{Math.abs(val).toFixed(0)}</div>
-        </div>
-      )}
+    {/* Tab strip */}
+    <div style={{display:"flex",gap:3,flexShrink:0,background:alpha(T.border,.2),borderRadius:8,padding:3}}>
+      {["plan","log","trends"].map(t=>(
+        <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"4px 0",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:10,fontWeight:tab===t?700:400,background:tab===t?T.card:"transparent",color:tab===t?T.text:T.textLt,transition:"all 0.12s",textTransform:"capitalize"}}>{t}</button>
+      ))}
     </div>
 
-    {/* Category bars */}
-    {topCats.length>0&&expense>0&&
-      <div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
-        {topCats.slice(0,pageMode?topCats.length:3).map(([cat,amt])=>
-          <div key={cat} style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:10,width:16}}>{CAT_ICONS[cat]||"·"}</span>
-            <span style={{fontSize:9,color:T.textMd,fontFamily:F,width:pageMode?90:72,flexShrink:0}}>{cat}</span>
-            <div style={{flex:1,height:4,borderRadius:2,background:alpha(T.border,.5),overflow:"hidden"}}>
-              <div style={{width:Math.min(100,(amt/expense)*100)+"%",height:"100%",background:T.pink,borderRadius:2}}/>
+    {/* ── PLAN TAB ── */}
+    {tab==="plan"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>
+
+      {monEnv.length===0&&envelopes.some(e=>e.isFixed)&&
+        <div style={{padding:"8px 12px",borderRadius:8,background:alpha(T.mint,.1),border:`1px solid ${alpha(T.mint,.3)}`,display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:10,color:T.mint,fontFamily:F,flex:1}}>No plan for {monLabel} yet — copy fixed items?</span>
+          <Btn small primary onClick={seedFromFixed}>Seed</Btn>
+        </div>
+      }
+
+      {(budgetedIncome>0||budgetedExpense>0)&&
+        <div style={{padding:"8px 10px",borderRadius:8,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.28)}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+            <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Allocation</span>
+            <span style={{fontSize:10,fontFamily:F,color:unallocated>=0?T.mint:T.pink,fontWeight:700}}>
+              {unallocated>=0?`€${unallocated.toFixed(0)} unallocated`:`€${Math.abs(unallocated).toFixed(0)} over budget`}
+            </span>
+          </div>
+          <div style={{height:6,borderRadius:3,background:alpha(T.border,.4),overflow:"hidden"}}>
+            <div style={{width:Math.min(100,budgetedIncome>0?(budgetedExpense/budgetedIncome)*100:100)+"%",height:"100%",background:budgetedExpense>budgetedIncome?T.pink:T.mint,borderRadius:3,transition:"width 0.3s"}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+            <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>€{budgetedExpense.toFixed(0)} allocated</span>
+            <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>of €{budgetedIncome.toFixed(0)} income</span>
+          </div>
+        </div>
+      }
+
+      {/* Income envelopes */}
+      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+          <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Income</span>
+          <button onClick={()=>openNewEnv("income")} style={{background:"none",border:"none",cursor:"pointer",color:T.mint,fontSize:12,fontFamily:F,padding:"0 2px",lineHeight:1}}>+</button>
+        </div>
+        {incomeEnv.map(env=>(
+          <div key={env.id}>
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.18)}`}}>
+              <span style={{fontSize:10}}>{CAT_ICONS[env.category]||"💰"}</span>
+              <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
+              {env.isFixed&&<span style={{fontSize:7,color:T.mint,fontFamily:F,background:alpha(T.mint,.15),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
+              <span style={{fontSize:11,color:T.mint,fontFamily:F,fontWeight:700}}>€{env.budgeted.toFixed(0)}</span>
+              <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
+              <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
             </div>
-            <span style={{fontSize:9,color:T.textLt,fontFamily:F,width:48,textAlign:"right"}}>€{amt.toFixed(2)}</span>
+            {showEnvEdit===env.id&&
+              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
+                <div style={{display:"flex",gap:4}}>
+                  <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
+                    {BUDGET_INC_CATS.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                  <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:80}}/>
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
+                  <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>
+                  Recurring — auto-seeds each month
+                </label>
+                <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                  <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
+                  <Btn small primary onClick={saveEnvelope}>Save</Btn>
+                </div>
+              </div>
+            }
+          </div>
+        ))}
+        {incomeEnv.length===0&&<div style={{fontSize:9,color:T.textLt,fontFamily:F,padding:"4px 8px",opacity:0.45}}>No income sources planned yet</div>}
+      </div>
+
+      {/* Expense envelopes */}
+      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+          <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Expenses</span>
+          <button onClick={()=>openNewEnv("expense")} style={{background:"none",border:"none",cursor:"pointer",color:T.pink,fontSize:12,fontFamily:F,padding:"0 2px",lineHeight:1}}>+</button>
+        </div>
+        {expEnv.map(env=>{
+          const actual=catActuals[env.category]||0;
+          const pct=env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):0;
+          const over=actual>env.budgeted;
+          const cc=catColor(env.category);
+          return <div key={env.id}>
+            <div style={{display:"flex",flexDirection:"column",gap:3,padding:"6px 8px",borderRadius:7,background:over?alpha(T.pink,.07):alpha(T.border,.1),border:`1px solid ${over?alpha(T.pink,.22):alpha(T.border,.22)}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{fontSize:10}}>{CAT_ICONS[env.category]||"·"}</span>
+                <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
+                {env.isFixed&&<span style={{fontSize:7,color:T.textLt,fontFamily:F,background:alpha(T.border,.3),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
+                <span style={{fontSize:9,fontFamily:F,color:over?T.pink:T.textMd}}>€{actual.toFixed(0)}<span style={{color:T.textLt}}> / €{env.budgeted.toFixed(0)}</span></span>
+                <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
+                <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
+              </div>
+              <div style={{height:3,borderRadius:2,background:alpha(T.border,.4),overflow:"hidden"}}>
+                <div style={{width:pct+"%",height:"100%",borderRadius:2,background:over?T.pink:cc,transition:"width 0.3s"}}/>
+              </div>
+            </div>
+            {showEnvEdit===env.id&&
+              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
+                <div style={{display:"flex",gap:4}}>
+                  <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
+                    {BUDGET_EXP_CATS.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                  <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:80}}/>
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
+                  <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>
+                  Recurring — auto-seeds each month
+                </label>
+                <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                  <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
+                  <Btn small primary onClick={saveEnvelope}>Save</Btn>
+                </div>
+              </div>
+            }
+          </div>;
+        })}
+        {expEnv.length===0&&<div style={{fontSize:9,color:T.textLt,fontFamily:F,padding:"4px 8px",opacity:0.45}}>No expense envelopes yet</div>}
+
+        {showEnvEdit==="new"&&
+          <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:2}}>
+            <div style={{display:"flex",gap:4}}>
+              <select value={envForm.type} onChange={ev=>setEnvForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))} style={{...IS,width:90}}>
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
+              <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
+                {(envForm.type==="income"?BUDGET_INC_CATS:BUDGET_EXP_CATS).map(c=><option key={c}>{c}</option>)}
+              </select>
+              <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:70}}/>
+            </div>
+            <label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
+              <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>
+              Recurring — auto-seeds each month
+            </label>
+            <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+              <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
+              <Btn small primary onClick={saveEnvelope}>Add</Btn>
+            </div>
+          </div>
+        }
+      </div>
+    </div>}
+
+    {/* ── LOG TAB ── */}
+    {tab==="log"&&<div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:6}}>
+
+      <div style={{display:"flex",gap:5,flexShrink:0}}>
+        {[{l:"Income",v:actualIncome,c:T.mint,b:T.mintX},{l:"Spent",v:actualExpense,c:T.pink,b:T.pinkX},{l:"Net",v:actualNet,c:actualNet>=0?T.mint:T.pink,b:actualNet>=0?T.mintX:T.pinkX}].map(({l,v,c,b})=>
+          <div key={l} style={{flex:1,textAlign:"center",padding:"6px 4px",borderRadius:7,background:b,border:`1px solid ${alpha(c,.3)}`}}>
+            <div style={{fontSize:7,color:c,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:1}}>{l}</div>
+            <div style={{fontSize:pageMode?15:12,fontWeight:800,color:c,fontFamily:F,letterSpacing:"-0.4px"}}>{l==="Net"&&v>0?"+":l==="Net"&&v<0?"-":l==="Spent"&&v>0?"-":""}€{Math.abs(v).toFixed(0)}</div>
           </div>
         )}
       </div>
-    }
 
-    {/* Add / edit form — fully inlined, no inner component */}
-    {showAdd&&
-      <div style={{display:"flex",flexDirection:"column",gap:5,padding:"10px",borderRadius:8,background:alpha(T.border,.18),border:`1px solid ${alpha(T.border,.4)}`}}>
-        <div style={{display:"flex",gap:4}}>
-          <select value={form.type} onChange={ev=>setForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))}
-            style={{fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-          </select>
-          <input value={form.amount} onChange={ev=>setForm(p=>({...p,amount:ev.target.value}))} placeholder="Amount €" type="number" min="0" step="0.01"
-            style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+      {expEnv.length>0&&actualExpense>0&&
+        <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+          {expEnv.slice(0,pageMode?999:4).map(env=>{
+            const actual=catActuals[env.category]||0;
+            const pct=env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):100;
+            const over=actual>env.budgeted;
+            return <div key={env.category} style={{display:"flex",alignItems:"center",gap:5}}>
+              <span style={{fontSize:9,width:13}}>{CAT_ICONS[env.category]||"·"}</span>
+              <span style={{fontSize:8,color:T.textMd,fontFamily:F,width:pageMode?80:58,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{env.category}</span>
+              <div style={{flex:1,height:4,borderRadius:2,background:alpha(T.border,.45),overflow:"hidden"}}>
+                <div style={{width:pct+"%",height:"100%",background:over?T.pink:catColor(env.category),borderRadius:2}}/>
+              </div>
+              <span style={{fontSize:8,color:over?T.pink:T.textLt,fontFamily:F,width:pageMode?76:50,textAlign:"right",flexShrink:0}}>€{actual.toFixed(0)}{pageMode?` / €${env.budgeted.toFixed(0)}`:""}</span>
+            </div>;
+          })}
         </div>
-        <div style={{display:"flex",gap:4}}>
-          <select value={form.category} onChange={ev=>setForm(p=>({...p,category:ev.target.value}))}
-            style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
-            {cats.map(c=><option key={c}>{c}</option>)}
-          </select>
-          <input value={form.date} onChange={ev=>setForm(p=>({...p,date:ev.target.value}))} type="date"
-            style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+      }
+
+      {!showAdd&&<Btn small primary onClick={startAdd} style={{alignSelf:"flex-end",flexShrink:0}}>+ Entry</Btn>}
+
+      {showAdd&&
+        <div style={{display:"flex",flexDirection:"column",gap:5,padding:"10px",borderRadius:8,background:alpha(T.border,.18),border:`1px solid ${alpha(T.border,.35)}`,flexShrink:0}}>
+          <div style={{display:"flex",gap:4}}>
+            <select value={form.type} onChange={ev=>setForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))}
+              style={{fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+            <input value={form.amount} onChange={ev=>setForm(p=>({...p,amount:ev.target.value}))} placeholder="Amount €" type="number" min="0" step="0.01"
+              style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+          </div>
+          <div style={{display:"flex",gap:4}}>
+            <select value={form.category} onChange={ev=>setForm(p=>({...p,category:ev.target.value}))}
+              style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
+              {cats.map(c=><option key={c}>{c}</option>)}
+            </select>
+            <input value={form.date} onChange={ev=>setForm(p=>({...p,date:ev.target.value}))} type="date"
+              style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+          </div>
+          <input value={form.description} onChange={ev=>setForm(p=>({...p,description:ev.target.value}))} placeholder="Description (optional)"
+            style={{fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+          <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+            <Btn small ghost onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancel</Btn>
+            <Btn small primary onClick={saveEntry}>{editId?"Save":"Add"}</Btn>
+          </div>
         </div>
-        <input value={form.description} onChange={ev=>setForm(p=>({...p,description:ev.target.value}))} placeholder="Description (optional)"
-          style={{fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
-        <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-          <Btn small ghost onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancel</Btn>
-          <Btn small primary onClick={saveEntry}>{editId?"Save":"Add"}</Btn>
+      }
+
+      <div style={{display:"flex",flexDirection:"column",gap:2,flex:1,minHeight:0,overflowY:"auto"}}>
+        {entries.slice(0,pageMode?9999:12).map(en=>
+          <div key={en.id} onClick={()=>startEdit(en)}
+            style={{display:"flex",alignItems:"center",gap:5,padding:"4px 7px",borderRadius:6,background:alpha(T.border,.14),cursor:"pointer"}}>
+            <span style={{fontSize:10}}>{CAT_ICONS[en.category]||"·"}</span>
+            <span style={{fontSize:9,color:T.textMd,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {en.category}{en.description?" · "+en.description:""}
+            </span>
+            <span style={{fontSize:10,color:en.type==="income"?T.mint:T.pink,fontFamily:F,fontWeight:700,flexShrink:0}}>
+              {en.type==="income"?"+":"-"}€{en.amount.toFixed(2)}
+            </span>
+            <span style={{fontSize:8,color:T.textLt,fontFamily:F,flexShrink:0}}>{en.date.slice(5)}</span>
+            <button onClick={ev=>{ev.stopPropagation();delEntry(en.id);}}
+              style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,padding:"0 2px",lineHeight:1}}>×</button>
+          </div>
+        )}
+        {entries.length===0&&!showAdd&&
+          <div style={{textAlign:"center",padding:20,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F}}>No entries for {monLabel}</div>
+        }
+      </div>
+    </div>}
+
+    {/* ── TRENDS TAB ── */}
+    {tab==="trends"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{borderRadius:10,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.22)}`,padding:"12px 10px 8px"}}>
+        <div style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>6-Month Overview</div>
+        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:82}}>
+          {trendData.map(d=>{
+            const incH=Math.max(2,(d.inc/trendMax)*74);
+            const expH=Math.max(2,(d.exp/trendMax)*74);
+            const bIncH=Math.max(1,(d.bInc/trendMax)*74);
+            const bExpH=Math.max(1,(d.bExp/trendMax)*74);
+            return <div key={d.m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+              <div style={{display:"flex",gap:1,alignItems:"flex-end",height:74}}>
+                {d.bInc>0&&<div title={`Budget income €${d.bInc.toFixed(0)}`} style={{width:6,height:bIncH,borderRadius:"2px 2px 0 0",border:`1px dashed ${alpha(T.mint,.45)}`,background:"transparent",flexShrink:0}}/>}
+                <div title={`Income €${d.inc.toFixed(0)}`} style={{width:6,height:incH,borderRadius:"2px 2px 0 0",background:alpha(T.mint,.65),flexShrink:0}}/>
+                {d.bExp>0&&<div title={`Budget expense €${d.bExp.toFixed(0)}`} style={{width:6,height:bExpH,borderRadius:"2px 2px 0 0",border:`1px dashed ${alpha(T.pink,.45)}`,background:"transparent",flexShrink:0}}/>}
+                <div title={`Expenses €${d.exp.toFixed(0)}`} style={{width:6,height:expH,borderRadius:"2px 2px 0 0",background:alpha(T.pink,.65),flexShrink:0}}/>
+              </div>
+              <div style={{fontSize:7,color:d.isCur?T.mint:T.textLt,fontFamily:F,fontWeight:d.isCur?700:400,lineHeight:1}}>{d.label}</div>
+            </div>;
+          })}
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap"}}>
+          {[{c:alpha(T.mint,.65),l:"Income"},{c:alpha(T.pink,.65),l:"Expenses"}].map(({c,l})=>
+            <div key={l} style={{display:"flex",alignItems:"center",gap:3}}>
+              <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+              <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>{l}</span>
+            </div>
+          )}
+          <div style={{display:"flex",alignItems:"center",gap:3}}>
+            <div style={{width:8,height:8,borderRadius:2,border:`1px dashed ${alpha(T.mint,.45)}`}}/>
+            <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>Budgeted</span>
+          </div>
         </div>
       </div>
-    }
 
-    {/* Entry list */}
-    <div style={{display:"flex",flexDirection:"column",gap:2,flex:1,minHeight:0,overflowY:"auto"}}>
-      {entries.slice(0,pageMode?9999:8).map(en=>
-        <div key={en.id} onClick={()=>startEdit(en)}
-          style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px",borderRadius:6,background:alpha(T.border,.15),cursor:"pointer"}}>
-          <span style={{fontSize:11}}>{CAT_ICONS[en.category]||"·"}</span>
-          <span style={{fontSize:9,color:T.textMd,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-            {en.category}{en.description?" · "+en.description:""}
-          </span>
-          <span style={{fontSize:10,color:en.type==="income"?T.mint:T.pink,fontFamily:F,fontWeight:700,flexShrink:0}}>
-            {en.type==="income"?"+":"-"}€{en.amount.toFixed(2)}
-          </span>
-          <span style={{fontSize:8,color:T.textLt,fontFamily:F,flexShrink:0}}>{en.date.slice(5)}</span>
-          <button onClick={ev=>{ev.stopPropagation();delEntry(en.id);}}
-            style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,padding:"0 2px",lineHeight:1}}>×</button>
+      <div style={{display:"flex",flexDirection:"column",gap:2}}>
+        <div style={{display:"flex",gap:4,padding:"3px 6px"}}>
+          {["Month","Income","Spent","Net"].map((h,i)=>(
+            <span key={h} style={{fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",flex:i===0?1.5:1,textAlign:i===0?"left":"right"}}>{h}</span>
+          ))}
         </div>
-      )}
-      {!showAdd&&entries.length===0&&
-        <div style={{textAlign:"center",padding:24,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F}}>No entries for {monLabel}</div>
-      }
-    </div>
+        {[...trendData].reverse().map(d=>(
+          <div key={d.m} onClick={()=>{setMon(d.m);setTab("plan");}} style={{display:"flex",gap:4,padding:"5px 6px",borderRadius:6,background:d.isCur?alpha(T.mint,.08):alpha(T.border,.1),border:`1px solid ${d.isCur?alpha(T.mint,.2):alpha(T.border,.18)}`,cursor:"pointer"}}>
+            <span style={{fontSize:9,color:d.isCur?T.mint:T.text,fontFamily:F,flex:1.5,fontWeight:d.isCur?700:400}}>{d.label} '{d.m.slice(2,4)}</span>
+            <span style={{fontSize:9,color:T.mint,fontFamily:F,flex:1,textAlign:"right"}}>€{d.inc.toFixed(0)}</span>
+            <span style={{fontSize:9,color:T.pink,fontFamily:F,flex:1,textAlign:"right"}}>€{d.exp.toFixed(0)}</span>
+            <span style={{fontSize:9,color:d.net>=0?T.mint:T.pink,fontFamily:F,flex:1,textAlign:"right",fontWeight:600}}>{d.net>=0?"+":"-"}€{Math.abs(d.net).toFixed(0)}</span>
+          </div>
+        ))}
+      </div>
+    </div>}
+
   </div>;
 }
 
@@ -3968,6 +4216,7 @@ function App(){
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
   const [budget,setBudget]=useState(()=>lg("plo3_budget",[]));
+  const [envelopes,setEnvelopes]=useState(()=>lg("plo3_envelopes",[]));
   const [appleCal,setAppleCal]=useState(()=>lg("plo3_apple_cal",{workerUrl:APPLE_WORKER_URL,user:"",pass:"",enabled:false}));
   const [appleEvents,setAppleEvents]=useState([]);
   const [appleStatus,setAppleStatus]=useState("idle");
@@ -4043,6 +4292,7 @@ function App(){
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
   useEffect(()=>ls("plo3_budget",budget),[budget]);
+  useEffect(()=>ls("plo3_envelopes",envelopes),[envelopes]);
   useEffect(()=>ls("plo3_nav_order",navOrder),[navOrder]);
   useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
@@ -4229,7 +4479,7 @@ function App(){
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
-      case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} pageMode={pageMode}/>;
+      case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} pageMode={pageMode}/>;
 
       case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
       case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
