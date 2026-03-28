@@ -1333,9 +1333,28 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask,appleE
 }
 
 // ── KANBAN ─────────────────────────────────────────
+// parse "HH:MM", "am", "pm" → decimal hours (null if none)
+function parseTimeH(tb){
+  if(!tb) return null;
+  if(tb==="am") return 9;
+  if(tb==="pm") return 14;
+  const p=tb.split(":");
+  return parseInt(p[0])+(parseInt(p[1]||0)/60);
+}
+function fmtTime(tb){
+  if(!tb) return "";
+  if(tb==="am") return "9:00";
+  if(tb==="pm") return "14:00";
+  const [h,m]=tb.split(":");
+  const hr=parseInt(h),mn=parseInt(m||0);
+  return `${hr}:${String(mn).padStart(2,"0")}`;
+}
+
 function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pageMode,appleEvents=[]}){
   const T=useT();
   const [offset,setOffset]=useState(0);
+  const [viewMode,setViewMode]=useState("list"); // "list" | "time"
+  const gridRef=useRef(null);
   const today=new Date(),todayStr=toStr(today);
   const ws=addDays(getMon(today),offset*7);
   const days=Array.from({length:7},(_,i)=>addDays(ws,i));
@@ -1344,20 +1363,159 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
   const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline&&t.deadline>=ds&&ds>=todayStr);
   const appleForDay=ds=>appleEvents.filter(e=>e.start<=ds&&e.end>=ds);
   const toggle=(tid,ds)=>setCompletions(p=>({...p,[`${tid}_${ds}`]:!p[`${tid}_${ds}`]}));
+
+  // Time grid constants
+  const HOUR_H=52, START_H=7, END_H=23;
+  const HOURS=Array.from({length:END_H-START_H},(_,i)=>START_H+i);
+  const GRID_H=(END_H-START_H)*HOUR_H;
+  const now=new Date();
+  const nowTop=offset===0?((now.getHours()+(now.getMinutes()/60))-START_H)*HOUR_H:null;
+
+  // Scroll to current time on mount when in time view
+  useEffect(()=>{
+    if(viewMode==="time"&&nowTop!=null&&gridRef.current){
+      gridRef.current.scrollTop=Math.max(0,nowTop-80);
+    }
+  },[viewMode]);// eslint-disable-line
+
   return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0,position:"relative",zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Week Planner</span>}
         <Badge label={wkLabel} color={T.blue}/>
       </div>
-      <div style={{display:"flex",gap:3}}>
+      <div style={{display:"flex",gap:3,alignItems:"center"}}>
+        <div style={{display:"flex",background:alpha(T.border,.35),borderRadius:6,padding:1,gap:0}}>
+          <button onClick={()=>setViewMode("list")} style={{padding:"2px 7px",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:9,fontWeight:viewMode==="list"?700:400,background:viewMode==="list"?T.card:"transparent",color:viewMode==="list"?T.text:T.textLt,transition:"all 0.12s"}}>List</button>
+          <button onClick={()=>setViewMode("time")} style={{padding:"2px 7px",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:9,fontWeight:viewMode==="time"?700:400,background:viewMode==="time"?T.card:"transparent",color:viewMode==="time"?T.text:T.textLt,transition:"all 0.12s"}}>Time</button>
+        </div>
         <Btn small onClick={()=>setOffset(o=>o-1)}>‹</Btn>
         {offset!==0&&<Btn small ghost onClick={()=>setOffset(0)} style={{fontSize:9}}>Now</Btn>}
         <Btn small onClick={()=>setOffset(o=>o+1)}>›</Btn>
         <Btn small primary onClick={onAddTask}>+ Task</Btn>
       </div>
     </div>
-    <div style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:pageMode?6:4}}>
+
+    {/* ── TIME GRID VIEW ── */}
+    {viewMode==="time"&&<div ref={gridRef} style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      {/* Day headers */}
+      <div style={{display:"flex",flexShrink:0,borderBottom:`1px solid ${alpha(T.border,.5)}`,paddingBottom:4,marginBottom:0,position:"sticky",top:0,background:T.card,zIndex:5,paddingTop:2}}>
+        <div style={{width:34,flexShrink:0}}/>
+        {days.map((day,idx)=>{
+          const ds=toStr(day),isT=ds===todayStr;
+          return <div key={ds} style={{flex:1,textAlign:"center"}}>
+            <div style={{fontSize:7,color:T.textLt,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
+            <div style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F}}>{day.getDate()}</div>
+          </div>;
+        })}
+      </div>
+      {/* All-day row */}
+      {days.some(d=>{const ds=toStr(d);return tasksForDay(ds).some(t=>!t.timeBlock)||appleForDay(ds).some(e=>!e.startTime);})&&
+        <div style={{display:"flex",flexShrink:0,borderBottom:`1px solid ${alpha(T.border,.4)}`,padding:"3px 0",minHeight:24}}>
+          <div style={{width:34,flexShrink:0,fontSize:7,color:T.textLt,fontFamily:F,textAlign:"right",paddingRight:5,paddingTop:3,letterSpacing:"0.04em"}}>all</div>
+          {days.map((day,idx)=>{
+            const ds=toStr(day);
+            const allDayTasks=tasksForDay(ds).filter(t=>!t.timeBlock);
+            const allDayEvts=appleForDay(ds).filter(e=>!e.startTime);
+            return <div key={ds} style={{flex:1,padding:"1px 2px",display:"flex",flexDirection:"column",gap:1}}>
+              {allDayTasks.slice(0,3).map(task=>{
+                const done=completions[`${task.id}_${ds}`];
+                return <div key={task.id} onClick={()=>toggle(task.id,ds)} title={task.title}
+                  style={{fontSize:8,fontFamily:F,padding:"1px 3px",borderRadius:3,background:done?T.mintX:T.border+"44",color:done?T.mint:T.text,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:done?"line-through":"none"}}>
+                  {task.title}
+                </div>;
+              })}
+              {allDayEvts.slice(0,2).map((ev,i)=>{
+                const ac=ev.calColor||"#FA243C";
+                return <div key={i} style={{fontSize:8,fontFamily:F,padding:"1px 3px",borderRadius:3,background:ac+"22",color:ac,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:600}}>{ev.summary}</div>;
+              })}
+            </div>;
+          })}
+        </div>
+      }
+      {/* Scrollable hour grid */}
+      <div style={{display:"flex",flex:1,position:"relative"}}>
+        {/* Hour labels */}
+        <div style={{width:34,flexShrink:0,position:"relative",height:GRID_H}}>
+          {HOURS.map(h=>(
+            <div key={h} style={{position:"absolute",top:(h-START_H)*HOUR_H-8,right:5,fontSize:9,color:T.textLt,fontFamily:F,textAlign:"right",lineHeight:1,pointerEvents:"none"}}>
+              {h===12?"noon":h>12?`${h-12}p`:`${h}a`}
+            </div>
+          ))}
+        </div>
+        {/* Day columns */}
+        {days.map((day,idx)=>{
+          const ds=toStr(day),isT=ds===todayStr;
+          const timedTasks=tasksForDay(ds).filter(t=>t.timeBlock);
+          const timedEvts=appleForDay(ds).filter(e=>e.startTime);
+          const pcs=PC(T);
+          return <div key={ds} style={{flex:1,position:"relative",height:GRID_H,borderLeft:`1px solid ${alpha(T.border,.25)}`}}
+            onClick={e=>{
+              if(e.target===e.currentTarget&&onAddTask){
+                const rect=e.currentTarget.getBoundingClientRect();
+                const y=e.clientY-rect.top;
+                const h=Math.floor(START_H+y/HOUR_H);
+                const m=Math.round(((y/HOUR_H)%1)*60/15)*15;
+                const time=`${String(Math.min(h,END_H-1)).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+                onAddTask(ds,time);
+              }
+            }}>
+            {/* Hour lines */}
+            {HOURS.map(h=>(
+              <div key={h} style={{position:"absolute",top:(h-START_H)*HOUR_H,left:0,right:0,borderTop:`1px solid ${alpha(T.border, h%3===0?.35:.18)}`,pointerEvents:"none"}}/>
+            ))}
+            {/* Current time line */}
+            {isT&&nowTop!=null&&nowTop>0&&nowTop<GRID_H&&(
+              <div style={{position:"absolute",top:nowTop,left:0,right:0,zIndex:3,pointerEvents:"none"}}>
+                <div style={{height:2,background:T.mint,borderRadius:1,opacity:0.9}}/>
+                <div style={{width:7,height:7,borderRadius:"50%",background:T.mint,position:"absolute",top:-2.5,left:-3}}/>
+              </div>
+            )}
+            {/* Timed tasks */}
+            {timedTasks.map(task=>{
+              const h=parseTimeH(task.timeBlock);
+              if(h==null||h<START_H||h>=END_H) return null;
+              const top=(h-START_H)*HOUR_H;
+              const done=completions[`${task.id}_${ds}`];
+              const isDl=task.deadline===ds;
+              return <div key={task.id} onClick={e=>{e.stopPropagation();toggle(task.id,ds);}}
+                title={`${task.title} · ${fmtTime(task.timeBlock)}`}
+                style={{position:"absolute",top:top+1,left:2,right:2,minHeight:26,borderRadius:4,padding:"2px 4px",
+                  background:done?T.mintX:isDl?T.yellX:T.cardGlass,
+                  backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",
+                  border:`1px solid ${done?alpha(T.mint,.4):alpha(T.border,.6)}`,
+                  cursor:"pointer",zIndex:2,opacity:done?.5:1,display:"flex",alignItems:"flex-start",gap:3}}>
+                <div style={{width:6,height:6,borderRadius:1.5,flexShrink:0,marginTop:2,border:`1.5px solid ${done?T.mint:pcs[task.priority]||T.mint}`,background:done?T.mint:"transparent"}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:8,fontFamily:F,color:T.text,lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:done?"line-through":"none"}}>{task.title}</div>
+                  <div style={{fontSize:7,color:T.blue,fontFamily:F}}>{fmtTime(task.timeBlock)}</div>
+                </div>
+              </div>;
+            })}
+            {/* Timed Apple events */}
+            {timedEvts.map((ev,i)=>{
+              const h=parseTimeH(ev.startTime);
+              if(h==null||h<START_H||h>=END_H) return null;
+              const top=(h-START_H)*HOUR_H;
+              const ac=ev.calColor||"#FA243C";
+              return <div key={ev.uid+i} title={`${ev.summary} · ${ev.startTime}`}
+                style={{position:"absolute",top:top+1,left:2,right:2,minHeight:22,borderRadius:4,padding:"2px 4px",
+                  background:ac+"18",border:`1px solid ${ac}55`,cursor:"default",zIndex:2,
+                  display:"flex",alignItems:"flex-start",gap:3}}>
+                <div style={{width:3,height:"100%",minHeight:14,borderRadius:2,background:ac,flexShrink:0,marginTop:1}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:8,fontFamily:F,color:ac,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.summary}</div>
+                  <div style={{fontSize:7,color:ac,fontFamily:F,opacity:.8}}>{ev.startTime}</div>
+                </div>
+              </div>;
+            })}
+          </div>;
+        })}
+      </div>
+    </div>}
+
+    {/* ── LIST VIEW ── */}
+    {viewMode==="list"&&<div style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:pageMode?6:4}}>
       {days.map((day,idx)=>{
         const ds=toStr(day),isT=ds===todayStr,isPast=ds<todayStr;
         const dayTasks=tasksForDay(ds);
@@ -1375,7 +1533,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
               return <div key={task.id} onClick={()=>toggle(task.id,ds)} title={task.title} style={{display:"flex",alignItems:"flex-start",gap:2,padding:"2px 3px",borderRadius:4,cursor:"pointer",background:done?T.mintX:isDl?T.yellX:T.border+"33",opacity:done?0.4:1}}>
                 <div style={{width:7,height:7,borderRadius:2,flexShrink:0,marginTop:2,border:`1.5px solid ${done?T.mint:pcs[task.priority]||T.mint}`,background:done?T.mint:"transparent"}}/>
                 <span style={{fontSize:9,color:T.text,lineHeight:1.25,flex:1,fontFamily:F,textDecoration:done?"line-through":"none",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{task.title}</span>
-                {task.timeBlock&&<span style={{fontSize:7,color:T.blue,fontFamily:F,flexShrink:0,marginTop:2}}>{task.timeBlock}</span>}
+                {task.timeBlock&&<span style={{fontSize:7,color:T.blue,fontFamily:F,flexShrink:0,marginTop:2}}>{fmtTime(task.timeBlock)}</span>}
               </div>;
             })}
             {dayTasks.length>max&&<div style={{fontSize:8,color:T.textLt,textAlign:"center",fontFamily:F}}>+{dayTasks.length-max}</div>}
@@ -1393,29 +1551,27 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
           </div>
         </div>;
       })}
-    </div>
+    </div>}
     {/* ── Next-week preview strip ── */}
     {(()=>{
       const nwDays=Array.from({length:7},(_,i)=>addDays(ws,7+i));
-      const DAY2=["M","T","W","T","F","S","S"];
-      return <div style={{marginTop:6,display:"flex",gap:2,alignItems:"center",flexShrink:0}}>
-        <span style={{fontSize:7,color:T.textLt,fontFamily:F,opacity:0.5,letterSpacing:"0.05em",textTransform:"uppercase",marginRight:2,whiteSpace:"nowrap"}}>next</span>
+      return <div style={{marginTop:4,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:pageMode?6:4,flexShrink:0}}>
         {nwDays.map((day,idx)=>{
           const ds=toStr(day);
           const nTasks=tasksForDay(ds).length;
           const nEvt=appleForDay(ds).length;
           const total=nTasks+nEvt;
           const evColors=[...new Set(appleForDay(ds).map(e=>e.calColor||"#FA243C"))].slice(0,3);
-          return <div key={ds} title={ds} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1.5,padding:"2px 1px",borderRadius:4,background:T.cardAltGlass,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:`1px solid ${alpha(T.border,.3)}`}}>
-            <span style={{fontSize:6,color:T.textLt,fontFamily:F,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",lineHeight:1}}>{DAY2[idx]}</span>
-            <span style={{fontSize:7,color:T.text,fontFamily:F,fontWeight:500,lineHeight:1}}>{day.getDate()}</span>
+          return <div key={ds} title={ds} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1.5,padding:"3px 2px",borderRadius:8,background:T.cardGlass,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",border:`1px solid ${alpha(T.border,.45)}`,opacity:0.7}}>
+            <span style={{fontSize:7,color:T.textLt,fontFamily:F,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",lineHeight:1}}>{D3[idx]}</span>
+            <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,lineHeight:1}}>{day.getDate()}</span>
             {total>0
-              ? <div style={{display:"flex",gap:1.5,alignItems:"center",flexWrap:"nowrap"}}>
-                  {nTasks>0&&<div title={`${nTasks} task${nTasks>1?"s":""}`} style={{width:4,height:4,borderRadius:1,background:T.mint,flexShrink:0}}/>}
+              ? <div style={{display:"flex",gap:1.5,alignItems:"center"}}>
+                  {nTasks>0&&<div style={{width:4,height:4,borderRadius:1,background:T.mint,flexShrink:0}}/>}
                   {evColors.map((c,i)=><div key={i} style={{width:4,height:4,borderRadius:"50%",background:c,flexShrink:0}}/>)}
-                  {total>3&&<span style={{fontSize:5,color:T.textLt,fontFamily:F,lineHeight:1}}>+{total-3}</span>}
+                  {total>3&&<span style={{fontSize:5,color:T.textLt,fontFamily:F}}>+{total-3}</span>}
                 </div>
-              : <div style={{width:10,height:1,background:alpha(T.border,.4),borderRadius:1}}/>
+              : <div style={{width:10,height:1,background:alpha(T.border,.35),borderRadius:1}}/>
             }
           </div>;
         })}
@@ -2114,7 +2270,15 @@ function TaskModal({data,setTasks,onClose}){
       </div>
     </div>
     <div><Lbl>Recurring</Lbl><div style={{display:"flex",gap:5}}>{[null,"daily","weekly","monthly"].map(r=><Btn key={String(r)} small active={recur===r} onClick={()=>sR(r)}>{r||"None"}</Btn>)}</div></div>
-    <div><Lbl>Time Block</Lbl><div style={{display:"flex",gap:5}}>{[null,"am","pm"].map(b=><Btn key={String(b)} small active={tb===b} onClick={()=>sTb(b)}>{b||"Anytime"}</Btn>)}</div></div>
+    <div><Lbl>Time</Lbl>
+      <div style={{display:"flex",gap:5,alignItems:"center"}}>
+        <input type="time" value={tb==="am"?"09:00":tb==="pm"?"14:00":tb||""}
+          onChange={ev=>sTb(ev.target.value||null)}
+          style={{flex:1,fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"}}/>
+        {tb&&<Btn small ghost onClick={()=>sTb(null)}>Clear</Btn>}
+        {!tb&&<span style={{fontSize:10,color:T.textLt,fontFamily:F}}>No time set</span>}
+      </div>
+    </div>
     <div><Lbl>Tags</Lbl>
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
         {Object.entries(TASK_TAGS).map(([tag,color])=>(
@@ -4062,7 +4226,7 @@ function App(){
     switch(id){
       case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>;
       case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
-      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={()=>setModal({type:"task"})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
+      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
       case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} pageMode={pageMode}/>;
