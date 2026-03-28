@@ -866,34 +866,6 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
   {/* Right column: weather + week peek */}
   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}}>
     <WeatherWidget/>
-    {/* 7-day peek strip */}
-    {(()=>{
-      const today=new Date(),todayStr=toStr(today);
-      const peek=Array.from({length:7},(_,i)=>addDays(today,i+1));
-      const DAY1=["M","T","W","T","F","S","S"];
-      const tasksForDay=ds=>tasks.filter(t=>!t.completed&&t.deadline&&t.deadline>=ds&&ds>=todayStr);
-      const appleForDay=ds=>appleEvents.filter(e=>e.start<=ds&&e.end>=ds);
-      return <div style={{display:"flex",gap:3,alignItems:"flex-end"}}>
-        {peek.map((day)=>{
-          const ds=toStr(day);
-          const dow=(day.getDay()+6)%7; // 0=Mon
-          const nT=tasksForDay(ds).length;
-          const evColors=[...new Set(appleForDay(ds).map(e=>e.calColor||"#FA243C"))].slice(0,3);
-          const total=nT+evColors.length;
-          return <div key={ds} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <span style={{fontSize:6,color:"rgba(255,255,255,0.45)",fontFamily:F,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",lineHeight:1}}>{DAY1[dow]}</span>
-            <span style={{fontSize:8,color:"rgba(255,255,255,0.8)",fontFamily:F,fontWeight:500,lineHeight:1}}>{day.getDate()}</span>
-            {total>0
-              ? <div style={{display:"flex",gap:1.5,alignItems:"center"}}>
-                  {nT>0&&<div title={`${nT} task${nT>1?"s":""}`} style={{width:3.5,height:3.5,borderRadius:1,background:"rgba(255,255,255,0.75)",flexShrink:0}}/>}
-                  {evColors.map((c,i)=><div key={i} style={{width:3.5,height:3.5,borderRadius:"50%",background:c,flexShrink:0}}/>)}
-                </div>
-              : <div style={{width:3.5,height:1,background:"rgba(255,255,255,0.2)",borderRadius:1}}/>
-            }
-          </div>;
-        })}
-      </div>;
-    })()}
   </div>
   </div>;
 }
@@ -1079,7 +1051,7 @@ function WeatherWidget(){
     {/* Temp + icon */}
     <div style={{display:"flex",alignItems:"center",gap:10}}>
       {w.iconurl&&<img src={w.iconurl} width={36} height={36} alt={desc} style={{imageRendering:"crisp-edges",filter:"brightness(1.1)"}}/>}
-      <span style={{fontSize:42,fontWeight:900,fontFamily:F,letterSpacing:"-2px",lineHeight:1,color:"#ffffff"}}>{temp}</span>
+      <span style={{fontSize:42,fontWeight:900,fontFamily:"'Geist','Helvetica Neue',system-ui,sans-serif",letterSpacing:"-2px",lineHeight:1,color:"#ffffff"}}>{temp}</span>
     </div>
     {/* Description */}
     <span style={{fontSize:11,color:"rgba(255,255,255,0.85)",fontFamily:F,textAlign:"right",maxWidth:160,lineHeight:1.3}}>{desc}</span>
@@ -1089,10 +1061,6 @@ function WeatherWidget(){
       {rain&&<span style={{fontSize:10,color:"rgba(180,220,255,0.9)",fontFamily:F}}>🌧 {rain}</span>}
       {feel&&feel!==temp&&<span style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontFamily:F}}>feels {feel}</span>}
     </div>
-    {/* Location + source */}
-    <span style={{fontSize:9,color:"rgba(255,255,255,0.4)",fontFamily:F,letterSpacing:"0.05em",textTransform:"uppercase"}}>
-      Leiderdorp · Buienradar
-    </span>
     {/* 5-day forecast strip */}
     {forecast.length>0&&<div style={{display:"flex",gap:6,alignItems:"flex-end",marginTop:2}}>
       {forecast.map((fc,i)=>{
