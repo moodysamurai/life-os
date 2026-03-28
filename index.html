@@ -405,7 +405,7 @@ const WDEFS=[
   {id:"kanban",  label:"Week",    icon:"▦",visible:true},
   {id:"trips",   label:"Trips",   icon:"◎",visible:true},
   {id:"goals",   label:"Goals",   icon:"◉",visible:true},
-  {id:"budget",  label:"Budget",  icon:"◐",visible:true},
+  {id:"budget",  label:"Budget",  icon:"◐",visible:false},
   {id:"entropy", label:"Entropy", icon:"✦",visible:true},
   {id:"radar",   label:"Radar",   icon:"🔭",visible:true},
   {id:"embed",   label:"Embed",   icon:"⧉",visible:true},
@@ -1439,76 +1439,39 @@ function BudgetWidget({budget,setBudget,pageMode}){
   const [form,setForm]=useState({date:todayStr,amount:"",type:"expense",category:"Food",description:""});
   const [editId,setEditId]=useState(null);
 
-  const monthName=d=>{const p=d.split("-");return `${MFULL[parseInt(p[1])-1]} ${p[0]}`;};
+  const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
   const nextMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()+1);setMon(toStr(d).slice(0,7));};
 
-  const entries=budget.filter(e=>e.date.startsWith(mon)).sort((a,b)=>b.date.localeCompare(a.date));
-  const income=entries.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
-  const expense=entries.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+  const entries=useMemo(()=>budget.filter(e=>e.date.startsWith(mon)).sort((a,b)=>b.date.localeCompare(a.date)),[budget,mon]);
+  const income=useMemo(()=>entries.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),[entries]);
+  const expense=useMemo(()=>entries.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0),[entries]);
   const net=income-expense;
 
-  const catTotals={};
-  entries.filter(e=>e.type==="expense").forEach(e=>{catTotals[e.category]=(catTotals[e.category]||0)+e.amount;});
-  const topCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const topCats=useMemo(()=>{
+    const t={};
+    entries.filter(e=>e.type==="expense").forEach(e=>{t[e.category]=(t[e.category]||0)+e.amount;});
+    return Object.entries(t).sort((a,b)=>b[1]-a[1]);
+  },[entries]);
 
-  function startAdd(){
-    setForm({date:todayStr,amount:"",type:"expense",category:"Food",description:""});
-    setEditId(null);setShowAdd(true);
-  }
-  function startEdit(e){
-    setForm({date:e.date,amount:String(e.amount),type:e.type,category:e.category,description:e.description||""});
-    setEditId(e.id);setShowAdd(true);
-  }
+  function startAdd(){setForm({date:todayStr,amount:"",type:"expense",category:"Food",description:""});setEditId(null);setShowAdd(true);}
+  function startEdit(en){setForm({date:en.date,amount:String(en.amount),type:en.type,category:en.category,description:en.description||""});setEditId(en.id);setShowAdd(true);}
   function saveEntry(){
     const amt=parseFloat(form.amount);
     if(!amt||isNaN(amt)) return;
-    const entry={id:editId||uid(),date:form.date,amount:amt,type:form.type,category:form.category,description:form.description};
-    setBudget(p=>editId?p.map(e=>e.id===editId?entry:e):[...p,entry]);
+    const en={id:editId||uid(),date:form.date,amount:amt,type:form.type,category:form.category,description:form.description};
+    setBudget(p=>editId?p.map(x=>x.id===editId?en:x):[...p,en]);
     setShowAdd(false);setEditId(null);
   }
-  function delEntry(id){setBudget(p=>p.filter(e=>e.id!==id));}
-
-  const SummaryCard=({label,val,color,bg})=>(
-    <div style={{flex:1,textAlign:"center",padding:pageMode?"10px 8px":"6px 4px",borderRadius:8,background:bg,border:`1px solid ${alpha(color,.3)}`}}>
-      <div style={{fontSize:8,color,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{label}</div>
-      <div style={{fontSize:pageMode?18:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>{val>=0?"+":""}{val<0?"-":""}€{Math.abs(val).toFixed(0)}</div>
-    </div>
-  );
-
-  const AddForm=()=>(
-    <div style={{display:"flex",flexDirection:"column",gap:5,padding:"10px",borderRadius:8,background:alpha(T.border,.18),border:`1px solid ${alpha(T.border,.4)}`}}>
-      <div style={{display:"flex",gap:4}}>
-        <select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value,category:e.target.value==="income"?"Stipend":"Food"}))} style={{fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
-          <option value="expense">Expense</option>
-          <option value="income">Income</option>
-        </select>
-        <input value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="Amount €" type="number" min="0" step="0.01"
-          style={{flex:1,fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
-      </div>
-      <div style={{display:"flex",gap:4}}>
-        <select value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}
-          style={{flex:1,fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
-          {(form.type==="expense"?BUDGET_EXP_CATS:BUDGET_INC_CATS).map(c=><option key={c}>{c}</option>)}
-        </select>
-        <input value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} type="date"
-          style={{flex:1,fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
-      </div>
-      <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Description (optional)"
-        style={{fontSize:10,background:T.inp,border:`1px solid ${T.border}`,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
-      <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-        <Btn small ghost onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancel</Btn>
-        <Btn small primary onClick={saveEntry}>{editId?"Save":"Add"}</Btn>
-      </div>
-    </div>
-  );
+  function delEntry(id){setBudget(p=>p.filter(x=>x.id!==id));}
+  const cats=form.type==="expense"?BUDGET_EXP_CATS:BUDGET_INC_CATS;
 
   return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:8}}>
-    {/* Nav row */}
+    {/* Nav */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,position:"relative",zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {pageMode&&<span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px"}}>Budget</span>}
-        <Badge label={monthName(mon)} color={T.mint}/>
+        <Badge label={monLabel} color={T.mint}/>
       </div>
       <div style={{display:"flex",gap:3}}>
         <Btn small onClick={prevMon}>‹</Btn>
@@ -1518,54 +1481,81 @@ function BudgetWidget({budget,setBudget,pageMode}){
       </div>
     </div>
 
-    {/* Summary cards */}
+    {/* Summary row */}
     <div style={{display:"flex",gap:6,flexShrink:0}}>
-      <SummaryCard label="Income" val={income} color={T.mint} bg={T.mintX}/>
-      <SummaryCard label="Expenses" val={-expense} color={T.pink} bg={T.pinkX}/>
-      <SummaryCard label="Net" val={net} color={net>=0?T.mint:T.pink} bg={net>=0?T.mintX:T.pinkX}/>
+      {[{label:"Income",val:income,color:T.mint,bg:T.mintX},{label:"Expenses",val:expense,color:T.pink,bg:T.pinkX},{label:"Net",val:net,color:net>=0?T.mint:T.pink,bg:net>=0?T.mintX:T.pinkX}].map(({label,val,color,bg})=>
+        <div key={label} style={{flex:1,textAlign:"center",padding:pageMode?"10px 8px":"6px 4px",borderRadius:8,background:bg,border:`1px solid ${alpha(color,.3)}`}}>
+          <div style={{fontSize:8,color,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{label}</div>
+          <div style={{fontSize:pageMode?18:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>{label==="Net"&&val>0?"+":""}{label==="Expenses"?"-":""}€{Math.abs(val).toFixed(0)}</div>
+        </div>
+      )}
     </div>
 
-    {/* Category breakdown */}
-    {topCats.length>0&&expense>0&&<div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
-      {topCats.slice(0,pageMode?topCats.length:3).map(([cat,amt])=>(
-        <div key={cat} style={{display:"flex",alignItems:"center",gap:6}}>
-          <span style={{fontSize:10,fontFamily:F,width:14}}>{CAT_ICONS[cat]||"·"}</span>
-          <span style={{fontSize:9,color:T.textMd,fontFamily:F,width:pageMode?90:72,flexShrink:0}}>{cat}</span>
-          <div style={{flex:1,height:4,borderRadius:2,background:alpha(T.border,.5),overflow:"hidden"}}>
-            <div style={{width:`${Math.min(100,(amt/expense)*100)}%`,height:"100%",background:T.pink,borderRadius:2,transition:"width 0.4s"}}/>
+    {/* Category bars */}
+    {topCats.length>0&&expense>0&&
+      <div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
+        {topCats.slice(0,pageMode?topCats.length:3).map(([cat,amt])=>
+          <div key={cat} style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:10,width:16}}>{CAT_ICONS[cat]||"·"}</span>
+            <span style={{fontSize:9,color:T.textMd,fontFamily:F,width:pageMode?90:72,flexShrink:0}}>{cat}</span>
+            <div style={{flex:1,height:4,borderRadius:2,background:alpha(T.border,.5),overflow:"hidden"}}>
+              <div style={{width:Math.min(100,(amt/expense)*100)+"%",height:"100%",background:T.pink,borderRadius:2}}/>
+            </div>
+            <span style={{fontSize:9,color:T.textLt,fontFamily:F,width:48,textAlign:"right"}}>€{amt.toFixed(2)}</span>
           </div>
-          <span style={{fontSize:9,color:T.textLt,fontFamily:F,width:48,textAlign:"right"}}>€{amt.toFixed(2)}</span>
-        </div>
-      ))}
-    </div>}
+        )}
+      </div>
+    }
 
-    {/* Add / edit form */}
-    {showAdd&&<AddForm/>}
+    {/* Add / edit form — fully inlined, no inner component */}
+    {showAdd&&
+      <div style={{display:"flex",flexDirection:"column",gap:5,padding:"10px",borderRadius:8,background:alpha(T.border,.18),border:`1px solid ${alpha(T.border,.4)}`}}>
+        <div style={{display:"flex",gap:4}}>
+          <select value={form.type} onChange={ev=>setForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))}
+            style={{fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+          <input value={form.amount} onChange={ev=>setForm(p=>({...p,amount:ev.target.value}))} placeholder="Amount €" type="number" min="0" step="0.01"
+            style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+        </div>
+        <div style={{display:"flex",gap:4}}>
+          <select value={form.category} onChange={ev=>setForm(p=>({...p,category:ev.target.value}))}
+            style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 5px",fontFamily:F}}>
+            {cats.map(c=><option key={c}>{c}</option>)}
+          </select>
+          <input value={form.date} onChange={ev=>setForm(p=>({...p,date:ev.target.value}))} type="date"
+            style={{flex:1,fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+        </div>
+        <input value={form.description} onChange={ev=>setForm(p=>({...p,description:ev.target.value}))} placeholder="Description (optional)"
+          style={{fontSize:10,background:T.inp,border:"1px solid "+T.border,borderRadius:5,color:T.text,padding:"4px 6px",fontFamily:F}}/>
+        <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+          <Btn small ghost onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancel</Btn>
+          <Btn small primary onClick={saveEntry}>{editId?"Save":"Add"}</Btn>
+        </div>
+      </div>
+    }
 
     {/* Entry list */}
     <div style={{display:"flex",flexDirection:"column",gap:2,flex:1,minHeight:0,overflowY:"auto"}}>
-      {entries.slice(0,pageMode?9999:8).map(e=>(
-        <div key={e.id} onClick={()=>startEdit(e)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px",borderRadius:6,background:alpha(T.border,.15),cursor:"pointer",transition:"background .15s"}}
-          onMouseEnter={ev=>ev.currentTarget.style.background=alpha(T.border,.3)}
-          onMouseLeave={ev=>ev.currentTarget.style.background=alpha(T.border,.15)}>
-          <span style={{fontSize:11}}>{CAT_ICONS[e.category]||"·"}</span>
-          <div style={{flex:1,minWidth:0}}>
-            <span style={{fontSize:9,color:T.textMd,fontFamily:F,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              {e.category}{e.description?` · ${e.description}`:""}
-            </span>
-          </div>
-          <span style={{fontSize:10,color:e.type==="income"?T.mint:T.pink,fontFamily:F,fontWeight:700,flexShrink:0}}>
-            {e.type==="income"?"+":"-"}€{e.amount.toFixed(2)}
+      {entries.slice(0,pageMode?9999:8).map(en=>
+        <div key={en.id} onClick={()=>startEdit(en)}
+          style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px",borderRadius:6,background:alpha(T.border,.15),cursor:"pointer"}}>
+          <span style={{fontSize:11}}>{CAT_ICONS[en.category]||"·"}</span>
+          <span style={{fontSize:9,color:T.textMd,fontFamily:F,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {en.category}{en.description?" · "+en.description:""}
           </span>
-          <span style={{fontSize:8,color:T.textLt,fontFamily:F,flexShrink:0}}>{e.date.slice(5)}</span>
-          <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,padding:"0 2px",lineHeight:1,flexShrink:0}}>×</button>
-        </div>
-      ))}
-      {!showAdd&&entries.length===0&&(
-        <div style={{textAlign:"center",padding:24,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F}}>
-          No entries for {monthName(mon)}
+          <span style={{fontSize:10,color:en.type==="income"?T.mint:T.pink,fontFamily:F,fontWeight:700,flexShrink:0}}>
+            {en.type==="income"?"+":"-"}€{en.amount.toFixed(2)}
+          </span>
+          <span style={{fontSize:8,color:T.textLt,fontFamily:F,flexShrink:0}}>{en.date.slice(5)}</span>
+          <button onClick={ev=>{ev.stopPropagation();delEntry(en.id);}}
+            style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,padding:"0 2px",lineHeight:1}}>×</button>
         </div>
       )}
+      {!showAdd&&entries.length===0&&
+        <div style={{textAlign:"center",padding:24,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F}}>No entries for {monLabel}</div>
+      }
     </div>
   </div>;
 }
