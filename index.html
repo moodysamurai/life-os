@@ -1658,7 +1658,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,pageMode}){
       const menv=envelopes.filter(e=>e.month===m);
       const bInc=menv.filter(e=>e.type==="income").reduce((s,e)=>s+e.budgeted,0);
       const bExp=menv.filter(e=>e.type==="expense").reduce((s,e)=>s+e.budgeted,0);
-      ms.push({m,label:MSHORT[parseInt(m.split("-")[1])-1]||m.slice(5),inc,exp,net:inc-exp,bInc,bExp,isCur:m===mon});
+      ms.push({m,label:MONS3[parseInt(m.split("-")[1])-1]||m.slice(5),inc,exp,net:inc-exp,bInc,bExp,isCur:m===mon});
     }
     return ms;
   },[budget,envelopes,mon]);
