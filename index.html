@@ -1486,7 +1486,7 @@ function BudgetWidget({budget,setBudget,pageMode}){
       {[{label:"Income",val:income,color:T.mint,bg:T.mintX},{label:"Expenses",val:expense,color:T.pink,bg:T.pinkX},{label:"Net",val:net,color:net>=0?T.mint:T.pink,bg:net>=0?T.mintX:T.pinkX}].map(({label,val,color,bg})=>
         <div key={label} style={{flex:1,textAlign:"center",padding:pageMode?"10px 8px":"6px 4px",borderRadius:8,background:bg,border:`1px solid ${alpha(color,.3)}`}}>
           <div style={{fontSize:8,color,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{label}</div>
-          <div style={{fontSize:pageMode?18:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>{label==="Net"&&val>0?"+":""}{label==="Expenses"?"-":""}€{Math.abs(val).toFixed(0)}</div>
+          <div style={{fontSize:pageMode?18:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>{label==="Net"&&val>0?"+":label==="Net"&&val<0?"-":label==="Expenses"&&val>0?"-":""}€{Math.abs(val).toFixed(0)}</div>
         </div>
       )}
     </div>
@@ -4066,8 +4066,8 @@ function App(){
     }
   }
 
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",entropy:"Entropy",radar:"Radar",embed:"Embed",tasks:"Tasks"};
-  const WICON={calendar:"calendar-blank",wakuli:"diamond-four",kanban:"squares-four",trips:"airplane-tilt",goals:"target",entropy:"sparkle",radar:"telescope",embed:"browsers",tasks:"list-checks"};
+  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",budget:"Budget",entropy:"Entropy",radar:"Radar",embed:"Embed",tasks:"Tasks"};
+  const WICON={calendar:"calendar-blank",wakuli:"diamond-four",kanban:"squares-four",trips:"airplane-tilt",goals:"target",budget:"currency-circle-dollar",entropy:"sparkle",radar:"telescope",embed:"browsers",tasks:"list-checks"};
 
   return <TC.Provider value={T}>
     <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
