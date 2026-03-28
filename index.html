@@ -1284,7 +1284,7 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
           const nEvt=appleForDay(ds).length;
           const total=nTasks+nEvt;
           const evColors=[...new Set(appleForDay(ds).map(e=>e.calColor||"#FA243C"))].slice(0,3);
-          return <div key={ds} title={ds} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1.5,padding:"2px 1px",borderRadius:4,background:T.cardAlt,border:`1px solid ${alpha(T.border,.4)}`}}>
+          return <div key={ds} title={ds} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1.5,padding:"2px 1px",borderRadius:4,background:T.cardAltGlass,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:`1px solid ${alpha(T.border,.3)}`}}>
             <span style={{fontSize:6,color:T.textLt,fontFamily:F,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",lineHeight:1}}>{DAY2[idx]}</span>
             <span style={{fontSize:7,color:T.text,fontFamily:F,fontWeight:500,lineHeight:1}}>{day.getDate()}</span>
             {total>0
