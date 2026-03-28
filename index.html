@@ -1108,7 +1108,7 @@ function QuickCapture({captureRef,setTasks,setTrips,setGoals,setModal,onClose,in
 }
 
 // ── CALENDAR ───────────────────────────────────────
-function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask,appleEvents=[]}){
+function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask,appleEvents=[],hideHeat=false}){
   const T=useT();
   const now=new Date(),todayStr=toStr(now);
   const [calTab,setCalTab]=useState("calendar"); // "calendar" | "timeline"
@@ -1328,7 +1328,7 @@ function CalendarWidget({tasks,trips,goals,completions,pageMode,onAddTask,appleE
           </Card>
         </div>
       </div>}
-    {calTab!=="timeline"&&heatMap}
+    {!hideHeat&&calTab!=="timeline"&&heatMap}
   </div>;
 }
 
@@ -4474,7 +4474,10 @@ function App(){
 
   function widgetBody(id,pageMode=false){
     switch(id){
-      case "calendar": return <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>;
+      case "calendar": return <div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
+        <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={pageMode}/>
+        {pageMode&&<KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>}
+      </div>;
       case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
