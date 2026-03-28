@@ -1241,7 +1241,9 @@ function KanbanWidget({tasks,completions,setCompletions,onAddTask,onFocusDay,pag
       {days.map((day,idx)=>{
         const ds=toStr(day),isT=ds===todayStr,isPast=ds<todayStr;
         const dayTasks=tasksForDay(ds);
-        return <div key={ds} className="day-cell" onClick={()=>onAddTask&&onAddTask(ds)} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?110:40,background:isT?T.mintX:isPast?alpha(T.bg,.45):T.cardAlt,border:`1px solid ${isT?alpha(T.mint,.45):alpha(T.border,.55)}`,opacity:isPast?0.6:1,cursor:onAddTask?"pointer":"default"}}>
+        const cellBg=isT?T.mintX:isPast?alpha(T.bg,.45):T.cardGlass;
+        const cellBdf=(!isT&&!isPast)?{backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}:{};
+        return <div key={ds} className="day-cell" onClick={()=>onAddTask&&onAddTask(ds)} style={{borderRadius:8,padding:pageMode?"8px 6px":"5px 4px",minHeight:pageMode?110:40,background:cellBg,...cellBdf,border:`1px solid ${isT?alpha(T.mint,.45):alpha(T.border,.55)}`,opacity:isPast?0.6:1,cursor:onAddTask?"pointer":"default"}}>
           <div style={{textAlign:"center",marginBottom:4}}>
             <div style={{fontSize:7,color:T.textLt,fontWeight:700,fontFamily:F,letterSpacing:"0.07em",textTransform:"uppercase"}}>{D3[idx]}</div>
             <div style={{width:20,height:20,margin:"2px auto 0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isT?T.mint:"transparent",color:isT?T.bg:T.text,fontSize:10,fontWeight:isT?700:500,fontFamily:F}}>{day.getDate()}</div>
