@@ -3835,6 +3835,15 @@ function App(){
   }
 
   const [page,setPage]=useState(null);
+  const NAV_EXCLUDE=["entropy","embed","radar"];
+  const NAV_BASE=WDEFS.filter(w=>!NAV_EXCLUDE.includes(w.id)).map(w=>w.id);
+  const [navOrder,setNavOrder]=useState(()=>{
+    const saved=lg("plo3_nav_order",null);
+    if(!saved) return NAV_BASE;
+    return [...saved.filter(id=>NAV_BASE.includes(id)),...NAV_BASE.filter(id=>!saved.includes(id))];
+  });
+  const [navDragId,setNavDragId]=useState(null);
+  const [navDragOver,setNavDragOver]=useState(null);
   const [customizing,setCustomizing]=useState(false);
   const [showColorPanel,setShowColorPanel]=useState(false);
   const [modal,setModal]=useState(null);
@@ -3870,6 +3879,7 @@ function App(){
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
   useEffect(()=>ls("plo3_budget",budget),[budget]);
+  useEffect(()=>ls("plo3_nav_order",navOrder),[navOrder]);
   useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
   useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
@@ -4086,7 +4096,44 @@ function App(){
               <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span>
             </button>
             {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {WDEFS.filter(w=>!["entropy","embed","radar"].includes(w.id)).map(w=>{const act=page===w.id;return <button key={w.id} className="nav-item" onClick={()=>setPage(page===w.id?null:w.id)} style={{background:act?wc[w.id]+"18":"transparent",border:`1px solid ${act?wc[w.id]+"55":alpha(T.border,.38)}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",color:act?wc[w.id]:T.textMd,fontSize:11,fontFamily:F,fontWeight:act?700:500,transition:"all 0.15s"}}><Ico n={WICON[w.id]} size={12}/> {WLABEL[w.id]}</button>;})}
+              {navOrder.map(id=>{
+                const act=page===id;
+                const isDragging=navDragId===id;
+                const isOver=navDragOver===id&&navDragId!==id;
+                return <button key={id} className="nav-item"
+                  draggable
+                  onDragStart={e=>{e.dataTransfer.effectAllowed="move";setNavDragId(id);}}
+                  onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setNavDragOver(id);}}
+                  onDragLeave={()=>setNavDragOver(null)}
+                  onDrop={e=>{
+                    e.preventDefault();
+                    if(navDragId&&navDragId!==id){
+                      setNavOrder(prev=>{
+                        const arr=[...prev];
+                        const from=arr.indexOf(navDragId),to=arr.indexOf(id);
+                        arr.splice(from,1);arr.splice(to,0,navDragId);
+                        return arr;
+                      });
+                    }
+                    setNavDragId(null);setNavDragOver(null);
+                  }}
+                  onDragEnd={()=>{setNavDragId(null);setNavDragOver(null);}}
+                  onClick={()=>setPage(page===id?null:id)}
+                  style={{
+                    background:act?alpha(T.mint,.15):"transparent",
+                    border:`1px solid ${isOver?alpha(T.mint,.6):act?alpha(T.mint,.45):alpha(T.border,.38)}`,
+                    borderRadius:20,padding:"3px 10px",
+                    cursor:navDragId?"grabbing":"grab",
+                    color:act?T.mint:T.textMd,
+                    fontSize:11,fontFamily:F,fontWeight:act?700:500,
+                    transition:"all 0.15s",
+                    opacity:isDragging?0.35:1,
+                    transform:isOver?"translateY(-1px)":"none",
+                    outline:"none",
+                  }}>
+                  <Ico n={WICON[id]||"circle"} size={12}/> {WLABEL[id]||id}
+                </button>;
+              })}
             </div>}
           </div>
           <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
