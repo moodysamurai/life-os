@@ -1770,6 +1770,27 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         </div>
       }
 
+      {/* ── Summary counts ── */}
+      {(incomeEnv.length>0||expEnv.length>0)&&
+        <div style={{display:"flex",gap:5,flexShrink:0}}>
+          {[
+            {label:"Income",count:incomeEnv.length,fixed:incomeEnv.filter(e=>e.isFixed).length,total:budgetedIncome,color:T.mint,bg:alpha(T.mint,.08),border:alpha(T.mint,.22)},
+            {label:"Expenses",count:expEnv.length,fixed:expEnv.filter(e=>e.isFixed).length,total:budgetedExpense,color:T.pink,bg:alpha(T.pink,.08),border:alpha(T.pink,.22)},
+          ].map(({label,count,fixed,total,color,bg,border})=>(
+            <div key={label} style={{flex:1,padding:"7px 9px",borderRadius:8,background:bg,border:`1px solid ${border}`,display:"flex",flexDirection:"column",gap:3}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:9,fontWeight:700,color,fontFamily:F,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</span>
+                <span style={{fontSize:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>€{total.toFixed(0)}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{count} {count===1?"item":"items"}</span>
+                {fixed>0&&<span style={{fontSize:7,color,fontFamily:F,background:alpha(color,.15),padding:"1px 5px",borderRadius:4,letterSpacing:"0.04em"}}>{fixed} recurring</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      }
+
       {/* Income envelopes */}
       <div style={{display:"flex",flexDirection:"column",gap:3}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
