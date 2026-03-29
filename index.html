@@ -2078,9 +2078,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                     onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
                     style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.mint,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
                 : <div key={m}
-                    onClick={()=>{if(fixedAmt!=null){setPlanAmt(m,cat.label,"income",fixedAmt);}else{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}}
+                    onClick={()=>{if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fixedAmt!=null){setPlanAmt(m,cat.label,"income",fixedAmt);}else{setPlanCell({month:m,cat:cat.label});setPlanVal("");}}}
                     onDoubleClick={()=>{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
-                    title={fixedAmt?`Click: €${fixedAmt} · Double-click: custom`:"Click to enter amount"}
+                    title={amt>0?`Click: remove · Double-click: edit`:fixedAmt?`Click: €${fixedAmt} · Double-click: custom`:"Click to enter amount"}
                     style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.mint,.1):"transparent",border:`1px solid ${amt>0?alpha(T.mint,.25):"transparent"}`,transition:"background 0.1s"}}>
                     {amt>0
                       ? <span style={{fontSize:9,color:T.mint,fontFamily:F,fontWeight:600}}>€{amt}</span>
@@ -2117,9 +2117,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                     onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
                     style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.pink,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
                 : <div key={m}
-                    onClick={()=>{if(fixedAmt!=null){setPlanAmt(m,cat.label,"expense",fixedAmt);}else{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}}
+                    onClick={()=>{if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fixedAmt!=null){setPlanAmt(m,cat.label,"expense",fixedAmt);}else{setPlanCell({month:m,cat:cat.label});setPlanVal("");}}}
                     onDoubleClick={()=>{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
-                    title={fixedAmt?`Click: €${fixedAmt} · Double-click: custom`:"Click to enter amount"}
+                    title={amt>0?`Click: remove · Double-click: edit`:fixedAmt?`Click: €${fixedAmt} · Double-click: custom`:"Click to enter amount"}
                     style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.pink,.1):"transparent",border:`1px solid ${amt>0?alpha(T.pink,.25):"transparent"}`,transition:"background 0.1s"}}>
                     {amt>0
                       ? <span style={{fontSize:9,color:T.pink,fontFamily:F,fontWeight:600}}>€{amt}</span>
