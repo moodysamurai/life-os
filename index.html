@@ -1629,6 +1629,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const [catEditId,setCatEditId]=useState(null);
   const [catEditLabel,setCatEditLabel]=useState("");
   const [catAdd,setCatAdd]=useState(null);
+  const [quickRec,setQuickRec]=useState(null); // env.id | null
+  const [quickForm,setQuickForm]=useState({amount:"",date:todayStr,desc:""});
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
@@ -1697,6 +1699,17 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     setShowAdd(false);setEditId(null);
   }
   function delEntry(id){setBudget(p=>p.filter(x=>x.id!==id));}
+  function openQuick(env){
+    if(quickRec===env.id){setQuickRec(null);return;}
+    setQuickForm({amount:"",date:todayStr,desc:""});
+    setQuickRec(env.id);
+    setShowEnvEdit(null);
+  }
+  function saveQuick(env){
+    const amt=parseFloat(quickForm.amount);if(!amt||isNaN(amt))return;
+    setBudget(p=>[...p,{id:uid(),date:quickForm.date||todayStr,amount:amt,type:env.type,category:env.category,description:quickForm.desc}]);
+    setQuickRec(null);
+  }
   const formCats=form.type==="expense"?expCats:incCats;
   const envFormCats=envForm.type==="expense"?expCats:incCats;
   const curPickerIcon=pickerFor==="new"?catAdd?.icon:(budgetCats.find(c=>c.id===pickerFor)||{}).icon;
@@ -1804,9 +1817,19 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
               {env.isFixed&&<span style={{fontSize:7,color:T.mint,fontFamily:F,background:alpha(T.mint,.15),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
               <span style={{fontSize:11,color:T.mint,fontFamily:F,fontWeight:700}}>€{env.budgeted.toFixed(0)}</span>
+              <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.mint,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.mint,.4):"transparent"}`,borderRadius:4,cursor:"pointer",color:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
               <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
               <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
             </div>
+            {quickRec===env.id&&
+              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:7,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.25)}`,marginTop:3,alignItems:"center"}}>
+                <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...IS,width:80,flex:1}}/>
+                <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...IS,width:110}}/>
+                <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...IS,flex:2}}/>
+                <Btn small primary onClick={()=>saveQuick(env)}>Log</Btn>
+                <button onClick={()=>setQuickRec(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
+              </div>
+            }
             {showEnvEdit===env.id&&
               <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4}}>
@@ -1848,6 +1871,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                 <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
                 {env.isFixed&&<span style={{fontSize:7,color:T.textLt,fontFamily:F,background:alpha(T.border,.3),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
                 <span style={{fontSize:9,fontFamily:F,color:over?T.pink:T.textMd}}>€{actual.toFixed(0)}<span style={{color:T.textLt}}> / €{env.budgeted.toFixed(0)}</span></span>
+                <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.pink,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.pink,.4):"transparent"}`,borderRadius:4,cursor:"pointer",color:over?T.pink:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
                 <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
                 <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
               </div>
@@ -1855,6 +1879,15 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                 <div style={{width:pct+"%",height:"100%",borderRadius:2,background:over?T.pink:cc,transition:"width 0.3s"}}/>
               </div>
             </div>
+            {quickRec===env.id&&
+              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3,alignItems:"center"}}>
+                <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...IS,width:80,flex:1}}/>
+                <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...IS,width:110}}/>
+                <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...IS,flex:2}}/>
+                <Btn small primary onClick={()=>saveQuick(env)}>Log</Btn>
+                <button onClick={()=>setQuickRec(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
+              </div>
+            }
             {showEnvEdit===env.id&&
               <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4}}>
