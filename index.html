@@ -1633,6 +1633,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const [quickForm,setQuickForm]=useState({amount:"",date:todayStr,desc:""});
   const [planCell,setPlanCell]=useState(null); // {month,cat} | null
   const [planVal,setPlanVal]=useState("");
+  const planClickRef=useRef(null);
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
@@ -2063,6 +2064,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         <div style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 0 3px 0",marginBottom:2}}>Income</div>
         {incCats.map(cat=>{
           const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
+          const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
           return <div key={cat.id} style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2}}>
             <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
               <Ico n={cat.icon||"dots-three"} size={11}/>
@@ -2078,9 +2080,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                     onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
                     style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.mint,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
                 : <div key={m}
-                    onClick={()=>{if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fixedAmt!=null){setPlanAmt(m,cat.label,"income",fixedAmt);}else{setPlanCell({month:m,cat:cat.label});setPlanVal("");}}}
-                    onDoubleClick={()=>{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
-                    title={amt>0?`Click: remove · Double-click: edit`:fixedAmt?`Click: €${fixedAmt} · Double-click: custom`:"Click to enter amount"}
+                    onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,"income",fillAmt);}},220);}}
+                    onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
+                    title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
                     style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.mint,.1):"transparent",border:`1px solid ${amt>0?alpha(T.mint,.25):"transparent"}`,transition:"background 0.1s"}}>
                     {amt>0
                       ? <span style={{fontSize:9,color:T.mint,fontFamily:F,fontWeight:600}}>€{amt}</span>
@@ -2088,10 +2090,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                   </div>;
             })}
             <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
-              {fixedAmt&&<button onClick={()=>fillPlanRow(cat.label,"income",fixedAmt)} title={`Fill all months · €${fixedAmt}`}
-                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:"pointer",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+              <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,"income",fillAmt);}} title={fillAmt?`Fill all · €${fillAmt}`:"Double-click a cell to set an amount first"}
+                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:fillAmt?"pointer":"default",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
                 <Ico n="arrows-clockwise" size={9}/>
-              </button>}
+              </button>
               <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
                 style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.border,.35)}`,background:alpha(T.border,.1),cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
             </div>
@@ -2102,6 +2104,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         <div style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${alpha(T.border,.2)}`}}>Expenses</div>
         {expCats.map(cat=>{
           const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
+          const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
           return <div key={cat.id} style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2}}>
             <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
               <Ico n={cat.icon||"dots-three"} size={11}/>
@@ -2117,9 +2120,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                     onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
                     style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.pink,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
                 : <div key={m}
-                    onClick={()=>{if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fixedAmt!=null){setPlanAmt(m,cat.label,"expense",fixedAmt);}else{setPlanCell({month:m,cat:cat.label});setPlanVal("");}}}
-                    onDoubleClick={()=>{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
-                    title={amt>0?`Click: remove · Double-click: edit`:fixedAmt?`Click: €${fixedAmt} · Double-click: custom`:"Click to enter amount"}
+                    onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,"expense",fillAmt);}},220);}}
+                    onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
+                    title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
                     style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.pink,.1):"transparent",border:`1px solid ${amt>0?alpha(T.pink,.25):"transparent"}`,transition:"background 0.1s"}}>
                     {amt>0
                       ? <span style={{fontSize:9,color:T.pink,fontFamily:F,fontWeight:600}}>€{amt}</span>
@@ -2127,10 +2130,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                   </div>;
             })}
             <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
-              {fixedAmt&&<button onClick={()=>fillPlanRow(cat.label,"expense",fixedAmt)} title={`Fill all months · €${fixedAmt}`}
-                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:"pointer",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+              <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,"expense",fillAmt);}} title={fillAmt?`Fill all · €${fillAmt}`:"Double-click a cell to set an amount first"}
+                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:fillAmt?"pointer":"default",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
                 <Ico n="arrows-clockwise" size={9}/>
-              </button>}
+              </button>
               <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
                 style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.border,.35)}`,background:alpha(T.border,.1),cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
             </div>
