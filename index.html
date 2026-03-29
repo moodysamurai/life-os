@@ -402,7 +402,7 @@ const PC=(T)=>({low:T.mint,medium:T.yellow,high:T.pink});
 const WDEFS=[
   {id:"calendar",label:"Calendar",icon:"◷",visible:true},
   {id:"wakuli",  label:"Wakuli",  icon:"◈",visible:true},
-  {id:"kanban",  label:"Week",    icon:"▦",visible:true},
+  {id:"kanban",  label:"Week",    icon:"▦",visible:true,navHidden:true},
   {id:"trips",   label:"Trips",   icon:"◎",visible:true},
   {id:"goals",   label:"Goals",   icon:"◉",visible:true},
   {id:"budget",  label:"Budget",  icon:"◐",visible:false},
@@ -4596,12 +4596,13 @@ function App(){
 
   function widgetBody(id,pageMode=false){
     switch(id){
-      case "calendar": return <div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
-        <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={pageMode} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={pageMode}/>
-        {pageMode&&<KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>}
-      </div>;
+      case "calendar": return pageMode
+        ?<div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
+            <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={true} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={true}/>
+            <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={true} appleEvents={appleEvents}/>
+          </div>
+        :<CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>;
       case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
-      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
       case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
       case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
       case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={pageMode}/>;
@@ -4635,7 +4636,7 @@ function App(){
               <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span>
             </button>
             {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {navOrder.map(id=>{
+              {navOrder.filter(id=>!WDEFS.find(w=>w.id===id)?.navHidden).map(id=>{
                 const act=page===id;
                 const isDragging=navDragId===id;
                 const isOver=navDragOver===id&&navDragId!==id;
