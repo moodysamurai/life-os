@@ -111,7 +111,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 
 
 /* ── NAV CASCADE ────────────────────────────────── */
-.nav-cascade-wrap .nav-item{opacity:0.6;transition:opacity 0.22s ease,color 0.1s,background 0.12s,border-color 0.1s !important;}
+.nav-cascade-wrap .nav-item{opacity:0.75;transition:opacity 0.22s ease,color 0.1s,background 0.12s,border-color 0.1s !important;}
 .nav-cascade-wrap:hover .nav-item{opacity:1;}
 .nav-cascade-wrap .nav-item:hover{background:rgba(255,255,255,0.07) !important;}
 .nav-cascade-wrap:hover .nav-item:nth-child(1){transition-delay:0ms !important;}
@@ -161,7 +161,7 @@ function buildDark([p1,p2,p3,p4,p5]){
     blue:sec,blueX:alpha(sec,.12),
     pink:p2,pinkX:alpha(p2,.12),
     yellow:yel,yellX:alpha(yel,.12),
-    text:p3,textMd:mix(p3,p5,.56),textLt:mix(p3,p5,.76),textHi:p3,
+    text:p3,textMd:mix(p3,p5,.36),textLt:mix(p3,p5,.56),textHi:p3,
     overlay:alpha(p5,.90),isDark:true,
   };
 }
@@ -179,7 +179,7 @@ function buildLight([p1,p2,p3,p4,p5]){
     blue:sec,blueX:alpha(p4,.1),
     pink:mix(p2,p5,.15),pinkX:alpha(p2,.1),
     yellow:mix(p1,W,.25),yellX:alpha(p1,.1),
-    text:txt,textMd:mix(txt,p3,.42),textLt:mix(txt,p3,.62),textHi:txt,
+    text:txt,textMd:mix(txt,p3,.26),textLt:mix(txt,p3,.44),textHi:txt,
     overlay:'rgba(0,0,0,.5)',isDark:false,
   };
 }
@@ -563,7 +563,7 @@ function WidgetHead({id,title,icon,onPage,action}){
     <button onClick={onPage} className="whead-btn" style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:6,color:T.text}}>
       <span style={{color:ac,display:"flex",background:alpha(ac,.13),borderRadius:5,padding:"3px 4px"}}><Ico n={icon} size={12}/></span>
       <span style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:F,color:T.text}}>{title}</span>
-      <span style={{fontSize:9,color:T.textLt,opacity:0.4}}>↗</span>
+      <span style={{fontSize:9,color:T.textLt,opacity:0.7}}>↗</span>
     </button>
     {action}
   </div>;
@@ -904,7 +904,7 @@ function SunriseStrip(){
   const sun=useMemo(()=>calcSunTimes(52.1578,4.5353,new Date()),[]);
   if(!sun) return null;
   return <div style={{display:"flex",gap:10,alignItems:"center"}}>
-    <span style={{fontSize:8,color:"rgba(255,255,255,0.38)",fontFamily:F,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Sun</span>
+    <span style={{fontSize:8,color:"rgba(255,255,255,0.65)",fontFamily:F,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Sun</span>
     <span style={{fontSize:11,color:"rgba(255,255,255,0.82)",fontFamily:F}}>↑ {sun.rise}</span>
     <span style={{fontSize:11,color:"rgba(255,255,255,0.82)",fontFamily:F}}>↓ {sun.set}</span>
     <span style={{fontSize:10,color:"rgba(255,200,90,0.85)",fontFamily:F}} title="Golden hour starts">✦ {sun.golden}</span>
@@ -943,7 +943,7 @@ function QuoteStrip(){
   const q=IR_QUOTES[doy%IR_QUOTES.length];
   return <div style={{maxWidth:260}}>
     <div style={{fontSize:9,color:"rgba(255,255,255,0.68)",fontFamily:F,fontStyle:"italic",lineHeight:1.45}}>"{q.q}"</div>
-    <div style={{fontSize:8,color:"rgba(255,255,255,0.35)",fontFamily:F,marginTop:2}}>— {q.a}</div>
+    <div style={{fontSize:8,color:"rgba(255,255,255,0.62)",fontFamily:F,marginTop:2}}>— {q.a}</div>
   </div>;
 }
 
@@ -960,7 +960,7 @@ function CountdownStrip({tasks,trips}){
   const days=Math.ceil((fromStr(next.date)-new Date())/86400000);
   return <div style={{display:"flex",alignItems:"baseline",gap:5}}>
     <span style={{fontSize:26,fontWeight:900,fontFamily:F,color:"rgba(255,255,255,0.92)",letterSpacing:"-1.5px",lineHeight:1}}>{days}</span>
-    <span style={{fontSize:8,color:"rgba(255,255,255,0.38)",fontFamily:F,textTransform:"uppercase",letterSpacing:"0.07em"}}>days</span>
+    <span style={{fontSize:8,color:"rgba(255,255,255,0.65)",fontFamily:F,textTransform:"uppercase",letterSpacing:"0.07em"}}>days</span>
     <span style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontFamily:F,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{next.label}</span>
   </div>;
 }
@@ -1069,10 +1069,10 @@ function WeatherWidget(){
         const hi=fc.maxtemperature!=null?`${Math.round(fc.maxtemperature)}°`:"–";
         const lo=fc.mintemperature!=null?`${Math.round(fc.mintemperature)}°`:"";
         return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-          <span style={{fontSize:7,color:"rgba(255,255,255,0.45)",fontFamily:F,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",lineHeight:1}}>{dayName}</span>
+          <span style={{fontSize:7,color:"rgba(255,255,255,0.70)",fontFamily:F,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",lineHeight:1}}>{dayName}</span>
           {fc.iconurl&&<img src={fc.iconurl} width={18} height={18} alt={nlToEn(fc.weatherdescription||"")} title={nlToEn(fc.weatherdescription||"")} style={{imageRendering:"crisp-edges",filter:"brightness(1.15)"}}/>}
           <span style={{fontSize:9,color:"rgba(255,255,255,0.85)",fontFamily:F,fontWeight:600,lineHeight:1}}>{hi}</span>
-          {lo&&<span style={{fontSize:7,color:"rgba(255,255,255,0.4)",fontFamily:F,lineHeight:1}}>{lo}</span>}
+          {lo&&<span style={{fontSize:7,color:"rgba(255,255,255,0.65)",fontFamily:F,lineHeight:1}}>{lo}</span>}
         </div>;
       })}
     </div>}
@@ -1806,7 +1806,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             }
           </div>
         ))}
-        {incomeEnv.length===0&&<div style={{fontSize:9,color:T.textLt,fontFamily:F,padding:"4px 8px",opacity:0.45}}>No income sources planned yet</div>}
+        {incomeEnv.length===0&&<div style={{fontSize:9,color:T.textLt,fontFamily:F,padding:"4px 8px",opacity:0.75}}>No income sources planned yet</div>}
       </div>
 
       {/* Expense envelopes */}
@@ -1854,7 +1854,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             }
           </div>;
         })}
-        {expEnv.length===0&&<div style={{fontSize:9,color:T.textLt,fontFamily:F,padding:"4px 8px",opacity:0.45}}>No expense envelopes yet</div>}
+        {expEnv.length===0&&<div style={{fontSize:9,color:T.textLt,fontFamily:F,padding:"4px 8px",opacity:0.75}}>No expense envelopes yet</div>}
 
         {showEnvEdit==="new"&&
           <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:2}}>
@@ -1958,7 +1958,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           </div>
         )}
         {entries.length===0&&!showAdd&&
-          <div style={{textAlign:"center",padding:20,opacity:0.3,fontSize:11,color:T.textLt,fontFamily:F}}>No entries for {monLabel}</div>
+          <div style={{textAlign:"center",padding:20,opacity:0.65,fontSize:11,color:T.textLt,fontFamily:F}}>No entries for {monLabel}</div>
         }
       </div>
     </div>}
@@ -3587,7 +3587,7 @@ function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
           padding:"8px 2px",
         }}>
           {/* Number */}
-          <span style={{fontSize:9,fontWeight:700,color:T.textLt,letterSpacing:"0.06em",width:22,flexShrink:0,userSelect:"none",opacity:task.completed?0.35:0.6}}>{num}</span>
+          <span style={{fontSize:9,fontWeight:700,color:T.textLt,letterSpacing:"0.06em",width:22,flexShrink:0,userSelect:"none",opacity:task.completed?0.5:0.85}}>{num}</span>
           {/* Checkbox */}
           <button onClick={()=>toggle(task.id)} style={{flexShrink:0,marginRight:8,width:13,height:13,borderRadius:2,border:`1.5px solid ${task.completed?T.mint:alpha(T.textLt,.5)}`,background:task.completed?T.mint:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
             {task.completed&&<span style={{fontSize:7,color:T.bg,lineHeight:1}}>✓</span>}
@@ -3600,7 +3600,7 @@ function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
           {/* Date */}
           {urg&&<span style={{fontSize:9,fontWeight:700,color:urg.color,fontFamily:F,letterSpacing:"0.04em",flexShrink:0,marginLeft:6}}>{urg.label}</span>}
           {/* Delete */}
-          <button onClick={()=>del(task.id)} style={{flexShrink:0,background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,padding:"0 0 0 6px",lineHeight:1,opacity:0.4}}>×</button>
+          <button onClick={()=>del(task.id)} style={{flexShrink:0,background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,padding:"0 0 0 6px",lineHeight:1,opacity:0.7}}>×</button>
         </div>;
       })}
       {!pageMode&&shown.length>8&&<div style={{fontSize:9,color:T.textMd,textAlign:"center",fontFamily:F,padding:"8px 0",letterSpacing:"0.08em"}}>+{shown.length-8} MORE</div>}
