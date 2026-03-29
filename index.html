@@ -1631,6 +1631,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const [catAdd,setCatAdd]=useState(null);
   const [quickRec,setQuickRec]=useState(null); // env.id | null
   const [quickForm,setQuickForm]=useState({amount:"",date:todayStr,desc:""});
+  const [planCell,setPlanCell]=useState(null); // {month,cat} | null
+  const [planVal,setPlanVal]=useState("");
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
@@ -1714,22 +1716,32 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const envFormCats=envForm.type==="expense"?expCats:incCats;
   const curPickerIcon=pickerFor==="new"?catAdd?.icon:(budgetCats.find(c=>c.id===pickerFor)||{}).icon;
 
-  const trendData=useMemo(()=>{
+  const planMonths=useMemo(()=>{
     const ms=[];
-    for(let i=5;i>=0;i--){
-      const d=new Date(mon+"-01");d.setMonth(d.getMonth()-i);
-      const m=toStr(d).slice(0,7);
-      const me=budget.filter(e=>e.date.startsWith(m));
-      const inc=me.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
-      const exp=me.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
-      const menv=envelopes.filter(e=>e.month===m);
-      const bInc=menv.filter(e=>e.type==="income").reduce((s,e)=>s+e.budgeted,0);
-      const bExp=menv.filter(e=>e.type==="expense").reduce((s,e)=>s+e.budgeted,0);
-      ms.push({m,label:MONS3[parseInt(m.split("-")[1])-1]||m.slice(5),inc,exp,net:inc-exp,bInc,bExp,isCur:m===mon});
-    }
+    for(let i=0;i<6;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
     return ms;
-  },[budget,envelopes,mon]);
-  const trendMax=useMemo(()=>Math.max(1,...trendData.map(d=>Math.max(d.inc,d.exp,d.bInc,d.bExp))),[trendData]);
+  },[]);
+  function getPlanAmt(m,cat){return envelopes.find(e=>e.month===m&&e.category===cat)?.budgeted||0;}
+  function setPlanAmt(m,cat,type,val){
+    const amt=parseFloat(val);
+    if(isNaN(amt)||amt<0)return;
+    setEnvelopes(prev=>{
+      const ex=prev.find(e=>e.month===m&&e.category===cat);
+      if(ex)return prev.map(e=>e.month===m&&e.category===cat?{...e,budgeted:amt}:e);
+      return[...prev,{id:uid(),month:m,category:cat,type,budgeted:amt,isFixed:false}];
+    });
+  }
+  function fillPlanRow(cat,type,amt){
+    setEnvelopes(prev=>{
+      let u=[...prev];
+      planMonths.forEach(m=>{
+        const i=u.findIndex(e=>e.month===m&&e.category===cat);
+        if(i>=0){u[i]={...u[i],budgeted:amt};}
+        else{u.push({id:uid(),month:m,category:cat,type,budgeted:amt,isFixed:false});}
+      });
+      return u;
+    });
+  }
 
   const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
 
@@ -1750,7 +1762,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
     {/* Tab strip */}
     <div style={{display:"flex",gap:3,flexShrink:0,background:alpha(T.border,.2),borderRadius:8,padding:3}}>
-      {[["plan","Plan"],["log","Log"],["trends","Trends"],["cats","Categories"]].map(([id,label])=>(
+      {[["plan","Plan"],["log","Log"],["trends","6M Plan"],["cats","Categories"]].map(([id,label])=>(
         <button key={id} onClick={()=>{setTab(id);setPickerFor(null);}} style={{flex:1,padding:"4px 0",borderRadius:5,border:"none",cursor:"pointer",fontFamily:F,fontSize:9,fontWeight:tab===id?700:400,background:tab===id?T.card:"transparent",color:tab===id?T.text:T.textLt,transition:"all 0.12s"}}>{label}</button>
       ))}
     </div>
@@ -2017,55 +2029,112 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       </div>
     </div>}
 
-    {/* ── TRENDS TAB ── */}
-    {tab==="trends"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
-      <div style={{borderRadius:10,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.22)}`,padding:"12px 10px 8px"}}>
-        <div style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>6-Month Overview</div>
-        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:82}}>
-          {trendData.map(d=>{
-            const incH=Math.max(2,(d.inc/trendMax)*74);
-            const expH=Math.max(2,(d.exp/trendMax)*74);
-            const bIncH=Math.max(1,(d.bInc/trendMax)*74);
-            const bExpH=Math.max(1,(d.bExp/trendMax)*74);
-            return <div key={d.m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-              <div style={{display:"flex",gap:1,alignItems:"flex-end",height:74}}>
-                {d.bInc>0&&<div title={`Budget income €${d.bInc.toFixed(0)}`} style={{width:6,height:bIncH,borderRadius:"2px 2px 0 0",border:`1px dashed ${alpha(T.mint,.45)}`,background:"transparent",flexShrink:0}}/>}
-                <div title={`Income €${d.inc.toFixed(0)}`} style={{width:6,height:incH,borderRadius:"2px 2px 0 0",background:alpha(T.mint,.65),flexShrink:0}}/>
-                {d.bExp>0&&<div title={`Budget expense €${d.bExp.toFixed(0)}`} style={{width:6,height:bExpH,borderRadius:"2px 2px 0 0",border:`1px dashed ${alpha(T.pink,.45)}`,background:"transparent",flexShrink:0}}/>}
-                <div title={`Expenses €${d.exp.toFixed(0)}`} style={{width:6,height:expH,borderRadius:"2px 2px 0 0",background:alpha(T.pink,.65),flexShrink:0}}/>
-              </div>
-              <div style={{fontSize:7,color:d.isCur?T.mint:T.textLt,fontFamily:F,fontWeight:d.isCur?700:400,lineHeight:1}}>{d.label}</div>
+    {/* ── 6-MONTH PLANNER TAB ── */}
+    {tab==="trends"&&<div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:0}}>
+      <div style={{minWidth:400}}>
+
+        {/* Column headers */}
+        <div style={{display:"flex",alignItems:"center",paddingBottom:5,borderBottom:`1px solid ${alpha(T.border,.3)}`,marginBottom:5,position:"sticky",top:0,background:T.card,zIndex:3}}>
+          <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Category</div>
+          {planMonths.map(m=>{
+            const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
+            const isCur=m===ym0;
+            return <div key={m} style={{width:52,flexShrink:0,textAlign:"center",paddingBottom:2}}>
+              <div style={{fontSize:8,fontWeight:isCur?700:500,color:isCur?T.mint:T.textMd,fontFamily:F,letterSpacing:"0.03em"}}>{lbl}</div>
+              <div style={{fontSize:7,color:T.textLt,fontFamily:F}}>{m.slice(2,4)}</div>
             </div>;
           })}
+          <div style={{width:26,flexShrink:0}}/>
         </div>
-        <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap"}}>
-          {[{c:alpha(T.mint,.65),l:"Income"},{c:alpha(T.pink,.65),l:"Expenses"}].map(({c,l})=>
-            <div key={l} style={{display:"flex",alignItems:"center",gap:3}}>
-              <div style={{width:8,height:8,borderRadius:2,background:c}}/>
-              <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>{l}</span>
-            </div>
-          )}
-          <div style={{display:"flex",alignItems:"center",gap:3}}>
-            <div style={{width:8,height:8,borderRadius:2,border:`1px dashed ${alpha(T.mint,.45)}`}}/>
-            <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>Budgeted</span>
-          </div>
-        </div>
-      </div>
 
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>
-        <div style={{display:"flex",gap:4,padding:"3px 6px"}}>
-          {["Month","Income","Spent","Net"].map((h,i)=>(
-            <span key={h} style={{fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",flex:i===0?1.5:1,textAlign:i===0?"left":"right"}}>{h}</span>
-          ))}
+        {/* ── Income rows ── */}
+        <div style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 0 3px 0",marginBottom:2}}>Income</div>
+        {incCats.map(cat=>{
+          const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
+          return <div key={cat.id} style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2}}>
+            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
+              <Ico n={cat.icon||"dots-three"} size={11}/>
+              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:66}}>{cat.label}</span>
+            </div>
+            {planMonths.map(m=>{
+              const amt=getPlanAmt(m,cat.label);
+              const editing=planCell&&planCell.month===m&&planCell.cat===cat.label;
+              return editing
+                ? <input key={m} autoFocus type="number" min="0" step="1" value={planVal}
+                    onChange={ev=>setPlanVal(ev.target.value)}
+                    onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}}
+                    onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
+                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.mint,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
+                : <div key={m} onClick={()=>{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
+                    title="Click to set amount"
+                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.mint,.1):"transparent",border:`1px solid ${amt>0?alpha(T.mint,.25):"transparent"}`,transition:"background 0.1s"}}>
+                    {amt>0
+                      ? <span style={{fontSize:9,color:T.mint,fontFamily:F,fontWeight:600}}>€{amt}</span>
+                      : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
+                  </div>;
+            })}
+            <div style={{width:26,flexShrink:0,display:"flex",justifyContent:"center"}}>
+              {fixedAmt&&<button onClick={()=>fillPlanRow(cat.label,"income",fixedAmt)} title={`Fill all months · €${fixedAmt}`}
+                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:"pointer",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+                <Ico n="arrows-clockwise" size={9}/>
+              </button>}
+            </div>
+          </div>;
+        })}
+
+        {/* ── Expense rows ── */}
+        <div style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${alpha(T.border,.2)}`}}>Expenses</div>
+        {expCats.map(cat=>{
+          const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
+          return <div key={cat.id} style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2}}>
+            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
+              <Ico n={cat.icon||"dots-three"} size={11}/>
+              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:66}}>{cat.label}</span>
+            </div>
+            {planMonths.map(m=>{
+              const amt=getPlanAmt(m,cat.label);
+              const editing=planCell&&planCell.month===m&&planCell.cat===cat.label;
+              return editing
+                ? <input key={m} autoFocus type="number" min="0" step="1" value={planVal}
+                    onChange={ev=>setPlanVal(ev.target.value)}
+                    onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}}
+                    onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
+                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.pink,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
+                : <div key={m} onClick={()=>{setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
+                    title="Click to set amount"
+                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.pink,.1):"transparent",border:`1px solid ${amt>0?alpha(T.pink,.25):"transparent"}`,transition:"background 0.1s"}}>
+                    {amt>0
+                      ? <span style={{fontSize:9,color:T.pink,fontFamily:F,fontWeight:600}}>€{amt}</span>
+                      : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
+                  </div>;
+            })}
+            <div style={{width:26,flexShrink:0,display:"flex",justifyContent:"center"}}>
+              {fixedAmt&&<button onClick={()=>fillPlanRow(cat.label,"expense",fixedAmt)} title={`Fill all months · €${fixedAmt}`}
+                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:"pointer",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+                <Ico n="arrows-clockwise" size={9}/>
+              </button>}
+            </div>
+          </div>;
+        })}
+
+        {/* ── Totals row ── */}
+        <div style={{display:"flex",alignItems:"flex-start",paddingTop:6,marginTop:4,borderTop:`1px solid ${alpha(T.border,.3)}`}}>
+          <div style={{width:88,flexShrink:0,fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",paddingTop:2}}>Totals</div>
+          {planMonths.map(m=>{
+            const inc=incCats.reduce((s,c)=>s+getPlanAmt(m,c.label),0);
+            const exp=expCats.reduce((s,c)=>s+getPlanAmt(m,c.label),0);
+            const net=inc-exp;
+            const hasAny=inc>0||exp>0;
+            return <div key={m} style={{width:52,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",gap:1,opacity:hasAny?1:0.3}}>
+              {inc>0&&<span style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:600}}>+€{inc.toFixed(0)}</span>}
+              {exp>0&&<span style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:600}}>-€{exp.toFixed(0)}</span>}
+              {hasAny&&<span style={{fontSize:8,color:net>=0?T.mint:T.pink,fontFamily:F,fontWeight:800,borderTop:`1px solid ${alpha(T.border,.35)}`,paddingTop:1,minWidth:38,textAlign:"center"}}>{net>=0?"+":""}€{Math.abs(net).toFixed(0)}</span>}
+              {!hasAny&&<span style={{fontSize:9,color:T.textLt,fontFamily:F}}>—</span>}
+            </div>;
+          })}
+          <div style={{width:26,flexShrink:0}}/>
         </div>
-        {[...trendData].reverse().map(d=>(
-          <div key={d.m} onClick={()=>{setMon(d.m);setTab("plan");}} style={{display:"flex",gap:4,padding:"5px 6px",borderRadius:6,background:d.isCur?alpha(T.mint,.08):alpha(T.border,.1),border:`1px solid ${d.isCur?alpha(T.mint,.2):alpha(T.border,.18)}`,cursor:"pointer"}}>
-            <span style={{fontSize:9,color:d.isCur?T.mint:T.text,fontFamily:F,flex:1.5,fontWeight:d.isCur?700:400}}>{d.label} '{d.m.slice(2,4)}</span>
-            <span style={{fontSize:9,color:T.mint,fontFamily:F,flex:1,textAlign:"right"}}>€{d.inc.toFixed(0)}</span>
-            <span style={{fontSize:9,color:T.pink,fontFamily:F,flex:1,textAlign:"right"}}>€{d.exp.toFixed(0)}</span>
-            <span style={{fontSize:9,color:d.net>=0?T.mint:T.pink,fontFamily:F,flex:1,textAlign:"right",fontWeight:600}}>{d.net>=0?"+":"-"}€{Math.abs(d.net).toFixed(0)}</span>
-          </div>
-        ))}
+
       </div>
     </div>}
 
