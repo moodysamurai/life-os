@@ -1751,6 +1751,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       return u;
     });
   }
+  function clearPlanRow(cat){
+    setEnvelopes(prev=>prev.filter(e=>!(planMonths.includes(e.month)&&e.category===cat)));
+  }
 
   const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
 
@@ -2053,7 +2056,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               <div style={{fontSize:7,color:T.textLt,fontFamily:F}}>{m.slice(2,4)}</div>
             </div>;
           })}
-          <div style={{width:26,flexShrink:0}}/>
+          <div style={{width:50,flexShrink:0}}/>
         </div>
 
         {/* ── Income rows ── */}
@@ -2084,11 +2087,13 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                       : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
                   </div>;
             })}
-            <div style={{width:26,flexShrink:0,display:"flex",justifyContent:"center"}}>
+            <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
               {fixedAmt&&<button onClick={()=>fillPlanRow(cat.label,"income",fixedAmt)} title={`Fill all months · €${fixedAmt}`}
                 style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:"pointer",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
                 <Ico n="arrows-clockwise" size={9}/>
               </button>}
+              <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
+                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.border,.35)}`,background:alpha(T.border,.1),cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
             </div>
           </div>;
         })}
@@ -2121,11 +2126,13 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                       : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
                   </div>;
             })}
-            <div style={{width:26,flexShrink:0,display:"flex",justifyContent:"center"}}>
+            <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
               {fixedAmt&&<button onClick={()=>fillPlanRow(cat.label,"expense",fixedAmt)} title={`Fill all months · €${fixedAmt}`}
                 style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:"pointer",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
                 <Ico n="arrows-clockwise" size={9}/>
               </button>}
+              <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
+                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.border,.35)}`,background:alpha(T.border,.1),cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
             </div>
           </div>;
         })}
@@ -2143,7 +2150,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                   : <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.3}}>—</span>}
               </div>;
             })}
-            <div style={{width:26,flexShrink:0}}/>
+            <div style={{width:50,flexShrink:0}}/>
           </div>
           {/* Running balance row */}
           <div style={{display:"flex",alignItems:"center",background:alpha(T.border,.1),borderRadius:6,padding:"3px 0"}}>
@@ -2163,7 +2170,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                   : <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.3}}>—</span>}
               </div>;
             })}
-            <div style={{width:26,flexShrink:0}}/>
+            <div style={{width:50,flexShrink:0}}/>
           </div>
         </div>
 
