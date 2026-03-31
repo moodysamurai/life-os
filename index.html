@@ -4631,6 +4631,24 @@ function App(){
   useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
   useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
 
+  // Apple Shortcuts / URL import handler
+  // Open: https://moodysamurai.github.io/life-os?bimport=1&amount=12.50&desc=Albert+Heijn&cat=Food&date=2026-04-01
+  useEffect(()=>{
+    const sp=new URLSearchParams(window.location.search);
+    if(sp.get("bimport")==="1"){
+      const amt=parseFloat(sp.get("amount")||"0");
+      const desc=sp.get("desc")||"";
+      const date=sp.get("date")||new Date().toISOString().slice(0,10);
+      const type=(sp.get("type")||"expense").toLowerCase()==="income"?"income":"expense";
+      const cat=sp.get("cat")||"Other";
+      if(amt>0){
+        setBudget(p=>[...p,{id:uid(),date,amount:amt,type,category:cat,description:desc}]);
+        setPage("budget");
+      }
+      history.replaceState({},"",window.location.pathname);
+    }
+  },[]);// eslint-disable-line
+
   // Load from Gist on mount
   useEffect(()=>{
     if(!syncToken||!syncGistId){syncReadyRef.current=true;return;}
