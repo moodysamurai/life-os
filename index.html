@@ -4094,38 +4094,51 @@ Respond ONLY with valid JSON (no markdown):
 
 // ── GIST SYNC ──────────────────────────────────────
 const GIST_FILE="pratham-life-os.json";
-async function gistFetch(token,id){
-  const r=await fetch(`https://api.github.com/gists/${id}`,
-    {headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json"}});
+// ── SUPABASE SYNC ─────────────────────────────────────────────────────────
+async function supaFetch(url,key,id){
+  const r=await fetch(`${url}/rest/v1/lifeos_sync?id=eq.${encodeURIComponent(id)}&select=data`,
+    {headers:{"apikey":key,"Authorization":`Bearer ${key}`}});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
-  const d=await r.json();
-  const c=d.files[GIST_FILE]?.content;
-  if(!c)return {};
-  try{return JSON.parse(c);}
-  catch(e){
-    // Gist content is truncated/corrupted (usually caused by a previous oversized push).
-    // Return empty so the app loads fine with local data; the auto-push will repair the Gist.
-    console.warn("Gist JSON corrupt — will self-repair on next push:",e.message);
-    return {};
-  }
+  const rows=await r.json();
+  return rows[0]?.data||{};
 }
-async function gistPush(token,id,payload){
-  const r=await fetch(`https://api.github.com/gists/${id}`,{
-    method:"PATCH",
-    headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},
-    body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(payload,null,2)}}})
-  });
-  if(!r.ok)throw new Error(`HTTP ${r.status}`);
-}
-async function gistCreate(token){
-  const r=await fetch("https://api.github.com/gists",{
+async function supaPush(url,key,id,payload){
+  const r=await fetch(`${url}/rest/v1/lifeos_sync`,{
     method:"POST",
-    headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},
-    body:JSON.stringify({description:"Life OS – synced data",public:false,
-      files:{[GIST_FILE]:{content:JSON.stringify({})}}})
+    headers:{"apikey":key,"Authorization":`Bearer ${key}`,"Content-Type":"application/json",
+              "Prefer":"resolution=merge-duplicates,return=minimal"},
+    body:JSON.stringify({id,data:payload,updated_at:new Date().toISOString()})
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
-  const d=await r.json();return d.id;
+}
+function supaRealtime(url,key,id,onData){
+  // Connect to Supabase Realtime and listen for UPDATE on this row
+  const wsUrl=url.replace(/^https/,"wss").replace(/^http/,"ws")+`/realtime/v1/websocket?apikey=${key}&vsn=1.0.0`;
+  let ws,hb,dead=false;
+  function connect(){
+    if(dead)return;
+    ws=new WebSocket(wsUrl);
+    let ref=0;
+    ws.onopen=()=>{
+      hb=setInterval(()=>ws.readyState===1&&ws.send(JSON.stringify({topic:"phoenix",event:"heartbeat",payload:{},ref:String(++ref)})),25000);
+      ws.send(JSON.stringify({
+        topic:"realtime:lifeos",event:"phx_join",ref:String(++ref),
+        payload:{config:{broadcast:{self:false},presence:{key:""},
+          postgres_changes:[{event:"UPDATE",schema:"public",table:"lifeos_sync",filter:`id=eq.${id}`}]}}
+      }));
+    };
+    ws.onmessage=e=>{
+      try{
+        const m=JSON.parse(e.data);
+        if(m.event==="postgres_changes"&&m.payload?.data?.record?.data)
+          onData(m.payload.data.record.data);
+      }catch{}
+    };
+    ws.onclose=()=>{clearInterval(hb);if(!dead)setTimeout(connect,5000);}; // auto-reconnect
+    ws.onerror=()=>ws.close();
+  }
+  connect();
+  return {close(){dead=true;clearInterval(hb);ws&&ws.close();}};
 }
 function applyGistData(data,setters){
   const{setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
@@ -4290,48 +4303,55 @@ Respond ONLY with valid JSON (no markdown):
   </ModalShell>;
 }
 
-function SyncModal({onClose,syncToken,setSyncToken,syncGistId,setSyncGistId,onConnect}){
+function SyncModal({onClose,supaUrl,setSupaUrl,supaKey,setSupaKey,supaId,setSupaId,onConnect,connected}){
   const T=useContext(TC);
-  const[tok,setTok]=useState(syncToken);
-  const[gid,setGid]=useState(syncGistId);
+  const[url,setUrl]=useState(supaUrl);
+  const[key,setKey]=useState(supaKey);
+  const[id,setId]=useState(supaId);
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState("");
+  const inp={background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 10px",
+    color:T.text,fontFamily:F,fontSize:12,width:"100%",boxSizing:"border-box",outline:"none"};
   async function handle(){
-    if(!tok.trim()){setErr("A GitHub token is required.");return;}
+    const u=url.trim().replace(/\/$/,"");
+    const k=key.trim();
+    if(!u||!k){setErr("Project URL and Anon Key are required.");return;}
     setBusy(true);setErr("");
     try{
-      let id=gid.trim();
-      if(!id){id=await gistCreate(tok.trim());}
-      const data=await gistFetch(tok.trim(),id);
-      setSyncToken(tok.trim());setSyncGistId(id);
+      let sid=id.trim()||crypto.randomUUID();
+      const data=await supaFetch(u,k,sid);
+      setSupaUrl(u);setSupaKey(k);setSupaId(sid);
+      setId(sid);
       onConnect(data);onClose();
     }catch(e){setErr(""+e.message);}
     finally{setBusy(false);}
   }
-  const inp={background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 10px",
-    color:T.text,fontFamily:F,fontSize:12,width:"100%",boxSizing:"border-box",outline:"none"};
-  return <ModalShell title="☁ Cloud Sync" onClose={onClose}>
+  return <ModalShell title="☁ Cloud Sync — Supabase" onClose={onClose}>
     <p style={{fontSize:12,color:T.textMd,marginBottom:12,lineHeight:1.6}}>
-      Sync your data across devices using a private GitHub Gist.<br/>
-      You'll need a <b>Personal Access Token</b> with <code style={{background:T.cardAlt,borderRadius:4,padding:"1px 4px"}}>gist</code> scope — create one at <span style={{color:T.mint}}>github.com → Settings → Developer settings → Tokens</span>.
+      Real-time sync across all devices via <b>Supabase</b> (free tier, no limits for personal use).<br/>
+      <span style={{color:T.mint,fontSize:11}}>supabase.com → New project → Settings → API</span>
     </p>
-    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>GitHub Personal Access Token</label>
-    <input value={tok} onChange={e=>setTok(e.target.value)} placeholder="ghp_…" style={{...inp,marginBottom:10}} type="password" autoComplete="off"/>
-    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:4}}>
-      Gist ID <span style={{opacity:0.55,fontWeight:400}}>(leave blank to create a new private Gist)</span>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:3}}>Project URL</label>
+    <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://xxxx.supabase.co"
+      style={{...inp,marginBottom:10}} autoComplete="off"/>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:3}}>Anon Public Key</label>
+    <input value={key} onChange={e=>setKey(e.target.value)} placeholder="eyJhbGci…"
+      style={{...inp,marginBottom:10}} type="password" autoComplete="off"/>
+    <label style={{fontSize:11,color:T.textMd,display:"block",marginBottom:3}}>
+      Sync ID <span style={{opacity:0.55,fontWeight:400}}>(leave blank to auto-generate · share across devices)</span>
     </label>
-    <input value={gid} onChange={e=>setGid(e.target.value)} placeholder="e.g. a1b2c3d4e5f6…" style={{...inp,marginBottom:14}} autoComplete="off"/>
+    <input value={id} onChange={e=>setId(e.target.value)} placeholder="auto-generated UUID"
+      style={{...inp,marginBottom:14}} autoComplete="off"/>
     {err&&<div style={{fontSize:11,color:"#f87171",marginBottom:10,padding:"6px 9px",background:"#f871711a",borderRadius:6}}>{err}</div>}
     <div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center"}}>
-      {syncGistId&&<Btn small onClick={()=>{setSyncToken("");setSyncGistId("");onClose();}} style={{color:"#f87171"}}>Disconnect</Btn>}
+      {connected&&<Btn small onClick={()=>{setSupaUrl("");setSupaKey("");setSupaId("");onClose();}} style={{color:"#f87171"}}>Disconnect</Btn>}
       <span style={{flex:1}}/>
       <Btn small onClick={onClose}>Cancel</Btn>
-      <Btn small primary onClick={handle} disabled={busy}>
-        {busy?"Connecting…":gid.trim()?"Connect":"Create & Connect"}
-      </Btn>
+      <Btn small primary onClick={handle} disabled={busy}>{busy?"Connecting…":"Connect"}</Btn>
     </div>
-    {syncGistId&&<div style={{marginTop:12,padding:"8px 10px",background:T.cardAlt,borderRadius:7,fontSize:10,color:T.textMd,wordBreak:"break-all"}}>
-      <span style={{opacity:0.6}}>Gist ID: </span>{syncGistId}
+    {supaId&&<div style={{marginTop:12,padding:"8px 10px",background:T.cardAlt,borderRadius:7,fontSize:10,color:T.textMd,wordBreak:"break-all"}}>
+      <span style={{opacity:0.6}}>Sync ID: </span>{supaId}
+      <span style={{opacity:0.5,marginLeft:6,fontSize:9}}>(copy this to other devices)</span>
     </div>}
   </ModalShell>;
 }
@@ -4632,11 +4652,13 @@ function App(){
   const [showAppleCal,setShowAppleCal]=useState(false);
   const zoom=1.35;
 
-  // ── Cloud sync ──
-  const [syncToken,setSyncToken]=useState(()=>lg("plo3_sync_token",""));
-  const [syncGistId,setSyncGistId]=useState(()=>lg("plo3_sync_gist",""));
+  // ── Cloud sync (Supabase) ──
+  const [supaUrl,setSupaUrl]=useState(()=>lg("plo3_supa_url",""));
+  const [supaKey,setSupaKey]=useState(()=>lg("plo3_supa_key",""));
+  const [supaId,setSupaId]=useState(()=>lg("plo3_supa_id",""));
   const [syncStatus,setSyncStatus]=useState("idle"); // idle|loading|ok|err
   const [showSyncModal,setShowSyncModal]=useState(false);
+  const supaRtRef=useRef(null); // realtime channel handle
   const [showWeeklyReview,setShowWeeklyReview]=useState(false);
   const isSunday=new Date().getDay()===0;
   const syncTimerRef=useRef(null);
@@ -4705,8 +4727,9 @@ function App(){
   useEffect(()=>ls("plo3_budget_cats",budgetCats),[budgetCats]);
   useEffect(()=>ls("plo3_nav_order",navOrder),[navOrder]);
   useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
-  useEffect(()=>ls("plo3_sync_token",syncToken),[syncToken]);
-  useEffect(()=>ls("plo3_sync_gist",syncGistId),[syncGistId]);
+  useEffect(()=>ls("plo3_supa_url",supaUrl),[supaUrl]);
+  useEffect(()=>ls("plo3_supa_key",supaKey),[supaKey]);
+  useEffect(()=>ls("plo3_supa_id",supaId),[supaId]);
 
   // Apple Shortcuts / URL import handler
   // Open: https://moodysamurai.github.io/life-os?bimport=1&amount=12.50&desc=Albert+Heijn&cat=Food&date=2026-04-01
@@ -4726,51 +4749,48 @@ function App(){
     }
   },[]);// eslint-disable-line
 
-  // Shared pull helper — used on mount, polling, and manual sync-now
-  const pullGist=React.useCallback(()=>{
-    if(!syncToken||!syncGistId) return;
-    setSyncStatus("loading");
-    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
-                   setBudget,setEnvelopes,setBudgetCats,
-                   setLayout,setWidgets,setNavOrder,setMinimised};
-    gistFetch(syncToken,syncGistId)
-      .then(data=>{applyGistData(data,setters);setSyncStatus("ok");})
-      .catch(()=>setSyncStatus("err"));
-  },[syncToken,syncGistId]);// eslint-disable-line
+  // ── Supabase sync helpers ──
+  const supaSetters=React.useMemo(()=>({setTasks,setTrips,setGoals,setCompletions,setNotes,
+    setScratchpads,setBingo,setBudget,setEnvelopes,setBudgetCats,
+    setLayout,setWidgets,setNavOrder,setMinimised}),[]);// eslint-disable-line
 
-  // Load from Gist on mount
-  useEffect(()=>{
-    if(!syncToken||!syncGistId){syncReadyRef.current=true;return;}
+  const pullSupa=React.useCallback(()=>{
+    if(!supaUrl||!supaKey||!supaId)return;
     setSyncStatus("loading");
-    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
-                   setBudget,setEnvelopes,setBudgetCats,
-                   setLayout,setWidgets,setNavOrder,setMinimised};
-    gistFetch(syncToken,syncGistId)
-      .then(data=>{applyGistData(data,setters);setSyncStatus("ok");})
+    supaFetch(supaUrl,supaKey,supaId)
+      .then(data=>{applyGistData(data,supaSetters);setSyncStatus("ok");})
+      .catch(()=>setSyncStatus("err"));
+  },[supaUrl,supaKey,supaId,supaSetters]);// eslint-disable-line
+
+  // Mount: pull + start realtime
+  useEffect(()=>{
+    if(!supaUrl||!supaKey||!supaId){syncReadyRef.current=true;return;}
+    setSyncStatus("loading");
+    supaFetch(supaUrl,supaKey,supaId)
+      .then(data=>{applyGistData(data,supaSetters);setSyncStatus("ok");})
       .catch(()=>setSyncStatus("err"))
       .finally(()=>{syncReadyRef.current=true;});
-  },[]);// eslint-disable-line
+    // Start realtime WebSocket
+    if(supaRtRef.current)supaRtRef.current.close();
+    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,data=>{
+      applyGistData(data,supaSetters);setSyncStatus("ok");
+    });
+    return()=>{if(supaRtRef.current){supaRtRef.current.close();supaRtRef.current=null;}};
+  },[supaUrl,supaKey,supaId]);// eslint-disable-line
 
-  // Poll every 60s to pull latest from Gist (keeps all devices up to date without manual refresh)
+  // Auto-push on data changes (debounced 2s)
   useEffect(()=>{
-    if(!syncToken||!syncGistId) return;
-    const t=setInterval(()=>pullGist(),60000);
-    return()=>clearInterval(t);
-  },[syncToken,syncGistId,pullGist]);// eslint-disable-line
-
-  // Auto-push on data changes (debounced 2.5s)
-  useEffect(()=>{
-    if(!syncReadyRef.current||!syncToken||!syncGistId)return;
+    if(!syncReadyRef.current||!supaUrl||!supaKey||!supaId)return;
     clearTimeout(syncTimerRef.current);
     setSyncStatus("loading");
     syncTimerRef.current=setTimeout(()=>{
-      // photos excluded — base64 images are too large for Gist; they persist in localStorage per device
+      // photos excluded — too large; persist in localStorage per device
       const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,
                      layout,widgets,navOrder,minimised:[...minimised]};
-      gistPush(syncToken,syncGistId,payload)
+      supaPush(supaUrl,supaKey,supaId,payload)
         .then(()=>setSyncStatus("ok"))
         .catch(()=>setSyncStatus("err"));
-    },2500);
+    },2000);
     return()=>clearTimeout(syncTimerRef.current);
   },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,layout,widgets,navOrder,minimised]);// eslint-disable-line
 
@@ -5009,11 +5029,11 @@ function App(){
             {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}><Ico n="magnifying-glass" size={13}/> <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
             <Btn small
-              onClick={()=>syncGistId?pullGist():setShowSyncModal(true)}
+              onClick={()=>supaId?pullSupa():setShowSyncModal(true)}
               onDoubleClick={()=>setShowSyncModal(true)}
-              title={syncGistId?"Click to sync now · Double-click to manage":"Enable cloud sync"}
+              title={supaId?"Click to sync now · Double-click to manage":"Enable cloud sync"}
               style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
-              {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:syncGistId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
+              {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:supaId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
             </Btn>
             <Btn small onClick={()=>setShowAppleCal(true)} title={appleCal.enabled?"Apple Calendar synced — click to manage":"Connect Apple Calendar"} style={{fontSize:11,color:appleStatus==="ok"?"#FA243C":appleStatus==="err"?"#f87171":appleStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               <Ico n={appleCal.enabled?"calendar-check":"calendar-plus"} size={13}/>
@@ -5158,15 +5178,19 @@ function App(){
 
       {showSyncModal&&<SyncModal
         onClose={()=>setShowSyncModal(false)}
-        syncToken={syncToken} setSyncToken={setSyncToken}
-        syncGistId={syncGistId} setSyncGistId={setSyncGistId}
+        supaUrl={supaUrl} setSupaUrl={setSupaUrl}
+        supaKey={supaKey} setSupaKey={setSupaKey}
+        supaId={supaId}   setSupaId={setSupaId}
+        connected={!!supaId}
         onConnect={data=>{
-          const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
-                         setBudget,setEnvelopes,setBudgetCats,
-                   setLayout,setWidgets,setNavOrder,setMinimised};
-          applyGistData(data,setters);
+          applyGistData(data,supaSetters);
           setSyncStatus("ok");
           syncReadyRef.current=true;
+          // Start realtime after connecting
+          if(supaRtRef.current)supaRtRef.current.close();
+          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,d=>{
+            applyGistData(d,supaSetters);setSyncStatus("ok");
+          });
         }}
       />}
       {/* UNDO TOAST */}
