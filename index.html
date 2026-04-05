@@ -4103,12 +4103,12 @@ async function supaFetch(url,key,id){
   const rows=await r.json();
   return rows[0]?.data||{};
 }
-async function supaPush(url,key,id,payload){
+async function supaPush(url,key,id,payload,ts){
   const r=await fetch(`${url}/rest/v1/lifeos_sync`,{
     method:"POST",
     headers:{"apikey":key,"Authorization":`Bearer ${key}`,"Content-Type":"application/json",
               "Prefer":"resolution=merge-duplicates,return=minimal"},
-    body:JSON.stringify({id,data:payload,updated_at:new Date().toISOString()})
+    body:JSON.stringify({id,data:payload,updated_at:ts})
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
@@ -4131,8 +4131,10 @@ function supaRealtime(url,key,id,onData){
     ws.onmessage=e=>{
       try{
         const m=JSON.parse(e.data);
-        if(m.event==="postgres_changes"&&m.payload?.data?.record?.data)
-          onData(m.payload.data.record.data);
+        if(m.event==="postgres_changes"&&m.payload?.data?.record?.data){
+          const rec=m.payload.data.record;
+          onData(rec.data,rec.updated_at);
+        }
       }catch{}
     };
     ws.onclose=()=>{clearInterval(hb);if(!dead)setTimeout(connect,5000);}; // auto-reconnect
@@ -4663,7 +4665,8 @@ function App(){
   const [supaId,setSupaId]=useState(()=>lg("plo3_supa_id",""));
   const [syncStatus,setSyncStatus]=useState("idle"); // idle|loading|ok|err
   const [showSyncModal,setShowSyncModal]=useState(false);
-  const supaRtRef=useRef(null); // realtime channel handle
+  const supaRtRef=useRef(null);    // realtime channel handle
+  const lastPushTsRef=useRef(null); // timestamp of our last push — used to suppress self-echo
   const [showWeeklyReview,setShowWeeklyReview]=useState(false);
   const isSunday=new Date().getDay()===0;
   const syncTimerRef=useRef(null);
@@ -4777,7 +4780,8 @@ function App(){
       .finally(()=>{syncReadyRef.current=true;});
     // Start realtime WebSocket
     if(supaRtRef.current)supaRtRef.current.close();
-    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,data=>{
+    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(data,ts)=>{
+      if(ts&&ts===lastPushTsRef.current)return; // our own echo — skip
       applyGistData(data,supaSetters);setSyncStatus("ok");
     });
     return()=>{if(supaRtRef.current){supaRtRef.current.close();supaRtRef.current=null;}};
@@ -4792,9 +4796,11 @@ function App(){
       // photos excluded — too large; persist in localStorage per device
       const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,
                      layout,widgets,navOrder,minimised:[...minimised]};
-      supaPush(supaUrl,supaKey,supaId,payload)
+      const ts=new Date().toISOString();
+      lastPushTsRef.current=ts; // record so realtime echo is ignored
+      supaPush(supaUrl,supaKey,supaId,payload,ts)
         .then(()=>setSyncStatus("ok"))
-        .catch(()=>setSyncStatus("err"));
+        .catch(()=>{setSyncStatus("err");lastPushTsRef.current=null;});
     },2000);
     return()=>clearTimeout(syncTimerRef.current);
   },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,layout,widgets,navOrder,minimised]);// eslint-disable-line
@@ -5193,7 +5199,8 @@ function App(){
           syncReadyRef.current=true;
           // Start realtime after connecting
           if(supaRtRef.current)supaRtRef.current.close();
-          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,d=>{
+          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(d,ts)=>{
+            if(ts&&ts===lastPushTsRef.current)return; // our own echo — skip
             applyGistData(d,supaSetters);setSyncStatus("ok");
           });
         }}
