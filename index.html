@@ -4128,7 +4128,8 @@ async function gistCreate(token){
   const d=await r.json();return d.id;
 }
 function applyGistData(data,setters){
-  const{setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo}=setters;
+  const{setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
+        setBudget,setEnvelopes,setBudgetCats}=setters;
   if(data.tasks)       setTasks(data.tasks);
   if(data.trips)       setTrips(data.trips);
   if(data.goals)       setGoals(data.goals);
@@ -4136,6 +4137,9 @@ function applyGistData(data,setters){
   if(data.notes)       setNotes(data.notes);
   if(data.scratchpads) setScratchpads(data.scratchpads);
   if(data.bingo)       setBingo(data.bingo);
+  if(data.budget)      setBudget(data.budget);
+  if(data.envelopes)   setEnvelopes(data.envelopes);
+  if(data.budgetCats)  setBudgetCats(data.budgetCats);
   // photos intentionally excluded — base64 images are too large for Gist (causes truncated JSON)
 }
 
@@ -4721,7 +4725,8 @@ function App(){
   useEffect(()=>{
     if(!syncToken||!syncGistId){syncReadyRef.current=true;return;}
     setSyncStatus("loading");
-    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo};
+    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
+                   setBudget,setEnvelopes,setBudgetCats};
     gistFetch(syncToken,syncGistId)
       .then(data=>{applyGistData(data,setters);setSyncStatus("ok");})
       .catch(()=>setSyncStatus("err"))
@@ -4735,13 +4740,13 @@ function App(){
     setSyncStatus("loading");
     syncTimerRef.current=setTimeout(()=>{
       // photos excluded — base64 images are too large for Gist; they persist in localStorage per device
-      const payload={tasks,trips,goals,bingo,completions,notes,scratchpads};
+      const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats};
       gistPush(syncToken,syncGistId,payload)
         .then(()=>setSyncStatus("ok"))
         .catch(()=>setSyncStatus("err"));
     },2500);
     return()=>clearTimeout(syncTimerRef.current);
-  },[tasks,trips,goals,bingo,completions,notes,scratchpads]);// eslint-disable-line
+  },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats]);// eslint-disable-line
 
   // Apple CalDAV auto-fetch
   useEffect(()=>{
@@ -5126,7 +5131,8 @@ function App(){
         syncToken={syncToken} setSyncToken={setSyncToken}
         syncGistId={syncGistId} setSyncGistId={setSyncGistId}
         onConnect={data=>{
-          const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo};
+          const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
+                         setBudget,setEnvelopes,setBudgetCats};
           applyGistData(data,setters);
           setSyncStatus("ok");
           syncReadyRef.current=true;
