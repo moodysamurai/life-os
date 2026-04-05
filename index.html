@@ -4665,8 +4665,8 @@ function App(){
   const [supaId,setSupaId]=useState(()=>lg("plo3_supa_id",""));
   const [syncStatus,setSyncStatus]=useState("idle"); // idle|loading|ok|err
   const [showSyncModal,setShowSyncModal]=useState(false);
-  const supaRtRef=useRef(null);    // realtime channel handle
-  const lastPushTsRef=useRef(null); // timestamp of our last push — used to suppress self-echo
+  const supaRtRef=useRef(null);      // realtime channel handle
+  const suppressPushRef=useRef(0);   // >0 = currently applying remote data, skip auto-push
   const [showWeeklyReview,setShowWeeklyReview]=useState(false);
   const isSunday=new Date().getDay()===0;
   const syncTimerRef=useRef(null);
@@ -4762,45 +4762,52 @@ function App(){
     setScratchpads,setBingo,setBudget,setEnvelopes,setBudgetCats,
     setLayout,setWidgets,setNavOrder,setMinimised}),[]);// eslint-disable-line
 
+  // Apply remote data without triggering auto-push back
+  function applyRemote(data){
+    suppressPushRef.current++;
+    applyGistData(data,supaSetters);
+    setSyncStatus("ok");
+    // Hold suppress flag long enough for all re-renders + effects to fire, then release
+    setTimeout(()=>{suppressPushRef.current=Math.max(0,suppressPushRef.current-1);},3000);
+  }
+
   const pullSupa=React.useCallback(()=>{
     if(!supaUrl||!supaKey||!supaId)return;
     setSyncStatus("loading");
     supaFetch(supaUrl,supaKey,supaId)
-      .then(data=>{applyGistData(data,supaSetters);setSyncStatus("ok");})
+      .then(data=>applyRemote(data))
       .catch(()=>setSyncStatus("err"));
-  },[supaUrl,supaKey,supaId,supaSetters]);// eslint-disable-line
+  },[supaUrl,supaKey,supaId]);// eslint-disable-line
 
   // Mount: pull + start realtime
   useEffect(()=>{
     if(!supaUrl||!supaKey||!supaId){syncReadyRef.current=true;return;}
     setSyncStatus("loading");
     supaFetch(supaUrl,supaKey,supaId)
-      .then(data=>{applyGistData(data,supaSetters);setSyncStatus("ok");})
+      .then(data=>{applyRemote(data);})
       .catch(()=>setSyncStatus("err"))
       .finally(()=>{syncReadyRef.current=true;});
-    // Start realtime WebSocket
+    // Start realtime WebSocket — fires when another device pushes
     if(supaRtRef.current)supaRtRef.current.close();
-    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(data,ts)=>{
-      if(ts&&ts===lastPushTsRef.current)return; // our own echo — skip
-      applyGistData(data,supaSetters);setSyncStatus("ok");
+    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(data)=>{
+      applyRemote(data);
     });
     return()=>{if(supaRtRef.current){supaRtRef.current.close();supaRtRef.current=null;}};
   },[supaUrl,supaKey,supaId]);// eslint-disable-line
 
-  // Auto-push on data changes (debounced 2s)
+  // Auto-push on data changes (debounced 2s) — skipped while applying remote data
   useEffect(()=>{
     if(!syncReadyRef.current||!supaUrl||!supaKey||!supaId)return;
+    if(suppressPushRef.current>0)return; // remote data being applied — don't echo back
     clearTimeout(syncTimerRef.current);
     setSyncStatus("loading");
     syncTimerRef.current=setTimeout(()=>{
-      // photos excluded — too large; persist in localStorage per device
+      if(suppressPushRef.current>0){setSyncStatus("ok");return;} // double-check before firing
       const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,
                      layout,widgets,navOrder,minimised:[...minimised]};
-      const ts=new Date().toISOString();
-      lastPushTsRef.current=ts; // record so realtime echo is ignored
-      supaPush(supaUrl,supaKey,supaId,payload,ts)
+      supaPush(supaUrl,supaKey,supaId,payload,new Date().toISOString())
         .then(()=>setSyncStatus("ok"))
-        .catch(()=>{setSyncStatus("err");lastPushTsRef.current=null;});
+        .catch(()=>setSyncStatus("err"));
     },2000);
     return()=>clearTimeout(syncTimerRef.current);
   },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,layout,widgets,navOrder,minimised]);// eslint-disable-line
@@ -5194,14 +5201,12 @@ function App(){
         connected={!!supaId}
         onSync={pullSupa}
         onConnect={data=>{
-          applyGistData(data,supaSetters);
-          setSyncStatus("ok");
+          applyRemote(data);
           syncReadyRef.current=true;
           // Start realtime after connecting
           if(supaRtRef.current)supaRtRef.current.close();
-          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(d,ts)=>{
-            if(ts&&ts===lastPushTsRef.current)return; // our own echo — skip
-            applyGistData(d,supaSetters);setSyncStatus("ok");
+          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(d)=>{
+            applyRemote(d);
           });
         }}
       />}
