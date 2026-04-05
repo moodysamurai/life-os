@@ -4721,6 +4721,17 @@ function App(){
     }
   },[]);// eslint-disable-line
 
+  // Shared pull helper — used on mount, polling, and manual sync-now
+  const pullGist=React.useCallback(()=>{
+    if(!syncToken||!syncGistId) return;
+    setSyncStatus("loading");
+    const setters={setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
+                   setBudget,setEnvelopes,setBudgetCats};
+    gistFetch(syncToken,syncGistId)
+      .then(data=>{applyGistData(data,setters);setSyncStatus("ok");})
+      .catch(()=>setSyncStatus("err"));
+  },[syncToken,syncGistId]);// eslint-disable-line
+
   // Load from Gist on mount
   useEffect(()=>{
     if(!syncToken||!syncGistId){syncReadyRef.current=true;return;}
@@ -4732,6 +4743,13 @@ function App(){
       .catch(()=>setSyncStatus("err"))
       .finally(()=>{syncReadyRef.current=true;});
   },[]);// eslint-disable-line
+
+  // Poll every 60s to pull latest from Gist (keeps all devices up to date without manual refresh)
+  useEffect(()=>{
+    if(!syncToken||!syncGistId) return;
+    const t=setInterval(()=>pullGist(),60000);
+    return()=>clearInterval(t);
+  },[syncToken,syncGistId,pullGist]);// eslint-disable-line
 
   // Auto-push on data changes (debounced 2.5s)
   useEffect(()=>{
@@ -4982,7 +5000,11 @@ function App(){
           <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
             {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}><Ico n="magnifying-glass" size={13}/> <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
-            <Btn small onClick={()=>setShowSyncModal(true)} title={syncGistId?"Cloud sync active — click to manage":"Enable cloud sync"} style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
+            <Btn small
+              onClick={()=>syncGistId?pullGist():setShowSyncModal(true)}
+              onDoubleClick={()=>setShowSyncModal(true)}
+              title={syncGistId?"Click to sync now · Double-click to manage":"Enable cloud sync"}
+              style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:syncGistId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
             </Btn>
             <Btn small onClick={()=>setShowAppleCal(true)} title={appleCal.enabled?"Apple Calendar synced — click to manage":"Connect Apple Calendar"} style={{fontSize:11,color:appleStatus==="ok"?"#FA243C":appleStatus==="err"?"#f87171":appleStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
