@@ -4303,7 +4303,7 @@ Respond ONLY with valid JSON (no markdown):
   </ModalShell>;
 }
 
-function SyncModal({onClose,supaUrl,setSupaUrl,supaKey,setSupaKey,supaId,setSupaId,onConnect,connected}){
+function SyncModal({onClose,supaUrl,setSupaUrl,supaKey,setSupaKey,supaId,setSupaId,onConnect,onSync,connected}){
   const T=useContext(TC);
   const[url,setUrl]=useState(supaUrl);
   const[key,setKey]=useState(supaKey);
@@ -4346,6 +4346,7 @@ function SyncModal({onClose,supaUrl,setSupaUrl,supaKey,setSupaKey,supaId,setSupa
     <div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center"}}>
       {connected&&<Btn small onClick={()=>{setSupaUrl("");setSupaKey("");setSupaId("");onClose();}} style={{color:"#f87171"}}>Disconnect</Btn>}
       <span style={{flex:1}}/>
+      {connected&&<Btn small onClick={()=>{onSync();onClose();}}>↻ Sync Now</Btn>}
       <Btn small onClick={onClose}>Cancel</Btn>
       <Btn small primary onClick={handle} disabled={busy}>{busy?"Connecting…":"Connect"}</Btn>
     </div>
@@ -5029,9 +5030,8 @@ function App(){
             {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}><Ico n="magnifying-glass" size={13}/> <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
             <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
             <Btn small
-              onClick={()=>supaId?pullSupa():setShowSyncModal(true)}
-              onDoubleClick={()=>setShowSyncModal(true)}
-              title={supaId?"Click to sync now · Double-click to manage":"Enable cloud sync"}
+              onClick={()=>setShowSyncModal(true)}
+              title={supaId?"Manage cloud sync":"Enable cloud sync"}
               style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:supaId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
             </Btn>
@@ -5182,6 +5182,7 @@ function App(){
         supaKey={supaKey} setSupaKey={setSupaKey}
         supaId={supaId}   setSupaId={setSupaId}
         connected={!!supaId}
+        onSync={pullSupa}
         onConnect={data=>{
           applyGistData(data,supaSetters);
           setSyncStatus("ok");
