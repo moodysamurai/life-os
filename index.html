@@ -427,6 +427,7 @@ const DEFAULT_LAYOUT={
   entropy: {col:1, row:12,cS:5,rS:5},
   radar:   {col:6, row:12,cS:6,rS:5},
   tasks:   {col:12,row:12,cS:5,rS:5},
+  budget:  {col:1, row:17,cS:6,rS:7},
 };
 
 // ── COLLISION RESOLUTION ───────────────────────────
@@ -4629,6 +4630,9 @@ function App(){
     if(d&&(merged[k].row>25||merged[k].col<1||merged[k].col+merged[k].cS-1>GCOLS+1))
       merged[k]={...d};
   }
+  // Migrate: budget was missing from DEFAULT_LAYOUT and fell back to col:1,row:1 — fix it
+  if(merged.budget&&merged.budget.col===1&&merged.budget.row===1&&merged.budget.cS===2&&merged.budget.rS===4)
+    merged.budget={...DEFAULT_LAYOUT.budget};
   return merged;
 });
   const [minimised,setMinimised]=useState(()=>new Set(lg("plo3_minimised",[])));
