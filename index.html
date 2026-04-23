@@ -5712,7 +5712,28 @@ function App(){
 
   // Quote + sun + day
   const [quoteIdx,setQuoteIdx]=useState(()=>Math.floor(Math.random()*PP_QUOTES.length));
-  const sun=useMemo(()=>calcSunTimes(52.1578,4.5353,new Date()),[]);
+  // Sun times: fetch real sunrise/sunset from sunrise-sunset.org, keep local calc as immediate fallback
+  const [sun,setSun]=useState(()=>calcSunTimes(52.1578,4.5353,new Date()));
+  useEffect(()=>{
+    const today=toStr(new Date());
+    const TZ='Europe/Amsterdam';
+    const fmtHM=iso=>{
+      try{return new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:TZ});}
+      catch(e){return null;}
+    };
+    fetch(`https://api.sunrise-sunset.org/json?lat=52.1578&lng=4.5353&date=${today}&formatted=0`)
+      .then(r=>r.json())
+      .then(d=>{
+        if(!d||d.status!=='OK'||!d.results)return;
+        const rise=fmtHM(d.results.sunrise);
+        const set=fmtHM(d.results.sunset);
+        // Golden hour ≈ 1h before sunset (matches prior behavior; civil_twilight_end available if desired)
+        const goldenISO=new Date(new Date(d.results.sunset).getTime()-60*60*1000).toISOString();
+        const golden=fmtHM(goldenISO);
+        if(rise&&set&&golden)setSun({rise,set,golden});
+      })
+      .catch(()=>{/* keep local fallback */});
+  },[]);
   const now=new Date();
   const dayOfYear=Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
 
