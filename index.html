@@ -4926,76 +4926,66 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   const now=new Date();
   const hr=now.getHours();
   const tod=hr<12?'morning':hr<18?'afternoon':'evening';
-  const DAYS=['SUN','MON','TUE','WED','THU','FRI','SAT'];
   const DAYS_LONG=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
-  const MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const todayS=toStr(now);
   const openToday=tasks.filter(t=>t.deadline===todayS&&!t.completed);
   const deepTask=tasks.find(t=>t.priority==='high'&&t.deadline===todayS&&!t.completed);
   const nextTrip=trips.filter(t=>t.endDate&&t.endDate>=todayS).sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''))[0];
   const daysToTrip=(nextTrip&&nextTrip.startDate)?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-now)/86400000)):null;
-  const goalsOn=goals.filter(g=>!g.completed&&(g.progress||0)>=50).length;
-  const goalsTotal=goals.filter(g=>!g.completed).length;
   const totalMin=openToday.reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
-  const focusStr=totalMin>0?`${Math.floor(totalMin/60)>0?Math.floor(totalMin/60)+'h ':''}${totalMin%60>0?totalMin%60+'m':''}`.trim():`${(openToday.length*0.8|0)+1}h`;
+  const focusStr=totalMin>0?`${Math.floor(totalMin/60)>0?Math.floor(totalMin/60)+'h ':''}${totalMin%60>0?(totalMin%60)+'m':''}`.trim():(openToday.length>0?`${(openToday.length*0.8|0)+1}h`:'—');
   const quote=PP_QUOTES[quoteIdx%PP_QUOTES.length];
-  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
-  const tinyLbl={fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted};
-  const Stat=({label,val,sub,accent,first,right})=>(
-    <div style={{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:22,paddingRight:16,textAlign:right?'right':'left'}}>
-      <div style={{...eye,justifyContent:right?'flex-end':'flex-start',display:'flex'}}>{label}</div>
-      <div style={{fontFamily:PP_M,fontSize:accent?22:19,fontWeight:500,color:accent?T.mint:T.text,marginTop:10,lineHeight:1.1,fontVariantNumeric:'tabular-nums',letterSpacing:accent?'-0.01em':'0'}}>{val}</div>
-      {sub&&<div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:'0.09em',fontFamily:PP_M,textTransform:'uppercase'}}>{sub}</div>}
+  // Weather (used in AIR column) — independent fetch, cached per mount
+  const[wx,setWx]=useState(null);
+  useEffect(()=>{fetch('https://wttr.in/Leiden?format=j1').then(r=>r.json()).then(d=>{const c=d.current_condition?.[0];if(c)setWx({t:c.temp_C,desc:(c.weatherDesc?.[0]?.value||'').toLowerCase(),wind:c.windspeedKmph});}).catch(()=>{});},[]);
+  const eye={fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted};
+  const tinyLbl={fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted};
+  const Stat=({label,val,sub,accent,first,labelAccent})=>(
+    <div style={{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:24,paddingRight:16}}>
+      <div style={{...eye,color:labelAccent?T.mint:T.muted}}>{label}</div>
+      <div style={{fontFamily:PP_M,fontSize:24,fontWeight:500,color:accent?T.mint:T.text,marginTop:14,lineHeight:1.1,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.01em'}}>{val}</div>
+      {sub&&<div style={{fontFamily:PP_M,fontSize:11,color:T.muted,marginTop:8,letterSpacing:'0.04em',textTransform:'lowercase'}}>{sub}</div>}
     </div>
   );
-  // "SERIAL" — a day-of-year code so the hero feels like a uniquely-printed receipt
-  const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
-  const serial=`№ ${String(doy).padStart(4,'0')} · ${String(now.getFullYear()).slice(2)}`;
+  const deepLabel=deepTask?deepTask.title.split('—')[0].split(':')[0].trim():'';
   return(
-    <div style={{background:T.bg,padding:'34px 1.75rem 0',borderBottom:`1px solid ${T.border}`,position:'relative'}}>
-      {/* Top rule: overline + serial ticker */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18,borderBottom:`1px dashed ${T.border}`,paddingBottom:10}}>
-        <div style={{...tinyLbl}}>To the bearer, {DAYS_LONG[now.getDay()].toLowerCase()} — {tod} edition</div>
-        <div style={{...tinyLbl,color:T.mint}}>{serial}</div>
-      </div>
+    <div style={{background:T.bg,padding:'26px 1.75rem 0',position:'relative'}}>
+      {/* Eyebrow */}
+      <div style={{...tinyLbl,marginBottom:30}}>To the bearer — {DAYS_LONG[now.getDay()].toLowerCase()} {tod}</div>
 
-      {/* Headline + date-stamp */}
-      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
-        <div>
-          <h1 style={{fontFamily:PP_S,fontSize:78,fontWeight:400,lineHeight:0.92,letterSpacing:'-0.038em',margin:'0 0 16px',color:T.text,maxWidth:720}}>
-            Good {tod},<br/><span style={{fontStyle:'italic'}}>Pratham</span><span style={{color:T.mint}}>.</span>
-          </h1>
-          <p style={{fontFamily:PP_S,fontSize:19,color:T.inkSoft||T.textMd,fontWeight:300,fontStyle:'italic',margin:'0 0 24px',maxWidth:640,lineHeight:1.45}}>
-            {openToday.length>0?`${openToday.length} ${openToday.length===1?'thing wants':'things want'} your attention.`:'The day is clear.'}
-            {deepTask&&<> The <span style={{color:T.mint,fontStyle:'normal',fontFamily:PP_M,fontSize:12,letterSpacing:'0.05em'}}>{deepTask.title.split('—')[0].trim().toUpperCase()}</span> is your one deep block.</>}
-            {nextTrip&&nextTrip.destination&&<> {nextTrip.destination.split(',')[0]} {daysToTrip===0?'begins today.':`in ${daysToTrip} ${daysToTrip===1?'day':'days'}.`}</>}
-          </p>
-        </div>
-        {/* Date stamp card */}
-        <div style={{border:`1px solid ${T.text}`,padding:'10px 14px',minWidth:96,textAlign:'center',background:T.card,letterSpacing:'0.02em'}}>
-          <div style={{...tinyLbl,fontSize:7.5,marginBottom:6}}>DISPATCHED</div>
-          <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,letterSpacing:'0.16em'}}>{DAYS[now.getDay()]}</div>
-          <div style={{fontFamily:PP_S,fontSize:44,fontWeight:500,color:T.text,lineHeight:1,margin:'4px 0 2px',letterSpacing:'-0.02em'}}>{String(now.getDate()).padStart(2,'0')}</div>
-          <div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.22em'}}>{MON[now.getMonth()]} {String(now.getFullYear()).slice(2)}</div>
-        </div>
-      </div>
+      {/* Big headline */}
+      <h1 style={{fontFamily:PP_S,fontSize:'clamp(88px, 11vw, 156px)',fontWeight:400,lineHeight:0.92,letterSpacing:'-0.04em',margin:'0 0 30px',color:T.text}}>
+        <span style={{display:'block'}}>Good {tod},</span>
+        <span style={{display:'block',fontStyle:'italic'}}>Pratham<span style={{color:T.mint,fontStyle:'normal'}}>.</span></span>
+      </h1>
+
+      {/* Kicker paragraph */}
+      <p style={{fontFamily:PP_S,fontSize:22,color:T.text,fontWeight:400,fontStyle:'italic',margin:'0 0 40px',maxWidth:920,lineHeight:1.5}}>
+        {openToday.length>0
+          ?`${openToday.length} ${openToday.length===1?'thing wants':'things want'} your attention.`
+          :'The day is clear — draft, walk, or rest.'}
+        {deepTask&&<> The <span style={{display:'inline-block',border:`1px solid ${T.mint}`,background:'rgba(200,65,46,0.08)',color:T.mint,fontFamily:PP_M,fontSize:13,fontWeight:600,letterSpacing:'0.14em',padding:'3px 9px 2px',fontStyle:'normal',verticalAlign:'2px',textTransform:'uppercase',margin:'0 4px'}}>{deepLabel}</span> is your one deep block.</>}
+        {nextTrip&&nextTrip.destination&&<> <span style={{display:'block',marginTop:4}}>{nextTrip.destination.split(',')[0].toUpperCase()} {daysToTrip===0?'begins today.':`is in ${daysToTrip} ${daysToTrip===1?'day':'days'}.`}</span></>}
+      </p>
+
+      {/* Divider rule */}
+      <div style={{borderTop:`1px solid ${T.border}`,margin:'0 0 28px'}}/>
 
       {/* Stat strip */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0,paddingTop:18,borderTop:`1px solid ${T.text}`}}>
-        <Stat first label="SUN" val={sun?`${sun.rise} ↑`:'—'} sub={sun?`set ${sun.set} · golden ${sun.golden}`:''}/>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0,paddingBottom:28}}>
+        <Stat first label="SUN" val={sun?<span>{sun.rise} ↑  {sun.set} ↓</span>:'—'} sub={sun?`golden · ${sun.golden}`:''}/>
         <Stat label="FOCUS" val={focusStr} sub="today · planned"/>
-        <Stat label="GOALS" val={goalsTotal>0?`${goalsOn}/${goalsTotal}`:'—'} sub={goalsTotal>0?'on track':'none queued'}/>
-        <Stat label="NEXT" val={nextTrip&&nextTrip.destination?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?(daysToTrip===0?'today':`in ${daysToTrip} day${daysToTrip===1?'':'s'}`):'no trips'} accent/>
-        <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:22}}>
+        <Stat label="AIR" val={wx?`${wx.t}°`:'—'} sub={wx?`${wx.desc} · ${wx.wind}km/h`:'fetching'}/>
+        <Stat label="NEXT" labelAccent accent val={nextTrip&&nextTrip.destination?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?(daysToTrip===0?'today':`in ${daysToTrip} ${daysToTrip===1?'day':'days'}`):'no trips'}/>
+        <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:24,paddingRight:0}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div style={eye}>QUOTE</div>
-            <button onClick={()=>setQuoteIdx(i=>(i+1)%PP_QUOTES.length)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',padding:0}}>↻ SHUFFLE</button>
+            <button onClick={()=>setQuoteIdx(i=>(i+1)%PP_QUOTES.length)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.14em',padding:0}}>↺ SHUFFLE</button>
           </div>
-          <div style={{fontFamily:PP_S,fontSize:14,fontStyle:'italic',color:T.text,marginTop:10,lineHeight:1.35}}>“{quote.q}”</div>
-          <div style={{fontSize:9,color:T.muted,marginTop:6,letterSpacing:'0.15em',fontFamily:PP_M}}>— {quote.a}</div>
+          <div style={{fontFamily:PP_S,fontSize:15,fontStyle:'italic',color:T.text,marginTop:14,lineHeight:1.4}}>"{quote.q}"</div>
+          <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,marginTop:8,letterSpacing:'0.14em'}}>— {quote.a}</div>
         </div>
       </div>
-      <div style={{height:0,marginTop:20,borderBottom:`1px dashed ${T.border}`}}/>
     </div>
   );
 }
