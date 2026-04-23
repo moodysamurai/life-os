@@ -656,7 +656,7 @@ function SearchModal({tasks,trips,goals,onClose,setModal,setPage}){
   const res=q.length<2?[]:[
     ...tasks.filter(t=>t.title.toLowerCase().includes(lower)).map(t=>({kind:"Task",label:t.title,sub:t.deadline,color:T.yellow,action:()=>{setModal({type:"task",data:t});onClose();}})),
     ...trips.filter(t=>t.destination.toLowerCase().includes(lower)).map(t=>({kind:"Trip",label:t.destination,sub:`${t.startDate}→${t.endDate}`,color:T.mint,action:()=>{setPage("trips");onClose();}})),
-    ...goals.filter(g=>g.title.toLowerCase().includes(lower)).map(g=>({kind:"Goal",label:g.title,sub:`${g.progress||0}%`,color:T.blue,action:()=>{setPage("goals");onClose();}})),
+    ...goals.filter(g=>g.title.toLowerCase().includes(lower)).map(g=>({kind:"Goal",label:g.title,sub:`${g.progress||0}%`,color:T.blue,action:()=>{setPage("plan");onClose();}})),
   ].slice(0,8);
 
   return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:T.overlay,zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"12vh"}}>
@@ -4834,42 +4834,338 @@ function AppleCalModal({cfg,onSave,onClose}){
   </ModalShell>;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ── PAPER PANEL LAYOUT COMPONENTS ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PP_M='"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace';
+const PP_S='"Fraunces","Cormorant Garamond",Georgia,serif';
+
+// ── Tiny Paper Button ─────────────────────────────────────────────────────
+function PpBtn({children,onClick,accent}){
+  const T=useT();const[h,sH]=useState(false);
+  return<button onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} onClick={onClick} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:h?T.text:'transparent',border:`1px solid ${h?T.text:accent?T.mint:T.border}`,borderRadius:3,padding:'5px 12px',cursor:'pointer',color:h?T.bg:accent?T.mint:T.muted,transition:'all .12s',whiteSpace:'nowrap'}}>{children}</button>;
+}
+
+// ── Dispatch Navbar ───────────────────────────────────────────────────────
+function DispatchNavbar({page,setPage,dayOfYear,isMobile}){
+  const T=useT();
+  const NAV=[
+    {id:'today',label:'TODAY'},
+    {id:'plan',label:'PLAN'},
+    {id:'trips',label:'TRIPS'},
+    {id:'money',label:'MONEY'},
+    {id:'review',label:'REVIEW'},
+    {id:'wk',label:'WK'},
+    {id:'settings',label:'⚙',title:'Settings'},
+  ];
+  return(
+    <header style={{background:T.bg,borderBottom:`1px solid ${T.text}`,padding:'0 1.75rem',position:'sticky',top:0,zIndex:100}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',height:42}}>
+        <div style={{display:'flex',alignItems:'center'}}>
+          <button onClick={()=>setPage('today')} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_S,fontSize:18,fontWeight:600,color:T.text,letterSpacing:'-0.01em',padding:'0 16px 0 0'}}>受付係</button>
+          {!isMobile&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',borderLeft:`1px solid ${T.border}`,paddingLeft:16}}>DAILY DISPATCH · NO. {String(dayOfYear).padStart(4,'0')}</div>}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:isMobile?14:26}}>
+          {NAV.map(item=>(
+            <button key={item.id} onClick={()=>setPage(item.id)} title={item.title||item.label} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:page===item.id?T.mint:T.muted,padding:0,lineHeight:1,transition:'color 0.12s'}}>{item.label}</button>
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ── Meta Strip ────────────────────────────────────────────────────────────
+function WeatherMeta(){
+  const T=useT();
+  const[w,setW]=useState(null);
+  useEffect(()=>{fetch('https://wttr.in/Leiden?format=j1').then(r=>r.json()).then(d=>{const c=d.current_condition?.[0];if(c)setW({t:c.temp_C,desc:(c.weatherDesc?.[0]?.value||'').toUpperCase(),wind:c.windspeedKmph});}).catch(()=>{});},[]);
+  return w?<span>{w.t}° · {w.desc} · {w.wind}KM/H</span>:<span>— · —</span>;
+}
+function PaperMetaStrip({sun}){
+  const T=useT();
+  const now=new Date();
+  const D3=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const M3=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const dateStr=`${D3[now.getDay()]} · ${String(now.getDate()).padStart(2,'0')} ${M3[now.getMonth()]} ${now.getFullYear()}`;
+  const wk=Math.ceil((now-new Date(now.getFullYear(),0,1))/604800000);
+  const q=Math.ceil((now.getMonth()+1)/3);
+  const Sep=()=><span style={{color:T.border,margin:'0 14px'}}>|</span>;
+  return(
+    <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`,padding:'5px 1.75rem',display:'flex',alignItems:'center'}}>
+      <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',display:'flex',alignItems:'center',flexWrap:'wrap',gap:0}}>
+        <span>{dateStr}</span><Sep/>
+        <span>WEEK {String(wk).padStart(2,'0')} · Q{q}</span><Sep/>
+        <span>LEIDEN, NL · 52.16°N 4.54°E</span><Sep/>
+        <span>{sun?`${sun.rise} ↑ · ${sun.set} ↓`:'—'}</span><Sep/>
+        <WeatherMeta/>
+      </div>
+    </div>
+  );
+}
+
+// ── Hero ──────────────────────────────────────────────────────────────────
+const PP_QUOTES=[
+  {q:"History is philosophy teaching by examples.",a:"THUCYDIDES"},
+  {q:"War is the continuation of politics by other means.",a:"CLAUSEWITZ"},
+  {q:"The nation is an imagined political community.",a:"BENEDICT ANDERSON"},
+  {q:"It is not power that corrupts but fear.",a:"AUNG SAN SUU KYI"},
+  {q:"Those who cannot remember the past are condemned to repeat it.",a:"SANTAYANA"},
+  {q:"Power is not an institution — it is the name given to a complex strategical situation.",a:"FOUCAULT"},
+  {q:"The strong do what they can and the weak suffer what they must.",a:"THUCYDIDES"},
+];
+function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
+  const T=useT();
+  const now=new Date();
+  const hr=now.getHours();
+  const tod=hr<12?'morning':hr<18?'afternoon':'evening';
+  const DAYS=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  const todayS=toStr(now);
+  const openToday=tasks.filter(t=>t.deadline===todayS&&!t.completed);
+  const deepTask=tasks.find(t=>t.priority==='high'&&t.deadline===todayS&&!t.completed);
+  const nextTrip=trips.filter(t=>t.endDate>=todayS).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0];
+  const daysToTrip=nextTrip?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-now)/86400000)):null;
+  const goalsOn=goals.filter(g=>!g.completed&&(g.progress||0)>=50).length;
+  const goalsTotal=goals.filter(g=>!g.completed).length;
+  const totalMin=openToday.reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
+  const focusStr=totalMin>0?`${Math.floor(totalMin/60)>0?Math.floor(totalMin/60)+'h ':''}${totalMin%60>0?totalMin%60+'m':''}`.trim():`${(openToday.length*0.8|0)+1}h`;
+  const quote=PP_QUOTES[quoteIdx%PP_QUOTES.length];
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
+  const Stat=({label,val,sub,accent,first,action})=>(
+    <div style={{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:20,paddingRight:16}}>
+      <div style={{...eye,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{label}</span>{action}</div>
+      <div style={{fontFamily:PP_M,fontSize:accent?20:18,fontWeight:500,color:accent?T.mint:T.text,marginTop:8,lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{val}</div>
+      {sub&&<div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:'0.08em',fontFamily:PP_M}}>{sub}</div>}
+    </div>
+  );
+  return(
+    <div style={{background:T.bg,padding:'28px 1.75rem 0',borderBottom:`1px solid ${T.border}`}}>
+      <div style={{...eye,marginBottom:12}}>to the bearer — {DAYS[now.getDay()].toLowerCase()} {tod}</div>
+      <h1 style={{fontFamily:PP_S,fontSize:72,fontWeight:400,lineHeight:0.94,letterSpacing:'-0.035em',margin:'0 0 16px',color:T.text,maxWidth:680}}>
+        Good {tod},<br/><span style={{fontStyle:'italic'}}>Pratham</span><span style={{color:T.mint}}>.</span>
+      </h1>
+      <p style={{fontFamily:PP_S,fontSize:18,color:T.textMd,fontWeight:300,fontStyle:'italic',marginBottom:24,maxWidth:680,lineHeight:1.5}}>
+        {openToday.length>0?`${openToday.length} ${openToday.length===1?'thing wants':'things want'} your attention.`:'The day is clear.'}
+        {deepTask&&<> The <span style={{color:T.mint,fontStyle:'normal',fontFamily:PP_M,fontSize:12}}>{deepTask.title.split('—')[0].trim().toUpperCase()}</span> is your one deep block.</>}
+        {nextTrip&&<> {nextTrip.destination.split(',')[0]} is in {daysToTrip} days.</>}
+      </p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,paddingTop:16,borderTop:`1px solid ${T.text}`}}>
+        <Stat first label="SUN" val={sun?`${sun.rise} ↑ ${sun.set} ↓`:'—'} sub={sun?`golden · ${sun.golden}`:''}/>
+        <Stat label="FOCUS" val={focusStr} sub="today · planned"/>
+        <Stat label="GOALS" val={goalsTotal>0?`${goalsOn}/${goalsTotal}`:'—'} sub="on track"/>
+        <Stat label="NEXT" val={nextTrip?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?`in ${daysToTrip} days`:'no trips'} accent/>
+        <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:20}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={eye}>QUOTE</div>
+            <button onClick={()=>setQuoteIdx(i=>(i+1)%PP_QUOTES.length)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em'}}>↻ SHUFFLE</button>
+          </div>
+          <div style={{fontFamily:PP_S,fontSize:13,fontStyle:'italic',color:T.text,marginTop:8,lineHeight:1.35}}>"{quote.q}"</div>
+          <div style={{fontSize:10,color:T.muted,marginTop:6,letterSpacing:'0.12em',fontFamily:PP_M}}>— {quote.a}</div>
+        </div>
+      </div>
+      <div style={{height:1,background:T.border,marginTop:16}}/>
+    </div>
+  );
+}
+
+// ── Today Card ────────────────────────────────────────────────────────────
+function PaperTodayCard({tasks,setTasks,onCapture,setModal}){
+  const T=useT();
+  const now=new Date(),todayS=toStr(now);
+  const todayTasks=tasks.filter(t=>t.deadline===todayS).sort((a,b)=>{
+    const tv=tb=>{if(!tb)return 999;if(tb==='am')return 700;if(tb==='pm')return 1300;const[h,m]=tb.split(':').map(Number);return h*100+(m||0);};
+    return tv(a.timeBlock)-tv(b.timeBlock);
+  });
+  const done=todayTasks.filter(t=>t.completed).length;
+  const remaining=todayTasks.length-done;
+  const deepTask=todayTasks.find(t=>t.priority==='high'&&!t.completed);
+  const nextTask=todayTasks.find(t=>!t.completed);
+  const totalMin=todayTasks.filter(t=>!t.completed).reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
+  const hoursStr=totalMin>0?`~${(totalMin/60).toFixed(1)}H`:`~${(remaining*0.8+0.5|0)||1}H`;
+  const dateLabel=now.toLocaleDateString('en-GB',{month:'long',day:'numeric'}).toUpperCase();
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
+  function toggle(id){setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed}:t));}
+  const fmtTime=tb=>{if(!tb)return'—';if(tb==='am')return'AM';if(tb==='pm')return'PM';return tb;};
+  const fmtKind=t=>{const tags=(t.tags||[]);if(tags.length>0)return tags.join(' · ').toUpperCase();if(t.priority==='high')return'DEEP WORK';return t.type?t.type.toUpperCase():'—';};
+  return(
+    <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+      <div style={{padding:'16px 1.75rem',display:'flex',justifyContent:'space-between',alignItems:'flex-start',borderBottom:`1px solid ${T.border}`}}>
+        <div>
+          <div style={{...eye,color:T.mint,marginBottom:8}}>TODAY · {dateLabel} · {todayTasks.length} ITEM{todayTasks.length!==1?'S':''}</div>
+          <div style={{fontFamily:PP_S,fontSize:24,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.2}}>
+            {remaining===0?'The day is clear.':<>{remaining} {remaining===1?'commitment':'commitments'} remain{deepTask&&<>, <span style={{color:T.mint}}>one deep block</span></>}{remaining>0&&<>, {hoursStr} ahead.</>}</>}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8,flexShrink:0,marginTop:4}}>
+          <button onClick={onCapture} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,borderRadius:3,padding:'5px 12px',cursor:'pointer',color:T.muted}}>+ CAPTURE</button>
+          <button onClick={()=>setModal&&setModal({type:'focus'})} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:T.mint,border:`1px solid ${T.mint}`,borderRadius:3,padding:'5px 12px',cursor:'pointer',color:'#faf7f3'}}>▶ FOCUS</button>
+        </div>
+      </div>
+      <div style={{padding:'0 1.75rem'}}>
+        <div style={{display:'grid',gridTemplateColumns:'76px 18px 1fr 160px 60px',padding:'7px 0',borderBottom:`1px solid ${T.border}`}}>
+          {['TIME','','ITEM','KIND','DUR'].map((h,i)=><div key={i} style={{...eye,color:T.muted,fontSize:8}}>{h}</div>)}
+        </div>
+        {todayTasks.length===0
+          ?<div style={{padding:'24px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16}}>No tasks scheduled today.</div>
+          :todayTasks.map((t,i)=>{
+            const isDone=t.completed,isDeep=t.priority==='high';
+            return(
+              <div key={t.id} onClick={()=>toggle(t.id)} style={{display:'grid',gridTemplateColumns:'76px 18px 1fr 160px 60px',padding:'10px 0',borderBottom:i<todayTasks.length-1?`1px dashed ${T.lineSoft}`:'none',cursor:'pointer',opacity:isDone?0.45:1,transition:'opacity 0.12s'}}>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.muted}}>{fmtTime(t.timeBlock)}</div>
+                <div style={{fontFamily:PP_M,fontSize:12,color:isDone?T.mint:isDeep?T.mint:T.muted}}>{isDone?'✓':isDeep?'●':'○'}</div>
+                <div style={{fontFamily:PP_S,fontSize:15,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em'}}>{t.title}</div>
+                <div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.05em'}}>{fmtKind(t)}</div>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.textMd,textAlign:'right'}}>{t.estimate||''}</div>
+              </div>
+            );
+          })
+        }
+      </div>
+      {todayTasks.length>0&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'8px 1.75rem',borderTop:`1px solid ${T.border}`}}>
+          <div style={{...eye,color:T.muted,fontSize:8}}>{done}/{todayTasks.length} DONE</div>
+          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>{remaining} REMAINING · {hoursStr}</div>
+          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>{nextTask?`NEXT UP · ${fmtTime(nextTask.timeBlock)} ${nextTask.title.slice(0,26).toUpperCase()}`:'ALL CLEAR'}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Footer ────────────────────────────────────────────────────────────────
+function PaperFooter(){
+  const T=useT();
+  const eye={fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:'0.2em',color:T.muted};
+  return(
+    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,padding:'10px 1.75rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{display:'flex',gap:8}}>{[0,1,2,3].map(i=><span key={i} style={{...eye,fontSize:12,color:i===0?T.mint:T.border}}>○</span>)}</div>
+      <div style={eye}>PRINTED LOCALLY · THANK YOU</div>
+      <div style={{...eye,letterSpacing:'0.04em',fontWeight:400}}>{Array.from({length:20},(_,i)=><span key={i} style={{opacity:i%5===4?0.2:0.85}}>|</span>)}</div>
+    </div>
+  );
+}
+
+// ── Page Header ───────────────────────────────────────────────────────────
+function PaperPageHdr({title,sub,action}){
+  const T=useT();
+  return(
+    <div style={{padding:'24px 1.75rem 20px',borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+      {sub&&<div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted,marginBottom:8}}>{sub}</div>}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+        <h2 style={{fontFamily:PP_S,fontSize:44,fontWeight:400,color:T.text,letterSpacing:'-0.025em',lineHeight:0.95,margin:0}}>{title}</h2>
+        {action}
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-pages ─────────────────────────────────────────────────────────────
+function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trips,appleEvents,setModal,setFocusDay,pushUndo,bingo,setBingo,apiKey}){
+  const T=useT();
+  return<div>
+    <PaperPageHdr title="Plan." sub="CALENDAR · GOALS · TASKS" action={<div style={{display:'flex',gap:8}}><PpBtn onClick={()=>setModal({type:'task'})}>+ TASK</PpBtn><PpBtn onClick={()=>setModal({type:'goal'})}>+ GOAL</PpBtn></div>}/>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:`1px solid ${T.border}`}}>
+      <div style={{borderRight:`1px solid ${T.border}`,padding:'24px 1.75rem',overflow:'hidden',minHeight:500}}>
+        <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={true} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={false}/>
+      </div>
+      <div style={{padding:'24px 1.75rem',overflow:'hidden',minHeight:500}}>
+        <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={true} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
+      </div>
+    </div>
+    <div style={{padding:'24px 1.75rem',borderBottom:`1px solid ${T.border}`}}>
+      <TasksWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
+    </div>
+    <PaperFooter/>
+  </div>;
+}
+function TripsPage({trips,setTrips,photos,setPhotos,tripSugg,getTripSugg,loadingSugg,pushUndo,setModal}){
+  return<div>
+    <PaperPageHdr title="Trips." sub="HORIZON · TRAVEL" action={<PpBtn onClick={()=>setModal({type:'trip'})}>+ ADD TRIP</PpBtn>}/>
+    <div style={{padding:'24px 1.75rem'}}>
+      <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:'trip'})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={true}/>
+    </div>
+    <PaperFooter/>
+  </div>;
+}
+function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats}){
+  return<div>
+    <PaperPageHdr title="Money." sub="BUDGET · ENVELOPES · PLAN"/>
+    <div style={{padding:'24px 1.75rem'}}>
+      <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={true}/>
+    </div>
+    <PaperFooter/>
+  </div>;
+}
+function ReviewPage({tasks,setTasks,goals,apiKey,setModal,pushUndo}){
+  return<div>
+    <PaperPageHdr title="Review." sub="WAKULI · WEEKLY DIGEST"/>
+    <div style={{padding:'24px 1.75rem'}}>
+      <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
+    </div>
+    <PaperFooter/>
+  </div>;
+}
+function WkPage({tasks,completions,setCompletions,appleEvents,setModal,setFocusDay}){
+  return<div>
+    <PaperPageHdr title="Week." sub="KANBAN · WEEK VIEW"/>
+    <div style={{padding:'24px 1.75rem'}}>
+      <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={true} appleEvents={appleEvents}/>
+    </div>
+    <PaperFooter/>
+  </div>;
+}
+function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exportJSON,importJSON,exportICS,setModal}){
+  const T=useT();
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
+  return<div>
+    <PaperPageHdr title="Settings." sub="SYSTEM · INTEGRATIONS"/>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:'28px 1.75rem',borderBottom:`1px solid ${T.border}`}}>
+      <div style={{paddingRight:40,borderRight:`1px solid ${T.border}`}}>
+        {[
+          {label:'CLOUD SYNC',status:syncStatus==='ok'?'CONNECTED':syncStatus==='err'?'ERROR':'NOT CONNECTED',ok:syncStatus==='ok',action:onOpenSync,btn:'CONFIGURE'},
+          {label:'APPLE CALENDAR',status:appleCal.enabled?'CONNECTED':'NOT CONNECTED',ok:appleCal.enabled,action:()=>setShowAppleCal(true),btn:'CONFIGURE'},
+          {label:'CLAUDE API KEY',status:apiKey?'CONFIGURED':'NOT SET',ok:!!apiKey,action:()=>setModal({type:'apikey'}),btn:'SET KEY'},
+        ].map(({label,status,ok,action,btn},i)=>(
+          <div key={label} style={{marginBottom:i<2?24:0,paddingBottom:i<2?24:0,borderBottom:i<2?`1px dashed ${T.border}`:'none'}}>
+            <div style={{...eye,marginBottom:10}}>{label}</div>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <span style={{...eye,fontSize:8,color:ok?T.mint:T.muted}}>{ok?'●':'○'} {status}</span>
+              <button onClick={action} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,borderRadius:3,padding:'4px 10px',cursor:'pointer',color:T.muted}}>{btn}</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{paddingLeft:40}}>
+        <div style={{...eye,marginBottom:12}}>DATA</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:28}}>
+          <PpBtn onClick={exportJSON}>⬇ EXPORT</PpBtn>
+          <PpBtn onClick={importJSON}>⬆ IMPORT</PpBtn>
+          <PpBtn onClick={exportICS}>📅 ICS</PpBtn>
+        </div>
+        <div style={{...eye,marginBottom:12}}>KEYBOARD SHORTCUTS</div>
+        <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 14px'}}>
+          {[['N','New task'],['T','New trip'],['G','New goal'],['⌘K','Search'],['/ SPC','Capture'],['ESC','Home']].map(([k,v])=>(
+            <React.Fragment key={k}>
+              <span style={{fontFamily:PP_M,fontSize:8,color:T.mint,border:`1px solid ${T.mint}`,borderRadius:2,padding:'1px 5px',display:'inline-block',letterSpacing:'0.1em'}}>{k}</span>
+              <span style={{fontFamily:PP_M,fontSize:9,color:T.muted,paddingTop:1}}>{v}</span>
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+    <PaperFooter/>
+  </div>;
+}
+
 // ── APP ────────────────────────────────────────────
 function App(){
-  const [theme,setTheme]=useState(()=>lg("plo3_theme","dark"));
-  const [palette,setPalette]=useState(()=>lg("plo3_palette",DEFAULT_PALETTE));
-  const [bgPalette,setBgPalette]=useState(()=>lg("plo3_bgpal",DEFAULT_BGPAL));
-  function cycleTheme(){
-    const idx=THEME_PRESETS.findIndex(p=>p.name===theme);
-    const next=THEME_PRESETS[(idx+1)%THEME_PRESETS.length];
-    setTheme(next.name);setPalette(next.palette);
-  }
-  const activePreset=THEME_PRESETS.find(p=>p.name===theme)||THEME_PRESETS[0];
-  const T=useMemo(()=>activePreset.mode==="paper"?buildPaper():activePreset.mode==="dark"?buildDark(palette):buildLight(palette),[activePreset,palette]);
+  const T=useMemo(()=>buildPaper(),[]);
 
-  const [widgets,setWidgets]=useState(()=>{
-    const s=lg("plo3_widgets",null);
-    return s?WDEFS.map(d=>({...d,...(s.find(w=>w.id===d.id)||{})})):WDEFS;
-  });
-  const [layout,setLayout]=useState(()=>{
-  const s=lg("plo3_layout",null);
-  if(!s) return DEFAULT_LAYOUT;
-  const merged={...DEFAULT_LAYOUT,...s};
-  // Clamp any runaway rows or invalid columns back to defaults
-  for(const k of Object.keys(merged)){
-    const d=DEFAULT_LAYOUT[k];
-    if(d&&(merged[k].row>25||merged[k].col<1||merged[k].col+merged[k].cS-1>GCOLS+1))
-      merged[k]={...d};
-  }
-  // Migrate: budget was missing from DEFAULT_LAYOUT and fell back to col:1,row:1 — fix it
-  if(merged.budget&&merged.budget.col===1&&merged.budget.row===1&&merged.budget.cS===2&&merged.budget.rS===4)
-    merged.budget={...DEFAULT_LAYOUT.budget};
-  return merged;
-});
-  const [minimised,setMinimised]=useState(()=>new Set(lg("plo3_minimised",[])));
-  const toggleMin=id=>setMinimised(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
   const [isMobile,setIsMobile]=useState(()=>window.innerWidth<768);
   useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+
+  // Data state
   const [tasks,setTasks]=useState(()=>lg("plo3_tasks",[]));
   const [trips,setTrips]=useState(()=>lg("plo3_trips",[]));
   const [goals,setGoals]=useState(()=>lg("plo3_goals",[]));
@@ -4886,47 +5182,9 @@ function App(){
   const [appleEvents,setAppleEvents]=useState([]);
   const [appleStatus,setAppleStatus]=useState("idle");
   const [showAppleCal,setShowAppleCal]=useState(false);
-  const zoom=1.35;
 
-  // ── Cloud sync (Supabase) ──
-  const [supaUrl,setSupaUrl]=useState(()=>lg("plo3_supa_url",""));
-  const [supaKey,setSupaKey]=useState(()=>lg("plo3_supa_key",""));
-  const [supaId,setSupaId]=useState(()=>lg("plo3_supa_id",""));
-  const [syncStatus,setSyncStatus]=useState("idle"); // idle|loading|ok|err
-  const [showSyncModal,setShowSyncModal]=useState(false);
-  const supaRtRef=useRef(null);      // realtime channel handle
-  const suppressPushRef=useRef(0);   // >0 = currently applying remote data, skip auto-push
-  const [showWeeklyReview,setShowWeeklyReview]=useState(false);
-  const isSunday=new Date().getDay()===0;
-  const syncTimerRef=useRef(null);
-  const syncReadyRef=useRef(false); // prevents push before initial load
-  const undoStackRef=useRef([]);
-  const [undoToast,setUndoToast]=useState(null);
-  const pushUndo=action=>{undoStackRef.current=[...undoStackRef.current.slice(-9),action];};
-  function doUndo(){
-    const action=undoStackRef.current.pop();
-    if(!action) return;
-    const label=action.payload.title||action.payload.destination||"item";
-    if(action.type==="DELETE_TASK") setTasks(p=>[action.payload,...p]);
-    if(action.type==="DELETE_TRIP") setTrips(p=>[action.payload,...p]);
-    if(action.type==="DELETE_GOAL") setGoals(p=>[action.payload,...p]);
-    setUndoToast(`↩ Restored: ${label}`);
-    clearTimeout(undoStackRef._t);
-    undoStackRef._t=setTimeout(()=>setUndoToast(null),2500);
-  }
-
-  const [page,setPage]=useState(null);
-  const NAV_EXCLUDE=["entropy","embed","radar"];
-  const NAV_BASE=WDEFS.filter(w=>!NAV_EXCLUDE.includes(w.id)).map(w=>w.id);
-  const [navOrder,setNavOrder]=useState(()=>{
-    const saved=lg("plo3_nav_order",null);
-    if(!saved) return NAV_BASE;
-    return [...saved.filter(id=>NAV_BASE.includes(id)),...NAV_BASE.filter(id=>!saved.includes(id))];
-  });
-  const [navDragId,setNavDragId]=useState(null);
-  const [navDragOver,setNavDragOver]=useState(null);
-  const [customizing,setCustomizing]=useState(false);
-  const [showColorPanel,setShowColorPanel]=useState(false);
+  // Page + UI state
+  const [page,setPage]=useState(()=>lg("plo3_page","today"));
   const [modal,setModal]=useState(null);
   const [focusDay,setFocusDay]=useState(null);
   const [searchOpen,setSearchOpen]=useState(false);
@@ -4935,21 +5193,41 @@ function App(){
   const [loadingSugg,setLoadingSugg]=useState(null);
   const captureRef=useRef(null);
 
-  // ── 2D layout state ──
-  const gridRef=useRef(null);
-  const [hoveredWidget,setHoveredWidget]=useState(null);
-  const [ghostDisplay,setGhostDisplay]=useState(null);    // {col,row,cS,rS}
-  const [activeDragId,setActiveDragId]=useState(null);
-  const [activeResizeId,setActiveResizeId]=useState(null);
-  const dragRef=useRef(null);    // {id,cS,rS}
-  const ghostRef=useRef(null);   // mirrors ghostDisplay for mouseup handler
-  const resizeRef=useRef(null);  // {id,type,startMouse,startLayout}
+  // Quote + sun + day
+  const [quoteIdx,setQuoteIdx]=useState(()=>Math.floor(Math.random()*PP_QUOTES.length));
+  const sun=useMemo(()=>calcSunTimes(52.1578,4.5353,new Date()),[]);
+  const now=new Date();
+  const dayOfYear=Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
 
-  useEffect(()=>ls("plo3_theme",theme),[theme]);
-  useEffect(()=>ls("plo3_palette",palette),[palette]);
-  useEffect(()=>ls("plo3_widgets",widgets),[widgets]);
-  useEffect(()=>ls("plo3_layout",layout),[layout]);
-  useEffect(()=>ls("plo3_minimised",[...minimised]),[minimised]);
+  // Cloud sync
+  const [supaUrl,setSupaUrl]=useState(()=>lg("plo3_supa_url",""));
+  const [supaKey,setSupaKey]=useState(()=>lg("plo3_supa_key",""));
+  const [supaId,setSupaId]=useState(()=>lg("plo3_supa_id",""));
+  const [syncStatus,setSyncStatus]=useState("idle");
+  const [showSyncModal,setShowSyncModal]=useState(false);
+  const supaRtRef=useRef(null);
+  const suppressPushRef=useRef(0);
+  const syncTimerRef=useRef(null);
+  const syncReadyRef=useRef(false);
+
+  // Undo
+  const undoStackRef=useRef([]);
+  const [undoToast,setUndoToast]=useState(null);
+  const pushUndo=action=>{undoStackRef.current=[...undoStackRef.current.slice(-9),action];};
+  function doUndo(){
+    const action=undoStackRef.current.pop();
+    if(!action)return;
+    const label=action.payload.title||action.payload.destination||"item";
+    if(action.type==="DELETE_TASK")setTasks(p=>[action.payload,...p]);
+    if(action.type==="DELETE_TRIP")setTrips(p=>[action.payload,...p]);
+    if(action.type==="DELETE_GOAL")setGoals(p=>[action.payload,...p]);
+    setUndoToast(`↩ Restored: ${label}`);
+    clearTimeout(undoStackRef._t);
+    undoStackRef._t=setTimeout(()=>setUndoToast(null),2500);
+  }
+
+  // LocalStorage persistence
+  useEffect(()=>ls("plo3_page",page),[page]);
   useEffect(()=>ls("plo3_tasks",tasks),[tasks]);
   useEffect(()=>ls("plo3_trips",trips),[trips]);
   useEffect(()=>ls("plo3_goals",goals),[goals]);
@@ -4962,14 +5240,12 @@ function App(){
   useEffect(()=>ls("plo3_budget",budget),[budget]);
   useEffect(()=>ls("plo3_envelopes",envelopes),[envelopes]);
   useEffect(()=>ls("plo3_budget_cats",budgetCats),[budgetCats]);
-  useEffect(()=>ls("plo3_nav_order",navOrder),[navOrder]);
   useEffect(()=>ls("plo3_apple_cal",appleCal),[appleCal]);
   useEffect(()=>ls("plo3_supa_url",supaUrl),[supaUrl]);
   useEffect(()=>ls("plo3_supa_key",supaKey),[supaKey]);
   useEffect(()=>ls("plo3_supa_id",supaId),[supaId]);
 
-  // Apple Shortcuts / URL import handler
-  // Open: https://moodysamurai.github.io/life-os?bimport=1&amount=12.50&desc=Albert+Heijn&cat=Food&date=2026-04-01
+  // URL import handler (Apple Shortcuts)
   useEffect(()=>{
     const sp=new URLSearchParams(window.location.search);
     if(sp.get("bimport")==="1"){
@@ -4980,23 +5256,21 @@ function App(){
       const cat=sp.get("cat")||"Other";
       if(amt>0){
         setBudget(p=>[...p,{id:uid(),date,amount:amt,type,category:cat,description:desc}]);
-        setPage("budget");
+        setPage("money");
       }
       history.replaceState({},"",window.location.pathname);
     }
   },[]);// eslint-disable-line
 
-  // ── Supabase sync helpers ──
+  // Supabase sync helpers
   const supaSetters=React.useMemo(()=>({setTasks,setTrips,setGoals,setCompletions,setNotes,
     setScratchpads,setBingo,setBudget,setEnvelopes,setBudgetCats,
-    setLayout,setWidgets,setNavOrder,setMinimised}),[]);// eslint-disable-line
+    setLayout:()=>{},setWidgets:()=>{},setNavOrder:()=>{},setMinimised:()=>{}}),[]);// eslint-disable-line
 
-  // Apply remote data without triggering auto-push back
   function applyRemote(data){
     suppressPushRef.current++;
     applyGistData(data,supaSetters);
     setSyncStatus("ok");
-    // Hold suppress flag long enough for all re-renders + effects to fire, then release
     setTimeout(()=>{suppressPushRef.current=Math.max(0,suppressPushRef.current-1);},3000);
   }
 
@@ -5008,7 +5282,6 @@ function App(){
       .catch(()=>setSyncStatus("err"));
   },[supaUrl,supaKey,supaId]);// eslint-disable-line
 
-  // Mount: pull + start realtime
   useEffect(()=>{
     if(!supaUrl||!supaKey||!supaId){syncReadyRef.current=true;return;}
     setSyncStatus("loading");
@@ -5016,30 +5289,25 @@ function App(){
       .then(data=>{applyRemote(data);})
       .catch(()=>setSyncStatus("err"))
       .finally(()=>{syncReadyRef.current=true;});
-    // Start realtime WebSocket — fires when another device pushes
     if(supaRtRef.current)supaRtRef.current.close();
-    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(data)=>{
-      applyRemote(data);
-    });
+    supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(data)=>{applyRemote(data);});
     return()=>{if(supaRtRef.current){supaRtRef.current.close();supaRtRef.current=null;}};
   },[supaUrl,supaKey,supaId]);// eslint-disable-line
 
-  // Auto-push on data changes (debounced 2s) — skipped while applying remote data
   useEffect(()=>{
     if(!syncReadyRef.current||!supaUrl||!supaKey||!supaId)return;
-    if(suppressPushRef.current>0)return; // remote data being applied — don't echo back
+    if(suppressPushRef.current>0)return;
     clearTimeout(syncTimerRef.current);
     setSyncStatus("loading");
     syncTimerRef.current=setTimeout(()=>{
-      if(suppressPushRef.current>0){setSyncStatus("ok");return;} // double-check before firing
-      const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,
-                     layout,widgets,navOrder,minimised:[...minimised]};
+      if(suppressPushRef.current>0){setSyncStatus("ok");return;}
+      const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats};
       supaPush(supaUrl,supaKey,supaId,payload,new Date().toISOString())
         .then(()=>setSyncStatus("ok"))
         .catch(()=>setSyncStatus("err"));
     },2000);
     return()=>clearTimeout(syncTimerRef.current);
-  },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,layout,widgets,navOrder,minimised]);// eslint-disable-line
+  },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats]);// eslint-disable-line
 
   // Apple CalDAV auto-fetch
   useEffect(()=>{
@@ -5063,78 +5331,17 @@ function App(){
       if(tag==="INPUT"||tag==="TEXTAREA"){if(e.key==="Escape"){e.target.blur();}return;}
       if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();setSearchOpen(true);return;}
       if((e.ctrlKey||e.metaKey)&&e.key==="z"){e.preventDefault();doUndo();return;}
-      if(modal||searchOpen||focusDay) return;
-      if(e.key==="n") setModal({type:"task"});
-      if(e.key==="t") setModal({type:"trip"});
-      if(e.key==="g") setModal({type:"goal"});
-      if(e.key==="/"||e.key===" "){e.preventDefault();setTimeout(()=>captureRef.current?.focus(),30);}
-      if(e.key==="Escape"){setPage(null);}
+      if(modal||searchOpen||focusDay)return;
+      if(e.key==="n")setModal({type:"task"});
+      if(e.key==="t")setModal({type:"trip"});
+      if(e.key==="g")setModal({type:"goal"});
+      if(e.key==="/"||e.key===" "){e.preventDefault();setShowCapture(true);setTimeout(()=>captureRef.current?.focus(),30);}
+      if(e.key==="Escape")setPage("today");
     }
     window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey);
-  },[modal,searchOpen,focusDay]);
+  },[modal,searchOpen,focusDay]);// eslint-disable-line
 
   useEffect(()=>{if(showCapture)setTimeout(()=>captureRef.current?.focus(),60);},[showCapture]);
-
-  // ── 2D drag + resize handlers (ref-based, single registration) ──
-  function mouseToCell(e){
-    if(!gridRef.current)return{col:1,row:1};
-    const rect=gridRef.current.getBoundingClientRect();
-    // Divide by zoom to convert screen px → CSS px (zoom=1.35 inflates rect)
-    const cssW=rect.width/zoom;
-    const cellW=(cssW-(GCOLS-1)*GGAP)/GCOLS;
-    const x=Math.max(0,(e.clientX-rect.left)/zoom);
-    const y=Math.max(0,(e.clientY-rect.top)/zoom);
-    return{col:Math.max(1,Math.min(GCOLS,Math.floor(x/(cellW+GGAP))+1)),
-           row:Math.max(1,Math.floor(y/(GROW_H+GGAP))+1)};
-  }
-  function startDrag(e,id){
-    e.preventDefault();e.stopPropagation();
-    setLayout(p=>{const l=p[id]||DEFAULT_LAYOUT[id];dragRef.current={id,cS:l.cS,rS:l.rS};return p;});
-    setActiveDragId(id);setGhostDisplay(null);ghostRef.current=null;
-  }
-  function startResize(e,id,type){
-    e.preventDefault();e.stopPropagation();
-    setLayout(p=>{const l=p[id]||DEFAULT_LAYOUT[id];resizeRef.current={id,type,startMouse:{x:e.clientX,y:e.clientY},startLayout:{...l}};return p;});
-    setActiveResizeId(id);
-  }
-  useEffect(()=>{
-    function onMove(e){
-      if(dragRef.current){
-        const {id,cS,rS}=dragRef.current;
-        const cell=mouseToCell(e);
-        const col=Math.max(1,Math.min(GCOLS-cS+1,cell.col));
-        const row=Math.max(1,cell.row);
-        const g={col,row,cS,rS};
-        ghostRef.current=g;setGhostDisplay(g);
-      } else if(resizeRef.current&&gridRef.current){
-        const rect=gridRef.current.getBoundingClientRect();
-        const cellW=(rect.width-(GCOLS-1)*GGAP)/GCOLS;
-        const {id,type,startMouse,startLayout:sl}=resizeRef.current;
-        const dC=Math.round((e.clientX-startMouse.x)/(cellW+GGAP));
-        const dR=Math.round((e.clientY-startMouse.y)/(GROW_H+GGAP));
-        setLayout(p=>{
-          const l={...sl};
-          if(type==='h'||type==='hv') l.cS=Math.max(1,Math.min(GCOLS-sl.col+1,sl.cS+dC));
-          if(type==='v'||type==='hv') l.rS=Math.max(2,sl.rS+dR);
-          return resolveCollisions({...p,[id]:l},id);
-        });
-      }
-    }
-    function onUp(){
-      if(dragRef.current){
-        const {id}=dragRef.current;
-        const g=ghostRef.current;
-        dragRef.current=null;ghostRef.current=null;
-        setActiveDragId(null);setGhostDisplay(null);
-        if(g) setLayout(p=>resolveCollisions({...p,[id]:{...p[id],col:g.col,row:g.row}},id));
-      } else if(resizeRef.current){
-        resizeRef.current=null;setActiveResizeId(null);
-      }
-    }
-    window.addEventListener("mousemove",onMove);
-    window.addEventListener("mouseup",onUp);
-    return()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-  },[]);
 
   async function getTripSugg(trip){
     if(!apiKey){setModal({type:"apikey"});return;}
@@ -5150,294 +5357,103 @@ function App(){
 
   function exportICS(){
     const f=s=>s.replace(/-/g,"");
-    let cal="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Pratham Life OS//EN\r\nCALSCALE:GREGORIAN\r\n";
-    tasks.forEach(t=>{cal+=`BEGIN:VEVENT\r\nUID:wakuli-${t.id}@plo\r\nDTSTART;VALUE=DATE:${f(t.deadline)}\r\nDTEND;VALUE=DATE:${f(t.deadline)}\r\nSUMMARY:[Wakuli] ${t.title}\r\nEND:VEVENT\r\n`;});
-    trips.forEach(t=>{cal+=`BEGIN:VEVENT\r\nUID:trip-${t.id}@plo\r\nDTSTART;VALUE=DATE:${f(t.startDate)}\r\nDTEND;VALUE=DATE:${f(t.endDate)}\r\nSUMMARY:✈ ${t.destination}\r\nEND:VEVENT\r\n`;});
-    goals.forEach(g=>{if(!g.targetDate)return;cal+=`BEGIN:VEVENT\r\nUID:goal-${g.id}@plo\r\nDTSTART;VALUE=DATE:${f(g.targetDate)}\r\nDTEND;VALUE=DATE:${f(g.targetDate)}\r\nSUMMARY:[Goal] ${g.title}\r\nEND:VEVENT\r\n`;});
+    let cal="BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Pratham Life OS//EN
+CALSCALE:GREGORIAN
+";
+    tasks.forEach(t=>{cal+=`BEGIN:VEVENT
+UID:wakuli-${t.id}@plo
+DTSTART;VALUE=DATE:${f(t.deadline)}
+DTEND;VALUE=DATE:${f(t.deadline)}
+SUMMARY:[Wakuli] ${t.title}
+END:VEVENT
+`;});
+    trips.forEach(t=>{cal+=`BEGIN:VEVENT
+UID:trip-${t.id}@plo
+DTSTART;VALUE=DATE:${f(t.startDate)}
+DTEND;VALUE=DATE:${f(t.endDate)}
+SUMMARY:✈ ${t.destination}
+END:VEVENT
+`;});
+    goals.forEach(g=>{if(!g.targetDate)return;cal+=`BEGIN:VEVENT
+UID:goal-${g.id}@plo
+DTSTART;VALUE=DATE:${f(g.targetDate)}
+DTEND;VALUE=DATE:${f(g.targetDate)}
+SUMMARY:[Goal] ${g.title}
+END:VEVENT
+`;});
     cal+="END:VCALENDAR";
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cal],{type:"text/calendar"}));a.download="pratham-2026.ics";document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
   function exportJSON(){
-    const payload={tasks,trips,goals,completions,notes,bingo,photos,scratchpads,layout};
+    const payload={tasks,trips,goals,completions,notes,bingo,photos,scratchpads};
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));a.download="pratham-life-os-backup.json";document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
   function importJSON(){
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
     inp.onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>{try{
       const d=JSON.parse(ev.target.result);
-      if(d.tasks)       setTasks(d.tasks);
-      if(d.trips)       setTrips(d.trips);
-      if(d.goals)       setGoals(d.goals);
-      if(d.completions) setCompletions(d.completions);
-      if(d.notes)       setNotes(d.notes);
-      if(d.bingo)       setBingo(d.bingo);
-      if(d.photos)      setPhotos(d.photos);
-      if(d.scratchpads) setScratchpads(d.scratchpads);
-      if(d.layout)      setLayout(d.layout);
+      if(d.tasks)setTasks(d.tasks);
+      if(d.trips)setTrips(d.trips);
+      if(d.goals)setGoals(d.goals);
+      if(d.completions)setCompletions(d.completions);
+      if(d.notes)setNotes(d.notes);
+      if(d.bingo)setBingo(d.bingo);
+      if(d.photos)setPhotos(d.photos);
+      if(d.scratchpads)setScratchpads(d.scratchpads);
       alert("✅ Restored!");
     }catch{alert("❌ Invalid file");}};r.readAsText(file);};
     document.body.appendChild(inp);inp.click();document.body.removeChild(inp);
   }
 
-  const visible=widgets.filter(w=>w.visible);
-  const wc=WCOL(T);
-
-  function addAction(id){
-    if(id==="wakuli"||id==="kanban"||id==="tasks") return <Btn small primary onClick={()=>setModal({type:"task"})}>+ Task</Btn>;
-    if(id==="trips") return <Btn small primary onClick={()=>setModal({type:"trip"})}>+ Trip</Btn>;
-    if(id==="goals") return <Btn small primary onClick={()=>setModal({type:"goal"})}>+ Goal</Btn>;
-    return null;
-  }
-
-  function widgetBody(id,pageMode=false){
-    switch(id){
-      case "calendar": return pageMode
-        ?<div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
-            <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={true} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={true}/>
-            <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={true} appleEvents={appleEvents}/>
-          </div>
-        :<CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>;
-      case "kanban":   return <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={pageMode} appleEvents={appleEvents}/>;
-      case "wakuli":   return <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
-      case "trips":    return <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={pageMode}/>;
-      case "goals":    return <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={pageMode} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>;
-      case "budget":   return <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={pageMode}/>;
-
-      case "entropy":  return <EntropyWidget apiKey={apiKey} goals={goals} trips={trips} pageMode={pageMode}/>;
-      case "radar":    return <ResearchRadarWidget apiKey={apiKey} pageMode={pageMode}/>;
-      case "embed":    return <EmbedWidget pageMode={pageMode}/>;
-      case "tasks":    return <TasksWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={pageMode}/>;
-
-      default: return null;
-    }
-  }
-
-  const WLABEL={calendar:"Calendar",wakuli:"Wakuli",kanban:"Week",trips:"Trips",goals:"Goals",budget:"Budget",entropy:"Entropy",radar:"Radar",embed:"Embed",tasks:"Tasks"};
-  const WICON={calendar:"calendar-blank",wakuli:"coffee",kanban:"squares-four",trips:"airplane-tilt",goals:"target",budget:"currency-circle-dollar",entropy:"sparkle",radar:"telescope",embed:"browsers",tasks:"list-checks"};
+  const maxW={maxWidth:1200,margin:'0 auto',padding:'0 1.75rem'};
 
   return <TC.Provider value={T}>
-    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:T.isPaper?T.mono:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
-      {/* Animated silk background — hidden in paper mode */}
-      {!T.isPaper&&<BackgroundCanvas palette={bgPalette}/>}
-      {!T.isPaper&&<div className="noise-layer"/>}
-      {/* Floating scroll dot */}
-      <ScrollDot/>
+    <div className="theme-paper" style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:PP_M,position:"relative"}}>
+      <DispatchNavbar page={page} setPage={setPage} dayOfYear={dayOfYear} isMobile={isMobile}/>
+      <PaperMetaStrip sun={sun}/>
 
-      {/* HEADER */}
-      <header style={{
-        background:T.isPaper?T.bg:T.card,
-        borderBottom:`1px solid ${T.isPaper?T.text:T.border}`,
-        padding:T.isPaper?"6px 1.75rem":"7px 1rem",
-        position:"sticky",top:0,zIndex:100,
-        boxShadow:T.isPaper?"none":T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)",
-      }}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <div style={{display:"flex",alignItems:"center",gap:2}}>
-            <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",padding:"3px 10px 3px 0",display:"flex",alignItems:"center",gap:5,color:T.text}}>
-              {T.isPaper
-                ? <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.text}}>PAPER<span style={{color:T.mint}}>.</span></span>
-                : <><span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
-                    <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span></>
-              }
-            </button>
-            {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
-              {navOrder.filter(id=>!WDEFS.find(w=>w.id===id)?.navHidden).map(id=>{
-                const act=page===id;
-                const isDragging=navDragId===id;
-                const isOver=navDragOver===id&&navDragId!==id;
-                return <button key={id} className="nav-item"
-                  draggable
-                  onDragStart={e=>{e.dataTransfer.effectAllowed="move";setNavDragId(id);}}
-                  onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setNavDragOver(id);}}
-                  onDragLeave={()=>setNavDragOver(null)}
-                  onDrop={e=>{
-                    e.preventDefault();
-                    if(navDragId&&navDragId!==id){
-                      setNavOrder(prev=>{
-                        const arr=[...prev];
-                        const from=arr.indexOf(navDragId),to=arr.indexOf(id);
-                        arr.splice(from,1);arr.splice(to,0,navDragId);
-                        return arr;
-                      });
-                    }
-                    setNavDragId(null);setNavDragOver(null);
-                  }}
-                  onDragEnd={()=>{setNavDragId(null);setNavDragOver(null);}}
-                  onClick={()=>setPage(page===id?null:id)}
-                  style={T.isPaper?{
-                    background:act?T.text:"transparent",
-                    border:`1px solid ${isOver?T.mint:act?T.text:T.border}`,
-                    borderRadius:3,padding:"3px 10px",
-                    cursor:navDragId?"grabbing":"grab",
-                    color:act?T.bg:T.textMd,
-                    fontSize:9,fontFamily:T.mono,fontWeight:700,letterSpacing:"0.15em",textTransform:"uppercase",
-                    transition:"all 0.12s",
-                    opacity:isDragging?0.35:1,
-                    outline:"none",
-                  }:{
-                    background:act?alpha(T.mint,.15):"transparent",
-                    border:`1px solid ${isOver?alpha(T.mint,.6):act?alpha(T.mint,.45):alpha(T.border,.38)}`,
-                    borderRadius:20,padding:"3px 10px",
-                    cursor:navDragId?"grabbing":"grab",
-                    color:act?T.mint:T.textMd,
-                    fontSize:11,fontFamily:F,fontWeight:act?700:500,
-                    transition:"all 0.15s",
-                    opacity:isDragging?0.35:1,
-                    transform:isOver?"translateY(-1px)":"none",
-                    outline:"none",
-                  }}>
-                  {T.isPaper?WLABEL[id]||id:<><Ico n={WICON[id]||"circle"} size={12}/> {WLABEL[id]||id}</>}
-                </button>;
-              })}
-            </div>}
+      {page==="today"&&<>
+        <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
+        <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal}/>
+        <div style={{...maxW,display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{borderRight:`1px solid ${T.border}`,padding:"28px 0"}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16,paddingLeft:0}}>CALENDAR</div>
+            <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>
           </div>
-          <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-            {!isMobile&&<button onClick={()=>setSearchOpen(true)} title="Ctrl+K" style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 10px",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,display:"flex",alignItems:"center",gap:5}}><Ico n="magnifying-glass" size={13}/> <span style={{fontSize:9,opacity:0.7}}>⌘K</span></button>}
-            <Btn small onClick={()=>setModal({type:"apikey"})} style={{fontSize:10,color:apiKey?T.mint:T.text}}><Ico n="key" size={13}/>{apiKey?"✓":""}</Btn>
-            <Btn small
-              onClick={()=>setShowSyncModal(true)}
-              title={supaId?"Manage cloud sync":"Enable cloud sync"}
-              style={{fontSize:11,color:syncStatus==="ok"?T.mint:syncStatus==="err"?"#f87171":syncStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
-              {syncStatus==="loading"?<Ico n="arrow-clockwise" size={13}/>:supaId?<><Ico n="cloud-check" size={13}/>{" ✓"}</>:<Ico n="cloud-arrow-up" size={13}/>}
-            </Btn>
-            <Btn small onClick={()=>setShowAppleCal(true)} title={appleCal.enabled?"Apple Calendar synced — click to manage":"Connect Apple Calendar"} style={{fontSize:11,color:appleStatus==="ok"?"#FA243C":appleStatus==="err"?"#f87171":appleStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
-              <Ico n={appleCal.enabled?"calendar-check":"calendar-plus"} size={13}/>
-            </Btn>
-            {!isMobile&&<div style={{display:"flex",gap:2,padding:"2px",borderRadius:6,border:`1px solid ${T.border}`,background:T.cardAlt}}>
-              {THEME_PRESETS.map(p=><button key={p.name} onClick={()=>{setTheme(p.name);if(p.palette.length)setPalette(p.palette);}} title={p.label} style={{
-                background:theme===p.name?T.mint:"transparent",
-                color:theme===p.name?T.bg:T.textMd,
-                border:"none",borderRadius:4,padding:"1px 6px",cursor:"pointer",
-                fontSize:p.name==="paper"?10:12,
-                fontFamily:p.name==="paper"?T.mono||F:F,
-                fontWeight:700,transition:"all .12s",letterSpacing:p.name==="paper"?"0.1em":"0",
-              }}>{p.icon}</button>)}
-            </div>}
-            <Btn small onClick={()=>setShowColorPanel(true)} title="Custom palette" style={{fontSize:11}}><Ico n="palette" size={13}/></Btn>
-            <Btn small onClick={()=>setShowCapture(c=>!c)} active={showCapture} title="Quick capture"><Ico n="plus" size={13}/></Btn>
-            <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}><Ico n="sliders-horizontal" size={13}/></Btn>
-            {!isMobile&&<Btn small onClick={exportJSON} style={{fontSize:10}}>⬇</Btn>}
-            {!isMobile&&<Btn small onClick={importJSON} style={{fontSize:10}}>⬆</Btn>}
-            {!isMobile&&<Btn small primary onClick={exportICS} style={{fontSize:10}}>📅</Btn>}
+          <div style={{padding:"28px 0 28px 32px"}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16}}>GOALS</div>
+            <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={false} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
           </div>
         </div>
-      </header>
+        <div style={{...maxW,display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{borderRight:`1px solid ${T.border}`,padding:"28px 0"}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16}}>TRIPS</div>
+            <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
+          </div>
+          <div style={{padding:"28px 0 28px 32px"}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16}}>MONEY</div>
+            <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={false}/>
+          </div>
+        </div>
+        <PaperFooter/>
+      </>}
 
-      {/* DAILY BRIEF */}
-      <GreetingHeader tasks={tasks} trips={trips} goals={goals} appleEvents={appleEvents}/>
-
-
+      {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey}/>}
+      {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal}/>}
+      {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats}/>}
+      {page==="review"&&<ReviewPage tasks={tasks} setTasks={setTasks} goals={goals} apiKey={apiKey} setModal={setModal} pushUndo={pushUndo}/>}
+      {page==="wk"&&<WkPage tasks={tasks} completions={completions} setCompletions={setCompletions} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay}/>}
+      {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal}/>}
 
       {/* CAPTURE OVERLAY */}
-      {showCapture&&<div onClick={e=>e.target===e.currentTarget&&setShowCapture(false)} className="overlay-in" style={{position:"fixed",inset:0,zIndex:300,backdropFilter:"blur(14px) brightness(0.6)",WebkitBackdropFilter:"blur(14px) brightness(0.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"22vh"}}>
-        <div className="modal-pop" style={{background:T.card,border:`1px solid ${alpha(T.border,.8)}`,borderRadius:16,width:"90%",maxWidth:520,padding:"1.1rem",boxShadow:"0 32px 80px rgba(0,0,0,.8)"}}>
-          <div style={{fontSize:9,fontWeight:700,color:T.textLt,fontFamily:F,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:10}}>Quick Capture</div>
+      {showCapture&&<div onClick={e=>e.target===e.currentTarget&&setShowCapture(false)} className="overlay-in" style={{position:"fixed",inset:0,zIndex:300,backdropFilter:"blur(14px) brightness(0.9)",WebkitBackdropFilter:"blur(14px) brightness(0.9)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"22vh"}}>
+        <div className="modal-pop" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:2,width:"90%",maxWidth:520,padding:"1.5rem",boxShadow:"0 24px 60px rgba(29,26,20,0.18)"}}>
+          <div style={{fontSize:9,fontWeight:700,color:T.muted,fontFamily:PP_M,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:12}}>QUICK CAPTURE</div>
           <QuickCapture captureRef={captureRef} setTasks={setTasks} setTrips={setTrips} setGoals={setGoals} setModal={setModal} onClose={()=>setShowCapture(false)} inline/>
         </div>
       </div>}
-      {/* CUSTOMIZE */}
-      {customizing&&<CustomizePanel widgets={widgets} setWidgets={setWidgets} onResetLayout={()=>setLayout(DEFAULT_LAYOUT)} onClose={()=>setCustomizing(false)} onOpenColors={()=>setShowColorPanel(true)}/>}
-
-      {/* CONTENT */}
-      <main style={{padding:isMobile?"0.55rem 0.75rem":"0.55rem 1.5rem"}}>
-        {page?(
-          <div key={page} className="fade-up">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
-              <div style={{display:"flex",alignItems:"center",gap:7}}>
-                <button onClick={()=>setPage(null)} className="nav-btn" style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMd,fontSize:11,fontFamily:F,padding:0,display:"flex",alignItems:"center",gap:3}}>← Back</button>
-                <span style={{color:T.border,fontSize:10}}>│</span>
-                <span style={{fontFamily:F,fontWeight:700,fontSize:16,letterSpacing:"-0.3px",color:wc[page],display:"flex",alignItems:"center",gap:6}}><Ico n={WICON[page]} size={15}/> {WLABEL[page]}</span>
-              </div>
-              {addAction(page)}
-            </div>
-            <Card lift={false} style={{padding:"0.9rem"}}>{widgetBody(page,true)}</Card>
-          </div>
-        ):visible.length===0?(
-          <div style={{textAlign:"center",padding:"60px 0",color:T.textLt}}>
-            <div style={{fontSize:28,marginBottom:8}}>⊞</div>
-            <div style={{fontFamily:F,fontSize:14}}>No widgets visible — click ⊞ to customize</div>
-          </div>
-        ):(
-          <div ref={gridRef} style={isMobile
-            ?{display:"flex",flexDirection:"column",gap:`${GGAP}px`,position:"relative"}
-            :{display:"grid",gridTemplateColumns:`repeat(${GCOLS},1fr)`,gridAutoRows:`${GROW_H}px`,gap:`${GGAP}px`,position:"relative",cursor:activeDragId?"grabbing":activeResizeId?"none":"default"}}>
-            {/* Drop ghost shown while dragging */}
-            {!isMobile&&ghostDisplay&&<div style={{gridColumn:`${ghostDisplay.col}/span ${ghostDisplay.cS}`,gridRow:`${ghostDisplay.row}/span ${ghostDisplay.rS}`,borderRadius:10,background:T.mint,opacity:0.14,border:`2px dashed ${T.mint}`,pointerEvents:"none",zIndex:5}}/>}
-            {visible.map((w,wi)=>{
-              const l=layout[w.id]||DEFAULT_LAYOUT[w.id]||{col:1,row:1,cS:2,rS:4};
-              const isHov=hoveredWidget===w.id;
-              const isDrag=activeDragId===w.id;
-              const isRes=activeResizeId===w.id;
-              const isMin=minimised.has(w.id);
-              const mobileH=isMin?"auto":`${l.rS*GROW_H+(l.rS-1)*GGAP}px`;
-              const enterDelay=wi*55;
-              const isHeadless=w.id==="calendar"||w.id==="kanban";
-              return <FadeIn key={w.id} delay={enterDelay} style={isMobile
-                  ?{position:"relative",width:"100%",height:mobileH,minHeight:0}
-                  :{gridColumn:`${l.col}/span ${l.cS}`,gridRow:`${l.row}/span ${isMin?1:l.rS}`,position:"relative",minHeight:0,
-                    opacity:isDrag?0.38:undefined,transition:isDrag||isRes?"none":undefined,zIndex:isDrag||isRes?10:1}}
-                  >
-              <div
-                draggable={false}
-                onDragStart={e=>e.preventDefault()}
-                style={{height:"100%",position:"relative"}}
-                onMouseEnter={()=>!isMobile&&setHoveredWidget(w.id)}
-                onMouseLeave={()=>!isMobile&&!activeResizeId&&!activeDragId&&setHoveredWidget(null)}
-              >
-                <Card lift={false} glass={true} style={{height:isMin?"auto":"100%",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative",...(isHeadless?{padding:"0.3rem"}:{}),
-                  boxShadow:!isMobile&&(isRes?`0 0 0 2px ${T.mint}55`:isDrag?`0 12px 40px rgba(0,0,0,.5)`:isHov?`0 6px 24px rgba(0,0,0,.3)`:"0 2px 12px rgba(0,0,0,.18)"),transition:"box-shadow 0.22s"}}>
-                  {isHeadless?(
-                    /* Headless: float drag + minimise as invisible overlay, no flow cost */
-                    <div style={{position:"absolute",top:5,right:6,left:6,display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:6,pointerEvents:"none"}}>
-                      {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
-                        style={{cursor:isDrag?"grabbing":"grab",padding:"3px 7px",color:T.textLt,fontSize:11,
-                          userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",touchAction:"none",pointerEvents:isHov||isDrag?"all":"none",background:alpha(T.card,.85),borderRadius:6}}>⠿</div>}
-                      <span style={{flex:1}}/>
-                      <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
-                        style={{background:alpha(T.card,.85),border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
-                          padding:"2px 7px",opacity:isHov||isMin?0.72:0,transition:"opacity 0.15s",lineHeight:1,borderRadius:5,pointerEvents:isHov||isMin?"all":"none"}}>
-                        {isMin?"▽":"△"}
-                      </button>
-                    </div>
-                  ):(
-                    <div style={{display:"flex",alignItems:"center",flexShrink:0,gap:2}}>
-                      {!isMobile&&<div onMouseDown={e=>startDrag(e,w.id)} title="Drag to move"
-                        style={{cursor:isDrag?"grabbing":"grab",padding:"2px 5px",color:T.textLt,fontSize:12,
-                          userSelect:"none",opacity:isHov||isDrag?0.65:0,transition:"opacity 0.15s",flexShrink:0,touchAction:"none"}}>⠿</div>}
-                      <div style={{flex:1,minWidth:0}}><WidgetHead id={w.id} title={WLABEL[w.id]} icon={WICON[w.id]} onPage={()=>!isDrag&&!["entropy","embed","radar"].includes(w.id)&&setPage(w.id)} action={addAction(w.id)}/></div>
-                      <button onClick={()=>toggleMin(w.id)} title={isMin?"Expand":"Collapse"}
-                        style={{background:"transparent",border:"none",cursor:"pointer",color:T.textLt,fontSize:10,
-                          padding:"2px 6px",opacity:isMobile?0.6:isHov||isMin?0.7:0,transition:"opacity 0.15s",flexShrink:0,lineHeight:1}}>
-                        {isMin?"▽":"△"}
-                      </button>
-                    </div>
-                  )}
-                  {!isMin&&(isHeadless
-                    ?<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:1,display:"flex",flexDirection:"column"}}>{widgetBody(w.id,false)}</div>
-                    :<div style={{flex:1,overflow:"auto",minHeight:0,paddingTop:10}}>{widgetBody(w.id,false)}</div>
-                  )}
-                </Card>
-                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'h')} style={{position:"absolute",right:1,top:"50%",transform:"translateY(-50%)",cursor:"col-resize",zIndex:20,display:"flex",flexDirection:"column",gap:"3px",padding:"5px 4px",touchAction:"none",opacity:isRes?1:0.5}}>
-                  {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/>)}
-                </div>}
-                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'v')} style={{position:"absolute",bottom:1,left:"50%",transform:"translateX(-50%)",cursor:"row-resize",zIndex:20,display:"flex",flexDirection:"row",gap:"3px",padding:"4px 5px",touchAction:"none",opacity:isRes?1:0.5}}>
-                  {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/>)}
-                </div>}
-                {!isMobile&&!isMin&&(isHov||isRes)&&<div onMouseDown={e=>startResize(e,w.id,'hv')} style={{position:"absolute",right:1,bottom:1,cursor:"nwse-resize",zIndex:21,display:"flex",flexDirection:"column",gap:"2px",padding:"3px",touchAction:"none",opacity:isRes?1:0.5}}>
-                  <div style={{display:"flex",gap:"2px",justifyContent:"flex-end"}}><div style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/><div style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/></div>
-                  <div style={{display:"flex",gap:"2px",justifyContent:"flex-end"}}><div style={{width:3,height:3,borderRadius:"50%",background:alpha(T.text,.5)}}/></div>
-                </div>}
-              </div>
-              </FadeIn>;
-            })}
-          </div>
-        )}
-        <div style={{marginTop:14,textAlign:"center",fontSize:9,color:T.textLt,fontFamily:F,letterSpacing:"0.03em"}}>
-          {isMobile
-            ?"tap ▽ to collapse widgets · tap widget title to expand"
-            :"/ or space → capture · n/t/g → new task/trip/goal · ⌘K → search · Esc → back · ⠿ drag header to move · drag edges/corner to resize"}
-        </div>
-      </main>
 
       {/* MODALS */}
       {modal?.type==="task"   &&<TaskModal   data={modal.data} setTasks={setTasks} onClose={()=>setModal(null)}/>}
@@ -5447,10 +5463,6 @@ function App(){
       {focusDay&&<FocusDayModal day={focusDay} tasks={tasks} completions={completions} setCompletions={setCompletions} setTasks={setTasks} scratchpads={scratchpads} setScratchpads={setScratchpads} onClose={()=>setFocusDay(null)}/>}
       {searchOpen&&<SearchModal tasks={tasks} trips={trips} goals={goals} onClose={()=>setSearchOpen(false)} setModal={setModal} setPage={setPage}/>}
       {showAppleCal&&<AppleCalModal cfg={appleCal} onSave={c=>{setAppleCal(c);setShowAppleCal(false);}} onClose={()=>setShowAppleCal(false)}/>}
-      {showColorPanel&&<ColorCustomizePanel palette={palette} bgPalette={bgPalette}
-        onApply={(p,bp)=>{setPalette(p);if(bp){setBgPalette(bp);ls("plo3_bgpal",bp);}setShowColorPanel(false);}}
-        onClose={()=>setShowColorPanel(false)}/>}
-
       {showSyncModal&&<SyncModal
         onClose={()=>setShowSyncModal(false)}
         supaUrl={supaUrl} setSupaUrl={setSupaUrl}
@@ -5461,15 +5473,13 @@ function App(){
         onConnect={data=>{
           applyRemote(data);
           syncReadyRef.current=true;
-          // Start realtime after connecting
           if(supaRtRef.current)supaRtRef.current.close();
-          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(d)=>{
-            applyRemote(d);
-          });
+          supaRtRef.current=supaRealtime(supaUrl,supaKey,supaId,(d)=>{applyRemote(d);});
         }}
       />}
+
       {/* UNDO TOAST */}
-      {undoToast&&<div className="fade-up" style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:T.card,border:`1px solid ${T.mint}44`,borderRadius:10,padding:"8px 20px",fontSize:12,fontFamily:F,color:T.text,zIndex:600,boxShadow:"0 4px 24px rgba(0,0,0,.5)",whiteSpace:"nowrap",pointerEvents:"none"}}>{undoToast}</div>}
+      {undoToast&&<div className="fade-up" style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:T.card,border:`1px solid ${T.mint}44`,borderRadius:2,padding:"8px 20px",fontSize:11,fontFamily:PP_M,color:T.text,zIndex:600,boxShadow:"0 4px 24px rgba(29,26,20,0.15)",whiteSpace:"nowrap",pointerEvents:"none",letterSpacing:"0.1em"}}>{undoToast}</div>}
     </div>
   </TC.Provider>;
 }
