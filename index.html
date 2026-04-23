@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="受付係"/>
 <link rel="apple-touch-icon" href="icon.svg"/>
 <link rel="icon" type="image/svg+xml" href="icon.svg"/>
-<link rel="stylesheet" href="https://fonts.bunny.net/css?family=geist:300,400,500,600,700,800,900&display=swap">
+<link rel="stylesheet" href="https://fonts.bunny.net/css?family=geist:300,400,500,600,700,800,900|fraunces:300,400,500,600,700|jetbrains-mono:400,500,600,700|ibm-plex-mono:400,500,600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -32,6 +32,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .theme-sepia input[type=date]{color-scheme:light;}
 .theme-ocean input[type=date]{color-scheme:dark;}
 .theme-midnight input[type=date]{color-scheme:dark;}
+.theme-paper input[type=date]{color-scheme:light;}
+.theme-paper ::-webkit-scrollbar-thumb{background:rgba(29,26,20,0.2);border-radius:2px;}
+.theme-paper ::-webkit-scrollbar-track{background:transparent;}
+
+/* ── PAPER PANEL ANIMATIONS ──────────────────── */
+@keyframes pp-pop{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes pp-grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,0)}75%{transform:translate(0,-1px)}}
+
+/* Paper grain texture overlay */
+.theme-paper::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  opacity:0.028;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size:200px 200px;}
 .wwidget:hover .rhandle{opacity:1!important;}
 .rhandle{opacity:0;transition:opacity .15s;}
 
@@ -146,6 +158,7 @@ const THEME_PRESETS=[
   {name:"sepia",   label:"Sepia",   icon:"📜", mode:"light", palette:["#b5714a","#c04b5a","#4a2e1e","#c4a882","#f5ede3"]},
   {name:"ocean",   label:"Ocean",   icon:"🌊", mode:"dark",  palette:["#22d3ee","#f43f5e","#cff4ff","#0e3a5c","#020c18"]},
   {name:"midnight",label:"Midnight",icon:"✦",  mode:"dark",  palette:["#a78bfa","#f87171","#ede9fe","#1e1b4b","#080510"]},
+  {name:"paper",   label:"Paper",   icon:"◈",  mode:"paper", palette:[]},
 ];
 
 function buildDark([p1,p2,p3,p4,p5]){
@@ -181,6 +194,26 @@ function buildLight([p1,p2,p3,p4,p5]){
     yellow:mix(p1,W,.25),yellX:alpha(p1,.1),
     text:txt,textMd:mix(txt,p3,.26),textLt:mix(txt,p3,.44),textHi:txt,
     overlay:'rgba(0,0,0,.5)',isDark:false,
+  };
+}
+
+function buildPaper(){
+  return{
+    bg:'#f1ede5',bgGradient:'#f1ede5',
+    card:'#f8f4ea',cardAlt:'#e6e0d2',
+    cardGlass:'rgba(248,244,234,0.38)',cardAltGlass:'rgba(230,224,210,0.28)',
+    border:'rgba(29,26,20,0.14)',borderSft:'rgba(29,26,20,0.07)',inp:'#faf7f3',
+    mint:'#c8412e',mintX:'rgba(200,65,46,0.1)',
+    blue:'#4d4738',blueX:'rgba(77,71,56,0.1)',
+    pink:'#c8412e',pinkX:'rgba(200,65,46,0.1)',
+    yellow:'#c9892b',yellX:'rgba(201,137,43,0.1)',
+    text:'#1d1a14',textMd:'#4d4738',textLt:'#7c7568',textHi:'#1d1a14',
+    overlay:'rgba(29,26,20,0.45)',isDark:false,
+    isPaper:true,
+    serif:'"Fraunces", "Cormorant Garamond", Georgia, serif',
+    mono:'"JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace',
+    faint:'#aaa497',ink:'#1d1a14',inkSoft:'#4d4738',muted:'#7c7568',red:'#c8412e',
+    lineSoft:'rgba(29,26,20,0.07)',
   };
 }
 
@@ -511,10 +544,24 @@ function Card({children,style={},lift=true,glass=false}){
   const bg=glass?T.cardGlass:T.card;
   const bd=glass?alpha(T.border,.55):T.border;
   const glassExtra=glass?{backdropFilter:"blur(32px) saturate(1.8)",WebkitBackdropFilter:"blur(32px) saturate(1.8)"}:{};
-  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"14px",...glassExtra,...style}}>{children}</div>;
+  const paperExtra=T.isPaper?{borderRadius:4,boxShadow:"none"}:{};
+  return <div className={lift?"card-lift":undefined} style={{background:bg,border:`1px solid ${bd}`,borderRadius:14,padding:"14px",...glassExtra,...paperExtra,...style}}>{children}</div>;
 }
 function Btn({children,onClick,primary,small,danger,ghost,active,color,style={}}){
   const T=useT();const[h,sH]=useState(false);
+  if(T.isPaper){
+    const isActive=active||primary;
+    return <button onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{
+      padding:small?"3px 9px":"5px 12px",
+      fontSize:small?"9px":"10px",
+      fontFamily:T.mono,fontWeight:700,letterSpacing:"0.15em",textTransform:"uppercase",
+      background:isActive?T.text:danger?T.mint:"transparent",
+      color:isActive?T.bg:danger?T.bg:h?T.text:T.muted,
+      border:`1px solid ${isActive?T.text:danger?T.mint:T.border}`,
+      borderRadius:3,cursor:"pointer",
+      transition:"all .12s",whiteSpace:"nowrap",...style,
+    }}>{children}</button>;
+  }
   const ac=color||T.mint;
   const bg=active?ac:danger?T.pink:primary?T.mint:ghost?"transparent":T.cardAlt;
   const co=active||primary||danger?T.bg:color?color:T.text;
@@ -537,13 +584,17 @@ function Badge({label,color}){
 }
 function Lbl({children}){
   const T=useT();
-  return <div style={{fontSize:9,fontWeight:700,color:T.textLt,fontFamily:F,marginBottom:5,letterSpacing:"0.12em",textTransform:"uppercase"}}>{children}</div>;
+  return <div style={{fontSize:9,fontWeight:700,color:T.textLt,fontFamily:T.isPaper?T.mono:F,marginBottom:5,letterSpacing:"0.15em",textTransform:"uppercase"}}>{children}</div>;
 }
 function Inp({value,onChange,placeholder,type="text",autoFocus,style={}}){
   const T=useT();
   return <input autoFocus={autoFocus} type={type} value={value} onChange={onChange} placeholder={placeholder} style={{
-    width:"100%",padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,
-    background:T.inp,color:T.text,fontSize:12,fontFamily:F,boxSizing:"border-box",outline:"none",...style,
+    width:"100%",padding:"8px 10px",
+    borderRadius:T.isPaper?3:7,
+    border:`1px solid ${T.border}`,
+    background:T.inp,color:T.text,
+    fontSize:12,fontFamily:T.isPaper?T.mono:F,
+    boxSizing:"border-box",outline:"none",...style,
   }}/>;
 }
 function Txta({value,onChange,placeholder,rows=3,autoFocus,style={}}){
@@ -800,6 +851,126 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
   if(nextTrip&&daysUntil!==null) stats.push({text:`${nextTrip.destination} in ${daysUntil}d`,color:T.mint});
   if(goalsTotal>0) stats.push({text:`${goalsOn}/${goalsTotal} goals on track`,color:T.blue});
   if(stats.length===0) stats.push({text:"All clear",color:T.mint});
+
+  // Paper panel extras — always computed (hooks must be unconditional)
+  const ghSun=useMemo(()=>T.isPaper?calcSunTimes(52.1578,4.5353,new Date()):null,[T.isPaper]);
+  const [ghMobile,setGhMobile]=useState(()=>window.innerWidth<720);
+  useEffect(()=>{if(!T.isPaper)return;const h=()=>setGhMobile(window.innerWidth<720);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[T.isPaper]);
+
+  // ── PAPER PANEL dispatch header ───────────────────────
+  if(T.isPaper){
+    const tod2=hr>=12&&hr<18?'AFTERNOON':hr>=18?'EVENING':'MORNING';
+    const DAYS=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+    const dayLabel=DAYS[today.getDay()];
+    const eyeStyle={fontFamily:T.mono,fontSize:9,fontWeight:700,letterSpacing:"0.2em",
+      textTransform:"uppercase",color:T.muted};
+    const statBorder={borderLeft:`1px solid ${T.text}`,paddingLeft:14,paddingRight:10};
+    return <div className="greet-in" style={{
+      padding:"28px 1.75rem 0",
+      borderBottom:`1px solid ${T.border}`,
+      background:T.bg,
+    }}>
+      {/* Eyebrow */}
+      <div style={{...eyeStyle,marginBottom:14}}>
+        to the bearer · {dayLabel} · {tod2}
+      </div>
+      {/* Serif heading */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:32}}>
+        <div style={{flex:1}}>
+          <h1 style={{fontFamily:T.serif,fontSize:ghMobile?44:64,fontWeight:400,lineHeight:0.96,
+            letterSpacing:"-0.03em",margin:"0 0 14px",color:T.text}}>
+            {greeting}{scriptGreeting?<>,<br/><span style={{fontStyle:"italic",fontSize:ghMobile?28:44}}>{scriptGreeting}</span></>:","}<span style={{color:T.mint}}>.</span>
+          </h1>
+          <p style={{fontFamily:T.serif,fontSize:17,color:T.textMd,fontWeight:300,
+            fontStyle:"italic",marginBottom:0,maxWidth:580,lineHeight:1.5}}>
+            {overdue>0
+              ?<><span style={{color:T.mint,fontStyle:"normal",fontFamily:T.mono,fontSize:12}}>{overdue} OVERDUE</span> — address these first.</>
+              :dueToday>0
+              ?`${dueToday} thing${dueToday!==1?'s':''} want${dueToday===1?'s':''} your attention today.`
+              :'The day is clear.'}{' '}
+            {thisWeek>0&&<>{thisWeek} more this week. </>}
+            {nextTrip&&daysUntil!==null&&<>{nextTrip.destination.split(',')[0]} in {daysUntil}d.</>}
+          </p>
+          {/* Lang badge + shuffle */}
+          <div style={{display:"flex",alignItems:"center",gap:6,marginTop:12}}>
+            <span style={{...eyeStyle,color:T.mint,border:`1px solid ${T.mint}`,padding:"3px 8px",borderRadius:2}}>{g.lang}</span>
+            <button onClick={shuffleLang} style={{background:"transparent",border:"none",cursor:"pointer",
+              fontFamily:T.mono,fontSize:9,color:T.muted,letterSpacing:"0.15em"}}>↻ SHUFFLE</button>
+          </div>
+        </div>
+        {/* Right column — quick stats */}
+        {!ghMobile&&<div style={{display:"flex",flexDirection:"column",gap:10,flexShrink:0,alignItems:"flex-end",
+          paddingTop:4,borderLeft:`1px solid ${T.border}`,paddingLeft:24,minWidth:160}}>
+          <div style={{textAlign:"right"}}>
+            <div style={{...eyeStyle,textAlign:"right"}}>SUNRISE</div>
+            <div style={{fontFamily:T.mono,fontSize:13,color:T.text,marginTop:4}}>
+              {ghSun?`↑ ${ghSun.rise} · ↓ ${ghSun.set}`:"—"}
+            </div>
+            {ghSun&&<div style={{fontSize:9,color:T.muted,marginTop:2,fontFamily:T.mono,letterSpacing:"0.08em"}}>✦ {ghSun.golden} golden</div>}
+          </div>
+          <div style={{textAlign:"right",borderTop:`1px dashed ${T.border}`,paddingTop:8,width:"100%"}}>
+            <div style={{...eyeStyle,textAlign:"right"}}>WEEK</div>
+            <div style={{fontFamily:T.mono,fontSize:13,color:T.text,marginTop:4,letterSpacing:"-0.01em"}}>
+              WK{String(Math.ceil((today-new Date(today.getFullYear(),0,1))/604800000)).padStart(2,"0")} · Q{Math.ceil((today.getMonth()+1)/3)}
+            </div>
+          </div>
+        </div>}
+      </div>
+      {/* Dispatch stat strip */}
+      <div style={{display:"grid",gridTemplateColumns:ghMobile?"repeat(3,1fr)":"repeat(5,1fr)",gap:0,
+        marginTop:22,paddingTop:14,borderTop:`1px solid ${T.text}`}}>
+        <div style={{paddingRight:10}}>
+          <div style={eyeStyle}>DATE</div>
+          <div style={{fontFamily:T.mono,fontSize:16,fontWeight:500,color:T.text,marginTop:6,fontVariantNumeric:"tabular-nums"}}>
+            {today.toLocaleDateString("en-GB",{day:"2-digit",month:"short"}).toUpperCase()}
+          </div>
+          <div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:"0.08em",fontFamily:T.mono}}>
+            {today.toLocaleDateString("en-GB",{weekday:"long"}).toUpperCase()}
+          </div>
+        </div>
+        <div style={statBorder}>
+          <div style={eyeStyle}>TASKS</div>
+          <div style={{fontFamily:T.mono,fontSize:18,fontWeight:500,
+            color:overdue>0?T.mint:T.text,marginTop:6,fontVariantNumeric:"tabular-nums"}}>
+            {dueToday+overdue > 0 ? dueToday+overdue : "—"}
+          </div>
+          <div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:"0.08em",fontFamily:T.mono}}>
+            {overdue>0?`${overdue} overdue`:"today · open"}
+          </div>
+        </div>
+        <div style={statBorder}>
+          <div style={eyeStyle}>GOALS</div>
+          <div style={{fontFamily:T.mono,fontSize:18,fontWeight:500,color:T.text,marginTop:6,fontVariantNumeric:"tabular-nums"}}>
+            {goalsTotal>0?`${goalsOn}/${goalsTotal}`:"—"}
+          </div>
+          <div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:"0.08em",fontFamily:T.mono}}>
+            on track
+          </div>
+        </div>
+        {!ghMobile&&<div style={statBorder}>
+          <div style={eyeStyle}>NEXT TRIP</div>
+          <div style={{fontFamily:T.mono,fontSize:nextTrip?12:18,fontWeight:500,
+            color:nextTrip?T.mint:T.text,marginTop:6,letterSpacing:"-0.01em"}}>
+            {nextTrip?nextTrip.destination.split(',')[0].toUpperCase():"—"}
+          </div>
+          <div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:"0.08em",fontFamily:T.mono}}>
+            {daysUntil!==null?`in ${daysUntil} days`:"no trips planned"}
+          </div>
+        </div>}
+        {!ghMobile&&<div style={statBorder}>
+          <div style={eyeStyle}>SUN</div>
+          <div style={{fontFamily:T.mono,fontSize:13,fontWeight:500,color:T.text,marginTop:6,letterSpacing:"-0.01em"}}>
+            {ghSun?`↑ ${ghSun.rise}`:"—"}
+          </div>
+          <div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:"0.08em",fontFamily:T.mono}}>
+            {ghSun?`↓ ${ghSun.set}`:""}
+          </div>
+        </div>}
+      </div>
+      {/* Rule below strip */}
+      <div style={{height:1,background:T.border,marginTop:14}}/>
+    </div>;
+  }
 
   return <div className="greet-in" style={{
     padding:"22px 1.75rem 18px",
@@ -4674,7 +4845,7 @@ function App(){
     setTheme(next.name);setPalette(next.palette);
   }
   const activePreset=THEME_PRESETS.find(p=>p.name===theme)||THEME_PRESETS[0];
-  const T=useMemo(()=>activePreset.mode==="dark"?buildDark(palette):buildLight(palette),[activePreset,palette]);
+  const T=useMemo(()=>activePreset.mode==="paper"?buildPaper():activePreset.mode==="dark"?buildDark(palette):buildLight(palette),[activePreset,palette]);
 
   const [widgets,setWidgets]=useState(()=>{
     const s=lg("plo3_widgets",null);
@@ -5045,20 +5216,29 @@ function App(){
   const WICON={calendar:"calendar-blank",wakuli:"coffee",kanban:"squares-four",trips:"airplane-tilt",goals:"target",budget:"currency-circle-dollar",entropy:"sparkle",radar:"telescope",embed:"browsers",tasks:"list-checks"};
 
   return <TC.Provider value={T}>
-    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
-      {/* Animated silk background */}
-      <BackgroundCanvas palette={bgPalette}/>
-      <div className="noise-layer"/>
+    <div className={`theme-${theme}`} style={{minHeight:"100vh",background:T.bgGradient,fontFamily:T.isPaper?T.mono:F,color:T.text,userSelect:activeDragId||activeResizeId?"none":"auto",zoom:zoom,position:"relative"}}>
+      {/* Animated silk background — hidden in paper mode */}
+      {!T.isPaper&&<BackgroundCanvas palette={bgPalette}/>}
+      {!T.isPaper&&<div className="noise-layer"/>}
       {/* Floating scroll dot */}
       <ScrollDot/>
 
       {/* HEADER */}
-      <header style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"7px 1rem",position:"sticky",top:0,zIndex:100,boxShadow:T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)"}}>
+      <header style={{
+        background:T.isPaper?T.bg:T.card,
+        borderBottom:`1px solid ${T.isPaper?T.text:T.border}`,
+        padding:T.isPaper?"6px 1.75rem":"7px 1rem",
+        position:"sticky",top:0,zIndex:100,
+        boxShadow:T.isPaper?"none":T.isDark?"0 1px 20px rgba(0,0,0,.5)":"0 1px 12px rgba(0,0,0,.08)",
+      }}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:2}}>
             <button onClick={()=>setPage(null)} style={{background:"transparent",border:"none",cursor:"pointer",padding:"3px 10px 3px 0",display:"flex",alignItems:"center",gap:5,color:T.text}}>
-              <span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
-              <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span>
+              {T.isPaper
+                ? <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.text}}>PAPER<span style={{color:T.mint}}>.</span></span>
+                : <><span style={{color:T.mint,fontSize:14,fontWeight:700,letterSpacing:"-1px"}}>◈</span>
+                    <span style={{fontFamily:F,fontSize:13,fontWeight:800,letterSpacing:"0px"}}>受付係</span></>
+              }
             </button>
             {!isMobile&&<div className="nav-cascade-wrap" style={{display:"flex",gap:1,flexWrap:"wrap"}}>
               {navOrder.filter(id=>!WDEFS.find(w=>w.id===id)?.navHidden).map(id=>{
@@ -5084,7 +5264,17 @@ function App(){
                   }}
                   onDragEnd={()=>{setNavDragId(null);setNavDragOver(null);}}
                   onClick={()=>setPage(page===id?null:id)}
-                  style={{
+                  style={T.isPaper?{
+                    background:act?T.text:"transparent",
+                    border:`1px solid ${isOver?T.mint:act?T.text:T.border}`,
+                    borderRadius:3,padding:"3px 10px",
+                    cursor:navDragId?"grabbing":"grab",
+                    color:act?T.bg:T.textMd,
+                    fontSize:9,fontFamily:T.mono,fontWeight:700,letterSpacing:"0.15em",textTransform:"uppercase",
+                    transition:"all 0.12s",
+                    opacity:isDragging?0.35:1,
+                    outline:"none",
+                  }:{
                     background:act?alpha(T.mint,.15):"transparent",
                     border:`1px solid ${isOver?alpha(T.mint,.6):act?alpha(T.mint,.45):alpha(T.border,.38)}`,
                     borderRadius:20,padding:"3px 10px",
@@ -5096,7 +5286,7 @@ function App(){
                     transform:isOver?"translateY(-1px)":"none",
                     outline:"none",
                   }}>
-                  <Ico n={WICON[id]||"circle"} size={12}/> {WLABEL[id]||id}
+                  {T.isPaper?WLABEL[id]||id:<><Ico n={WICON[id]||"circle"} size={12}/> {WLABEL[id]||id}</>}
                 </button>;
               })}
             </div>}
