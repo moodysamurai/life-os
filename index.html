@@ -40,6 +40,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 @keyframes pp-pop{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes pp-grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,0)}75%{transform:translate(0,-1px)}}
 
+/* ── PAPER PANEL MANIFEST ROW HOVER ───────────── */
+.paper-row:hover{background:rgba(29,26,20,0.035);}
+.paper-row:hover .row-title{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;}
+.paper-section{position:relative;}
+.paper-section + .paper-section{border-top:1px solid rgba(29,26,20,0.14);}
+
 /* Paper grain texture overlay */
 .theme-paper::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   opacity:0.028;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
@@ -4920,51 +4926,76 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   const now=new Date();
   const hr=now.getHours();
   const tod=hr<12?'morning':hr<18?'afternoon':'evening';
-  const DAYS=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  const DAYS=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const DAYS_LONG=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  const MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const todayS=toStr(now);
   const openToday=tasks.filter(t=>t.deadline===todayS&&!t.completed);
   const deepTask=tasks.find(t=>t.priority==='high'&&t.deadline===todayS&&!t.completed);
-  const nextTrip=trips.filter(t=>t.endDate>=todayS).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0];
-  const daysToTrip=nextTrip?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-now)/86400000)):null;
+  const nextTrip=trips.filter(t=>t.endDate&&t.endDate>=todayS).sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''))[0];
+  const daysToTrip=(nextTrip&&nextTrip.startDate)?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-now)/86400000)):null;
   const goalsOn=goals.filter(g=>!g.completed&&(g.progress||0)>=50).length;
   const goalsTotal=goals.filter(g=>!g.completed).length;
   const totalMin=openToday.reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
   const focusStr=totalMin>0?`${Math.floor(totalMin/60)>0?Math.floor(totalMin/60)+'h ':''}${totalMin%60>0?totalMin%60+'m':''}`.trim():`${(openToday.length*0.8|0)+1}h`;
   const quote=PP_QUOTES[quoteIdx%PP_QUOTES.length];
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
-  const Stat=({label,val,sub,accent,first,action})=>(
-    <div style={{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:20,paddingRight:16}}>
-      <div style={{...eye,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{label}</span>{action}</div>
-      <div style={{fontFamily:PP_M,fontSize:accent?20:18,fontWeight:500,color:accent?T.mint:T.text,marginTop:8,lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{val}</div>
-      {sub&&<div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:'0.08em',fontFamily:PP_M}}>{sub}</div>}
+  const tinyLbl={fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted};
+  const Stat=({label,val,sub,accent,first,right})=>(
+    <div style={{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:22,paddingRight:16,textAlign:right?'right':'left'}}>
+      <div style={{...eye,justifyContent:right?'flex-end':'flex-start',display:'flex'}}>{label}</div>
+      <div style={{fontFamily:PP_M,fontSize:accent?22:19,fontWeight:500,color:accent?T.mint:T.text,marginTop:10,lineHeight:1.1,fontVariantNumeric:'tabular-nums',letterSpacing:accent?'-0.01em':'0'}}>{val}</div>
+      {sub&&<div style={{fontSize:9,color:T.muted,marginTop:4,letterSpacing:'0.09em',fontFamily:PP_M,textTransform:'uppercase'}}>{sub}</div>}
     </div>
   );
+  // "SERIAL" — a day-of-year code so the hero feels like a uniquely-printed receipt
+  const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
+  const serial=`№ ${String(doy).padStart(4,'0')} · ${String(now.getFullYear()).slice(2)}`;
   return(
-    <div style={{background:T.bg,padding:'28px 1.75rem 0',borderBottom:`1px solid ${T.border}`}}>
-      <div style={{...eye,marginBottom:12}}>to the bearer — {DAYS[now.getDay()].toLowerCase()} {tod}</div>
-      <h1 style={{fontFamily:PP_S,fontSize:72,fontWeight:400,lineHeight:0.94,letterSpacing:'-0.035em',margin:'0 0 16px',color:T.text,maxWidth:680}}>
-        Good {tod},<br/><span style={{fontStyle:'italic'}}>Pratham</span><span style={{color:T.mint}}>.</span>
-      </h1>
-      <p style={{fontFamily:PP_S,fontSize:18,color:T.textMd,fontWeight:300,fontStyle:'italic',marginBottom:24,maxWidth:680,lineHeight:1.5}}>
-        {openToday.length>0?`${openToday.length} ${openToday.length===1?'thing wants':'things want'} your attention.`:'The day is clear.'}
-        {deepTask&&<> The <span style={{color:T.mint,fontStyle:'normal',fontFamily:PP_M,fontSize:12}}>{deepTask.title.split('—')[0].trim().toUpperCase()}</span> is your one deep block.</>}
-        {nextTrip&&<> {nextTrip.destination.split(',')[0]} is in {daysToTrip} days.</>}
-      </p>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,paddingTop:16,borderTop:`1px solid ${T.text}`}}>
-        <Stat first label="SUN" val={sun?`${sun.rise} ↑ ${sun.set} ↓`:'—'} sub={sun?`golden · ${sun.golden}`:''}/>
-        <Stat label="FOCUS" val={focusStr} sub="today · planned"/>
-        <Stat label="GOALS" val={goalsTotal>0?`${goalsOn}/${goalsTotal}`:'—'} sub="on track"/>
-        <Stat label="NEXT" val={nextTrip?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?`in ${daysToTrip} days`:'no trips'} accent/>
-        <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:20}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div style={eye}>QUOTE</div>
-            <button onClick={()=>setQuoteIdx(i=>(i+1)%PP_QUOTES.length)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em'}}>↻ SHUFFLE</button>
-          </div>
-          <div style={{fontFamily:PP_S,fontSize:13,fontStyle:'italic',color:T.text,marginTop:8,lineHeight:1.35}}>"{quote.q}"</div>
-          <div style={{fontSize:10,color:T.muted,marginTop:6,letterSpacing:'0.12em',fontFamily:PP_M}}>— {quote.a}</div>
+    <div style={{background:T.bg,padding:'34px 1.75rem 0',borderBottom:`1px solid ${T.border}`,position:'relative'}}>
+      {/* Top rule: overline + serial ticker */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18,borderBottom:`1px dashed ${T.border}`,paddingBottom:10}}>
+        <div style={{...tinyLbl}}>To the bearer, {DAYS_LONG[now.getDay()].toLowerCase()} — {tod} edition</div>
+        <div style={{...tinyLbl,color:T.mint}}>{serial}</div>
+      </div>
+
+      {/* Headline + date-stamp */}
+      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
+        <div>
+          <h1 style={{fontFamily:PP_S,fontSize:78,fontWeight:400,lineHeight:0.92,letterSpacing:'-0.038em',margin:'0 0 16px',color:T.text,maxWidth:720}}>
+            Good {tod},<br/><span style={{fontStyle:'italic'}}>Pratham</span><span style={{color:T.mint}}>.</span>
+          </h1>
+          <p style={{fontFamily:PP_S,fontSize:19,color:T.inkSoft||T.textMd,fontWeight:300,fontStyle:'italic',margin:'0 0 24px',maxWidth:640,lineHeight:1.45}}>
+            {openToday.length>0?`${openToday.length} ${openToday.length===1?'thing wants':'things want'} your attention.`:'The day is clear.'}
+            {deepTask&&<> The <span style={{color:T.mint,fontStyle:'normal',fontFamily:PP_M,fontSize:12,letterSpacing:'0.05em'}}>{deepTask.title.split('—')[0].trim().toUpperCase()}</span> is your one deep block.</>}
+            {nextTrip&&nextTrip.destination&&<> {nextTrip.destination.split(',')[0]} {daysToTrip===0?'begins today.':`in ${daysToTrip} ${daysToTrip===1?'day':'days'}.`}</>}
+          </p>
+        </div>
+        {/* Date stamp card */}
+        <div style={{border:`1px solid ${T.text}`,padding:'10px 14px',minWidth:96,textAlign:'center',background:T.card,letterSpacing:'0.02em'}}>
+          <div style={{...tinyLbl,fontSize:7.5,marginBottom:6}}>DISPATCHED</div>
+          <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,letterSpacing:'0.16em'}}>{DAYS[now.getDay()]}</div>
+          <div style={{fontFamily:PP_S,fontSize:44,fontWeight:500,color:T.text,lineHeight:1,margin:'4px 0 2px',letterSpacing:'-0.02em'}}>{String(now.getDate()).padStart(2,'0')}</div>
+          <div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.22em'}}>{MON[now.getMonth()]} {String(now.getFullYear()).slice(2)}</div>
         </div>
       </div>
-      <div style={{height:1,background:T.border,marginTop:16}}/>
+
+      {/* Stat strip */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0,paddingTop:18,borderTop:`1px solid ${T.text}`}}>
+        <Stat first label="SUN" val={sun?`${sun.rise} ↑`:'—'} sub={sun?`set ${sun.set} · golden ${sun.golden}`:''}/>
+        <Stat label="FOCUS" val={focusStr} sub="today · planned"/>
+        <Stat label="GOALS" val={goalsTotal>0?`${goalsOn}/${goalsTotal}`:'—'} sub={goalsTotal>0?'on track':'none queued'}/>
+        <Stat label="NEXT" val={nextTrip&&nextTrip.destination?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?(daysToTrip===0?'today':`in ${daysToTrip} day${daysToTrip===1?'':'s'}`):'no trips'} accent/>
+        <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:22}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={eye}>QUOTE</div>
+            <button onClick={()=>setQuoteIdx(i=>(i+1)%PP_QUOTES.length)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',padding:0}}>↻ SHUFFLE</button>
+          </div>
+          <div style={{fontFamily:PP_S,fontSize:14,fontStyle:'italic',color:T.text,marginTop:10,lineHeight:1.35}}>“{quote.q}”</div>
+          <div style={{fontSize:9,color:T.muted,marginTop:6,letterSpacing:'0.15em',fontFamily:PP_M}}>— {quote.a}</div>
+        </div>
+      </div>
+      <div style={{height:0,marginTop:20,borderBottom:`1px dashed ${T.border}`}}/>
     </div>
   );
 }
@@ -4982,53 +5013,97 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal}){
   const deepTask=todayTasks.find(t=>t.priority==='high'&&!t.completed);
   const nextTask=todayTasks.find(t=>!t.completed);
   const totalMin=todayTasks.filter(t=>!t.completed).reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
-  const hoursStr=totalMin>0?`~${(totalMin/60).toFixed(1)}H`:`~${(remaining*0.8+0.5|0)||1}H`;
+  const hoursStr=totalMin>0?`~${(totalMin/60).toFixed(1)}H`:(remaining>0?`~${(remaining*0.8+0.5|0)||1}H`:'0H');
   const dateLabel=now.toLocaleDateString('en-GB',{month:'long',day:'numeric'}).toUpperCase();
+  const issuedAt=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const pctDone=todayTasks.length>0?Math.round((done/todayTasks.length)*100):0;
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
   function toggle(id){setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed}:t));}
   const fmtTime=tb=>{if(!tb)return'—';if(tb==='am')return'AM';if(tb==='pm')return'PM';return tb;};
   const fmtKind=t=>{const tags=(t.tags||[]);if(tags.length>0)return tags.join(' · ').toUpperCase();if(t.priority==='high')return'DEEP WORK';return t.type?t.type.toUpperCase():'—';};
+  const onFocus=()=>{
+    if(deepTask){ setModal&&setModal({type:'task',data:deepTask}); return; }
+    if(nextTask){ setModal&&setModal({type:'task',data:nextTask}); return; }
+  };
+  // 6-col grid: index | time | glyph | title | kind | dur
+  const gridCols='30px 72px 18px minmax(0,1fr) 170px 62px';
   return(
     <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`}}>
-      <div style={{padding:'16px 1.75rem',display:'flex',justifyContent:'space-between',alignItems:'flex-start',borderBottom:`1px solid ${T.border}`}}>
+      {/* Header band */}
+      <div style={{padding:'20px 1.75rem 14px',borderBottom:`1px solid ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
         <div>
-          <div style={{...eye,color:T.mint,marginBottom:8}}>TODAY · {dateLabel} · {todayTasks.length} ITEM{todayTasks.length!==1?'S':''}</div>
-          <div style={{fontFamily:PP_S,fontSize:24,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.2}}>
-            {remaining===0?'The day is clear.':<>{remaining} {remaining===1?'commitment':'commitments'} remain{deepTask&&<>, <span style={{color:T.mint}}>one deep block</span></>}{remaining>0&&<>, {hoursStr} ahead.</>}</>}
+          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:10}}>
+            <div style={{...eye,color:T.mint}}>TODAY’S MANIFEST</div>
+            <div style={{width:28,height:1,background:T.text}}/>
+            <div style={{...eye,color:T.muted,fontSize:8}}>{dateLabel}</div>
+            <div style={{...eye,color:T.muted,fontSize:8}}>ISSUED {issuedAt}</div>
+            <div style={{...eye,color:T.muted,fontSize:8}}>{todayTasks.length} ITEM{todayTasks.length!==1?'S':''}</div>
+          </div>
+          <div style={{fontFamily:PP_S,fontSize:28,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
+            {todayTasks.length===0
+              ?<><span style={{fontStyle:'italic'}}>Nothing is scheduled.</span> A clean slate — draft or rest.</>
+              :remaining===0
+                ?<><span style={{fontStyle:'italic'}}>The day is clear.</span> All commitments logged.</>
+                :<>{remaining} <span style={{fontStyle:'italic'}}>{remaining===1?'commitment':'commitments'}</span> remain{deepTask&&<>, <span style={{color:T.mint}}>one deep block</span></>}{remaining>0&&<>, <span style={{fontVariantNumeric:'tabular-nums',fontFamily:PP_M,fontSize:20,letterSpacing:0}}>{hoursStr}</span> ahead.</>}</>
+            }
           </div>
         </div>
-        <div style={{display:'flex',gap:8,flexShrink:0,marginTop:4}}>
-          <button onClick={onCapture} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,borderRadius:3,padding:'5px 12px',cursor:'pointer',color:T.muted}}>+ CAPTURE</button>
-          <button onClick={()=>setModal&&setModal({type:'focus'})} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:T.mint,border:`1px solid ${T.mint}`,borderRadius:3,padding:'5px 12px',cursor:'pointer',color:'#faf7f3'}}>▶ FOCUS</button>
+        <div style={{display:'flex',gap:8,flexShrink:0}}>
+          <button onClick={onCapture} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.text}`,borderRadius:0,padding:'7px 14px',cursor:'pointer',color:T.text}}>＋ CAPTURE</button>
+          <button onClick={onFocus} disabled={!deepTask&&!nextTask} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',background:(deepTask||nextTask)?T.mint:T.border,border:`1px solid ${(deepTask||nextTask)?T.mint:T.border}`,borderRadius:0,padding:'7px 14px',cursor:(deepTask||nextTask)?'pointer':'not-allowed',color:'#faf7f3',opacity:(deepTask||nextTask)?1:0.6}}>▶ FOCUS</button>
         </div>
       </div>
-      <div style={{padding:'0 1.75rem'}}>
-        <div style={{display:'grid',gridTemplateColumns:'76px 18px 1fr 160px 60px',padding:'7px 0',borderBottom:`1px solid ${T.border}`}}>
-          {['TIME','','ITEM','KIND','DUR'].map((h,i)=><div key={i} style={{...eye,color:T.muted,fontSize:8}}>{h}</div>)}
+
+      {/* Progress bar */}
+      <div style={{padding:'10px 1.75rem 4px',borderBottom:`1px dashed ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:14,alignItems:'center'}}>
+        <div style={{height:6,background:'transparent',border:`1px solid ${T.border}`,borderRadius:0,overflow:'hidden',position:'relative'}}>
+          <div style={{position:'absolute',inset:0,background:`repeating-linear-gradient(90deg, ${T.border} 0 1px, transparent 1px 10%)`,opacity:0.5}}/>
+          <div style={{width:`${pctDone}%`,height:'100%',background:T.mint,transition:'width .45s cubic-bezier(.22,1,.36,1)'}}/>
         </div>
+        <div style={{...eye,color:T.muted,fontSize:9,fontVariantNumeric:'tabular-nums'}}>{pctDone}% · {done}/{todayTasks.length||0}</div>
+      </div>
+
+      {/* Column heads */}
+      <div style={{padding:'0 1.75rem'}}>
+        <div style={{display:'grid',gridTemplateColumns:gridCols,padding:'9px 0',borderBottom:`1px solid ${T.border}`,columnGap:0}}>
+          {['№','TIME','','ITEM','KIND','DUR'].map((h,i)=><div key={i} style={{...eye,color:T.muted,fontSize:8,textAlign:i===5?'right':'left'}}>{h}</div>)}
+        </div>
+
+        {/* Rows */}
         {todayTasks.length===0
-          ?<div style={{padding:'24px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16}}>No tasks scheduled today.</div>
+          ?<div style={{padding:'34px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— no entries logged for today —</div>
           :todayTasks.map((t,i)=>{
             const isDone=t.completed,isDeep=t.priority==='high';
+            const glyph=isDone?'✓':isDeep?'■':'○';
+            const glyphColor=isDone?T.mint:isDeep?T.mint:T.muted;
             return(
-              <div key={t.id} onClick={()=>toggle(t.id)} style={{display:'grid',gridTemplateColumns:'76px 18px 1fr 160px 60px',padding:'10px 0',borderBottom:i<todayTasks.length-1?`1px dashed ${T.lineSoft}`:'none',cursor:'pointer',opacity:isDone?0.45:1,transition:'opacity 0.12s'}}>
-                <div style={{fontFamily:PP_M,fontSize:11,color:T.muted}}>{fmtTime(t.timeBlock)}</div>
-                <div style={{fontFamily:PP_M,fontSize:12,color:isDone?T.mint:isDeep?T.mint:T.muted}}>{isDone?'✓':isDeep?'●':'○'}</div>
-                <div style={{fontFamily:PP_S,fontSize:15,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em'}}>{t.title}</div>
-                <div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.05em'}}>{fmtKind(t)}</div>
-                <div style={{fontFamily:PP_M,fontSize:11,color:T.textMd,textAlign:'right'}}>{t.estimate||''}</div>
+              <div key={t.id} onClick={()=>toggle(t.id)} className="paper-row"
+                style={{display:'grid',gridTemplateColumns:gridCols,padding:'11px 0',borderBottom:i<todayTasks.length-1?`1px dashed ${T.lineSoft}`:'none',cursor:'pointer',opacity:isDone?0.42:1,transition:'opacity 0.12s,background 0.12s',columnGap:0}}>
+                <div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.06em',fontVariantNumeric:'tabular-nums'}}>{String(i+1).padStart(2,'0')}.</div>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,fontVariantNumeric:'tabular-nums'}}>{fmtTime(t.timeBlock)}</div>
+                <div style={{fontFamily:PP_M,fontSize:13,color:glyphColor,lineHeight:1}}>{glyph}</div>
+                <div style={{fontFamily:PP_S,fontSize:16,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {isDeep&&!isDone&&<span style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:'0.2em',color:T.mint,marginRight:8,verticalAlign:'middle',border:`1px solid ${T.mint}`,padding:'2px 5px'}}>DEEP</span>}
+                  {t.title}
+                </div>
+                <div style={{fontFamily:PP_M,fontSize:9.5,color:T.muted,letterSpacing:'0.1em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fmtKind(t)}</div>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.textMd,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{t.estimate||'—'}</div>
               </div>
             );
           })
         }
       </div>
-      {todayTasks.length>0&&(
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'8px 1.75rem',borderTop:`1px solid ${T.border}`}}>
-          <div style={{...eye,color:T.muted,fontSize:8}}>{done}/{todayTasks.length} DONE</div>
-          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>{remaining} REMAINING · {hoursStr}</div>
-          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>{nextTask?`NEXT UP · ${fmtTime(nextTask.timeBlock)} ${nextTask.title.slice(0,26).toUpperCase()}`:'ALL CLEAR'}</div>
+
+      {/* Stub / ticket footer */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'10px 1.75rem',borderTop:`1px solid ${T.border}`,background:T.bg,gap:12,alignItems:'center'}}>
+        <div style={{...eye,color:T.muted,fontSize:8}}>{done}/{todayTasks.length||0} COMPLETED</div>
+        <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>
+          {remaining>0?`${remaining} REMAINING · ${hoursStr}`:todayTasks.length>0?'ALL SETTLED':'CLEAN SLATE'}
         </div>
-      )}
+        <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+          {nextTask?<>NEXT · <span style={{color:T.text}}>{fmtTime(nextTask.timeBlock)} {nextTask.title.slice(0,28).toUpperCase()}</span></>:'VOID WHEN DISCARDED'}
+        </div>
+      </div>
     </div>
   );
 }
@@ -5395,24 +5470,54 @@ function App(){
       {page==="today"&&<>
         <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
         <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal}/>
-        <div style={{...maxW,display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,borderBottom:`1px solid ${T.border}`}}>
-          <div style={{borderRight:`1px solid ${T.border}`,padding:"28px 0"}}>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16,paddingLeft:0}}>CALENDAR</div>
-            <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>
+
+        {/* Section: CALENDAR · GOALS */}
+        <div style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+          <div style={{padding:'20px 1.75rem 12px',display:'flex',alignItems:'center',gap:12,borderBottom:`1px dashed ${T.border}`}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION II</div>
+            <div style={{width:24,height:1,background:T.text}}/>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>HORIZON · calendar &amp; goals</div>
           </div>
-          <div style={{padding:"28px 0 28px 32px"}}>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16}}>GOALS</div>
-            <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={false} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
+            <div style={{borderRight:`1px solid ${T.border}`,padding:'22px 1.75rem'}}>
+              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                <span>CALENDAR · THIS MONTH</span>
+                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('plan')}>EXPAND →</span>
+              </div>
+              <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>
+            </div>
+            <div style={{padding:'22px 1.75rem'}}>
+              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                <span>GOALS · IN FLIGHT</span>
+                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('plan')}>EXPAND →</span>
+              </div>
+              <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={false} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
+            </div>
           </div>
         </div>
-        <div style={{...maxW,display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,borderBottom:`1px solid ${T.border}`}}>
-          <div style={{borderRight:`1px solid ${T.border}`,padding:"28px 0"}}>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16}}>TRIPS</div>
-            <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
+
+        {/* Section: TRIPS · MONEY */}
+        <div style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+          <div style={{padding:'20px 1.75rem 12px',display:'flex',alignItems:'center',gap:12,borderBottom:`1px dashed ${T.border}`}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION III</div>
+            <div style={{width:24,height:1,background:T.text}}/>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>LEDGER · trips &amp; money</div>
           </div>
-          <div style={{padding:"28px 0 28px 32px"}}>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted,marginBottom:16}}>MONEY</div>
-            <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={false}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
+            <div style={{borderRight:`1px solid ${T.border}`,padding:'22px 1.75rem'}}>
+              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                <span>TRIPS · ON THE WING</span>
+                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('trips')}>EXPAND →</span>
+              </div>
+              <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
+            </div>
+            <div style={{padding:'22px 1.75rem'}}>
+              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+                <span>MONEY · LEDGER</span>
+                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('money')}>EXPAND →</span>
+              </div>
+              <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={false}/>
+            </div>
           </div>
         </div>
         <PaperFooter/>
