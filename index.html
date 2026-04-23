@@ -4899,7 +4899,7 @@ function PaperMetaStrip({sun}){
   const q=Math.ceil((now.getMonth()+1)/3);
   const cellSty={fontFamily:PP_M,fontSize:11,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',whiteSpace:'nowrap'};
   return(
-    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,padding:'14px 1.75rem'}}>
+    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:'14px 1.75rem'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:24,...cellSty}}>
         <span>{dateStr}</span>
         <span>WEEK {String(wk).padStart(2,'0')} · Q{q}</span>
@@ -4932,8 +4932,11 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   const deepTask=tasks.find(t=>t.priority==='high'&&t.deadline===todayS&&!t.completed);
   const nextTrip=trips.filter(t=>t.endDate&&t.endDate>=todayS).sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''))[0];
   const daysToTrip=(nextTrip&&nextTrip.startDate)?Math.max(0,Math.ceil((fromStr(nextTrip.startDate)-now)/86400000)):null;
-  const totalMin=openToday.reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
-  const focusStr=totalMin>0?`${Math.floor(totalMin/60)>0?Math.floor(totalMin/60)+'h ':''}${totalMin%60>0?(totalMin%60)+'m':''}`.trim():(openToday.length>0?`${(openToday.length*0.8|0)+1}h`:'—');
+  const yr=now.getFullYear();
+  const goalsDone=goals.filter(g=>g.completed&&(g.completedAt||'').startsWith(String(yr))).length;
+  const goalsDoneAll=goals.filter(g=>g.completed).length;
+  const goalsTot=goals.length;
+  const goalsDoneN=goalsDone||goalsDoneAll;
   const quote=PP_QUOTES[quoteIdx%PP_QUOTES.length];
   // Weather (used in AIR column) — independent fetch, cached per mount
   const[wx,setWx]=useState(null);
@@ -4960,21 +4963,21 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
       </h1>
 
       {/* Kicker paragraph */}
-      <p style={{fontFamily:PP_S,fontSize:22,color:T.text,fontWeight:400,fontStyle:'italic',margin:'0 0 40px',maxWidth:920,lineHeight:1.5}}>
+      <p style={{fontFamily:PP_S,fontSize:22,color:T.muted,fontWeight:400,fontStyle:'italic',margin:'0 0 40px',maxWidth:920,lineHeight:1.5}}>
         {openToday.length>0
-          ?`${openToday.length} ${openToday.length===1?'thing wants':'things want'} your attention.`
-          :'The day is clear — draft, walk, or rest.'}
+          ?<>{openToday.length} {openToday.length===1?'thing wants':'things want'} your attention.</>
+          :<>The day is <span style={{color:T.mint,fontStyle:'italic'}}>clear</span> — draft, walk, or rest.</>}
         {deepTask&&<> The <span style={{display:'inline-block',border:`1px solid ${T.mint}`,background:'rgba(200,65,46,0.08)',color:T.mint,fontFamily:PP_M,fontSize:13,fontWeight:600,letterSpacing:'0.14em',padding:'3px 9px 2px',fontStyle:'normal',verticalAlign:'2px',textTransform:'uppercase',margin:'0 4px'}}>{deepLabel}</span> is your one deep block.</>}
         {nextTrip&&nextTrip.destination&&<> <span style={{display:'block',marginTop:4}}>{nextTrip.destination.split(',')[0].toUpperCase()} {daysToTrip===0?'begins today.':`is in ${daysToTrip} ${daysToTrip===1?'day':'days'}.`}</span></>}
       </p>
 
-      {/* Divider rule */}
-      <div style={{borderTop:`1px solid ${T.border}`,margin:'0 0 28px'}}/>
+      {/* Divider rule (dark, matches reference) */}
+      <div style={{borderTop:`1px solid ${T.text}`,margin:'0 0 28px'}}/>
 
       {/* Stat strip */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0,paddingBottom:28}}>
         <Stat first label="SUN" val={sun?<span>{sun.rise} ↑  {sun.set} ↓</span>:'—'} sub={sun?`golden · ${sun.golden}`:''}/>
-        <Stat label="FOCUS" val={focusStr} sub="today · planned"/>
+        <Stat label="GOALS" val={goalsTot>0?`${goalsDoneN}/${goalsTot}`:'—'} sub={goalsTot>0?`${yr} · completed`:'none queued'}/>
         <Stat label="AIR" val={wx?`${wx.t}°`:'—'} sub={wx?`${wx.desc} · ${wx.wind}km/h`:'fetching'}/>
         <Stat label="NEXT" labelAccent accent val={nextTrip&&nextTrip.destination?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?(daysToTrip===0?'today':`in ${daysToTrip} ${daysToTrip===1?'day':'days'}`):'no trips'}/>
         <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:24,paddingRight:0}}>
