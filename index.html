@@ -4993,94 +4993,138 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   );
 }
 
+// ── Section Card (reusable cream shell for calendar/goals/trips/money) ───
+function PaperSectionCard({label,onExpand,children}){
+  const T=useT();
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+      <div style={{padding:'16px 22px 12px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>{label}</div>
+        {onExpand&&<span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.mint,cursor:'pointer'}} onClick={onExpand}>EXPAND →</span>}
+      </div>
+      <div style={{padding:'18px 22px 22px',minWidth:0}}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Today Card ────────────────────────────────────────────────────────────
-function PaperTodayCard({tasks,setTasks,onCapture,setModal}){
+function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
   const T=useT();
   const now=new Date(),todayS=toStr(now);
-  const todayTasks=tasks.filter(t=>t.deadline===todayS).sort((a,b)=>{
-    const tv=tb=>{if(!tb)return 999;if(tb==='am')return 700;if(tb==='pm')return 1300;const[h,m]=tb.split(':').map(Number);return h*100+(m||0);};
-    return tv(a.timeBlock)-tv(b.timeBlock);
+  const parseTV=tb=>{if(!tb)return 9999;if(tb==='am')return 700;if(tb==='pm')return 1300;const[h,m]=tb.split(':').map(Number);return h*100+(m||0);};
+
+  // Today's tasks
+  const todayTaskRows=tasks.filter(t=>t.deadline===todayS).map(t=>({
+    kind:'task',id:'t-'+t.id,time:t.timeBlock||null,timeSort:parseTV(t.timeBlock),
+    title:t.title,completed:!!t.completed,priority:t.priority||'',
+    estimate:t.estimate||null,tags:t.tags||[],type:t.type||'',_raw:t,
+  }));
+  // Today's apple calendar events (includes multi-day events spanning today)
+  const todayEventRows=(appleEvents||[]).filter(e=>e.start<=todayS&&e.end>=todayS).map(e=>{
+    const st=e.startTime||null;
+    return {
+      kind:'event',id:'e-'+(e.uid||'')+'-'+e.start,time:st,timeSort:parseTV(st),
+      title:e.summary||'(Event)',completed:false,priority:'',
+      estimate:null,calName:e.calName||'',calColor:e.calColor||T.mint,
+    };
   });
-  const done=todayTasks.filter(t=>t.completed).length;
-  const remaining=todayTasks.length-done;
-  const deepTask=todayTasks.find(t=>t.priority==='high'&&!t.completed);
-  const nextTask=todayTasks.find(t=>!t.completed);
-  const totalMin=todayTasks.filter(t=>!t.completed).reduce((s,t)=>{if(!t.estimate)return s;const m=t.estimate.match(/(\d+)h|(\d+)m/g)||[];return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);},0);
-  const hoursStr=totalMin>0?`~${(totalMin/60).toFixed(1)}H`:(remaining>0?`~${(remaining*0.8+0.5|0)||1}H`:'0H');
+  const todayItems=[...todayTaskRows,...todayEventRows].sort((a,b)=>a.timeSort-b.timeSort);
+
+  const done=todayItems.filter(i=>i.completed).length;
+  const remaining=todayItems.filter(i=>!i.completed&&i.kind==='task').length;
+  const totalActive=todayItems.filter(i=>i.kind==='task').length;
+  const deepItem=todayItems.find(i=>i.kind==='task'&&i.priority==='high'&&!i.completed);
+  const nextItem=todayItems.find(i=>!i.completed);
+
+  const totalMin=todayItems.filter(i=>!i.completed&&i.estimate).reduce((s,i)=>{
+    const m=i.estimate.match(/(\d+)h|(\d+)m/g)||[];
+    return s+m.reduce((a,x)=>a+(x.includes('h')?parseInt(x)*60:parseInt(x)),0);
+  },0);
+  const hoursStr=totalMin>0?`~${(totalMin/60).toFixed(1)}H`:(remaining>0?`~${((remaining*0.8+0.5)|0)||1}H`:'0H');
+
   const dateLabel=now.toLocaleDateString('en-GB',{month:'long',day:'numeric'}).toUpperCase();
-  const issuedAt=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  const pctDone=todayTasks.length>0?Math.round((done/todayTasks.length)*100):0;
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
-  function toggle(id){setTasks(p=>p.map(t=>t.id===id?{...t,completed:!t.completed}:t));}
-  const fmtTime=tb=>{if(!tb)return'—';if(tb==='am')return'AM';if(tb==='pm')return'PM';return tb;};
-  const fmtKind=t=>{const tags=(t.tags||[]);if(tags.length>0)return tags.join(' · ').toUpperCase();if(t.priority==='high')return'DEEP WORK';return t.type?t.type.toUpperCase():'—';};
+
+  function toggle(row){
+    if(row.kind!=='task')return;
+    setTasks(p=>p.map(t=>t.id===row._raw.id?{...t,completed:!t.completed}:t));
+  }
+  const fmtTime=tb=>{if(!tb)return'ALL DAY';if(tb==='am')return'AM';if(tb==='pm')return'PM';return tb;};
+  const fmtKindTask=t=>{const tags=(t.tags||[]);if(tags.length>0)return tags.slice(0,2).join(' · ').toUpperCase();if(t.priority==='high')return'DEEP WORK';return t.type?t.type.toUpperCase():'TASK';};
+  const fmtKindEvent=e=>e.calName?`CAL · ${e.calName.toUpperCase()}`:'CALENDAR';
   const onFocus=()=>{
-    if(deepTask){ setModal&&setModal({type:'task',data:deepTask}); return; }
-    if(nextTask){ setModal&&setModal({type:'task',data:nextTask}); return; }
+    if(deepItem&&deepItem._raw){ setModal&&setModal({type:'task',data:deepItem._raw}); return; }
+    const firstOpenTask=todayItems.find(i=>i.kind==='task'&&!i.completed);
+    if(firstOpenTask&&firstOpenTask._raw){ setModal&&setModal({type:'task',data:firstOpenTask._raw}); return; }
   };
-  // 6-col grid: index | time | glyph | title | kind | dur
-  const gridCols='30px 72px 18px minmax(0,1fr) 170px 62px';
+
+  // 4-col grid: time | item | kind | duration
+  const gridCols='86px minmax(0,1fr) 180px 72px';
+
   return(
-    <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+    <div style={{margin:'24px 1.75rem 0',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
       {/* Header band */}
-      <div style={{padding:'20px 1.75rem 14px',borderBottom:`1px solid ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
+      <div style={{padding:'22px 26px 18px',borderBottom:`1px solid ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
         <div>
-          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:10}}>
-            <div style={{...eye,color:T.mint}}>TODAY’S MANIFEST</div>
-            <div style={{width:28,height:1,background:T.text}}/>
-            <div style={{...eye,color:T.muted,fontSize:8}}>{dateLabel}</div>
-            <div style={{...eye,color:T.muted,fontSize:8}}>ISSUED {issuedAt}</div>
-            <div style={{...eye,color:T.muted,fontSize:8}}>{todayTasks.length} ITEM{todayTasks.length!==1?'S':''}</div>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+            <div style={{...eye,color:T.mint,fontSize:10}}>TODAY</div>
+            <div style={{...eye,color:T.mint,fontSize:10}}>·</div>
+            <div style={{...eye,color:T.mint,fontSize:10}}>{dateLabel}</div>
+            <div style={{...eye,color:T.mint,fontSize:10}}>·</div>
+            <div style={{...eye,color:T.mint,fontSize:10}}>{todayItems.length} ITEM{todayItems.length!==1?'S':''}</div>
           </div>
-          <div style={{fontFamily:PP_S,fontSize:28,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
-            {todayTasks.length===0
-              ?<><span style={{fontStyle:'italic'}}>Nothing is scheduled.</span> A clean slate — draft or rest.</>
-              :remaining===0
-                ?<><span style={{fontStyle:'italic'}}>The day is clear.</span> All commitments logged.</>
-                :<>{remaining} <span style={{fontStyle:'italic'}}>{remaining===1?'commitment':'commitments'}</span> remain{deepTask&&<>, <span style={{color:T.mint}}>one deep block</span></>}{remaining>0&&<>, <span style={{fontVariantNumeric:'tabular-nums',fontFamily:PP_M,fontSize:20,letterSpacing:0}}>{hoursStr}</span> ahead.</>}</>
+          <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:30,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
+            {todayItems.length===0
+              ?<><span>Nothing is scheduled.</span> A clean slate — draft or rest.</>
+              :remaining===0&&totalActive>0
+                ?<>The day is clear. All commitments logged.</>
+                :remaining===0
+                  ?<>{todayItems.length} {todayItems.length===1?'event':'events'} on the calendar, no open tasks.</>
+                  :<>{remaining} {remaining===1?'commitment':'commitments'} remain{deepItem?<>, <span style={{color:T.mint,fontStyle:'italic'}}>one deep block</span></>:''}, <span style={{fontFamily:PP_M,fontStyle:'normal',fontSize:22,letterSpacing:0,fontVariantNumeric:'tabular-nums'}}>{hoursStr}</span> ahead.</>
             }
           </div>
         </div>
         <div style={{display:'flex',gap:8,flexShrink:0}}>
-          <button onClick={onCapture} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.text}`,borderRadius:0,padding:'7px 14px',cursor:'pointer',color:T.text}}>＋ CAPTURE</button>
-          <button onClick={onFocus} disabled={!deepTask&&!nextTask} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',background:(deepTask||nextTask)?T.mint:T.border,border:`1px solid ${(deepTask||nextTask)?T.mint:T.border}`,borderRadius:0,padding:'7px 14px',cursor:(deepTask||nextTask)?'pointer':'not-allowed',color:'#faf7f3',opacity:(deepTask||nextTask)?1:0.6}}>▶ FOCUS</button>
+          <button onClick={onCapture} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.text}`,borderRadius:0,padding:'8px 14px',cursor:'pointer',color:T.text}}>＋ CAPTURE</button>
+          <button onClick={onFocus} disabled={!deepItem&&!nextItem} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.mint}`,borderRadius:0,padding:'8px 14px',cursor:(deepItem||nextItem)?'pointer':'not-allowed',color:T.mint,opacity:(deepItem||nextItem)?1:0.5}}>▶ FOCUS</button>
         </div>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{padding:'10px 1.75rem 4px',borderBottom:`1px dashed ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:14,alignItems:'center'}}>
-        <div style={{height:6,background:'transparent',border:`1px solid ${T.border}`,borderRadius:0,overflow:'hidden',position:'relative'}}>
-          <div style={{position:'absolute',inset:0,background:`repeating-linear-gradient(90deg, ${T.border} 0 1px, transparent 1px 10%)`,opacity:0.5}}/>
-          <div style={{width:`${pctDone}%`,height:'100%',background:T.mint,transition:'width .45s cubic-bezier(.22,1,.36,1)'}}/>
-        </div>
-        <div style={{...eye,color:T.muted,fontSize:9,fontVariantNumeric:'tabular-nums'}}>{pctDone}% · {done}/{todayTasks.length||0}</div>
       </div>
 
       {/* Column heads */}
-      <div style={{padding:'0 1.75rem'}}>
-        <div style={{display:'grid',gridTemplateColumns:gridCols,padding:'9px 0',borderBottom:`1px solid ${T.border}`,columnGap:0}}>
-          {['№','TIME','','ITEM','KIND','DUR'].map((h,i)=><div key={i} style={{...eye,color:T.muted,fontSize:8,textAlign:i===5?'right':'left'}}>{h}</div>)}
+      <div style={{padding:'0 26px'}}>
+        <div style={{display:'grid',gridTemplateColumns:gridCols,padding:'11px 0',borderBottom:`1px solid ${T.border}`,columnGap:14}}>
+          <div style={{...eye,color:T.muted,fontSize:8}}>TIME</div>
+          <div style={{...eye,color:T.muted,fontSize:8}}>ITEM</div>
+          <div style={{...eye,color:T.muted,fontSize:8}}>KIND</div>
+          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>DURATION</div>
         </div>
 
         {/* Rows */}
-        {todayTasks.length===0
-          ?<div style={{padding:'34px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— no entries logged for today —</div>
-          :todayTasks.map((t,i)=>{
-            const isDone=t.completed,isDeep=t.priority==='high';
-            const glyph=isDone?'✓':isDeep?'■':'○';
-            const glyphColor=isDone?T.mint:isDeep?T.mint:T.muted;
+        {todayItems.length===0
+          ?<div style={{padding:'40px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— no entries logged for today —</div>
+          :todayItems.map((row,i)=>{
+            const isDone=row.completed;
+            const isTask=row.kind==='task';
+            const isEvent=row.kind==='event';
+            const isDeep=isTask&&row.priority==='high';
+            const glyph=isDone?'✓':isDeep?'◆':isEvent?'▪':'○';
+            const glyphColor=isDone?T.mint:isDeep?T.mint:isEvent?(row.calColor||T.mint):T.muted;
             return(
-              <div key={t.id} onClick={()=>toggle(t.id)} className="paper-row"
-                style={{display:'grid',gridTemplateColumns:gridCols,padding:'11px 0',borderBottom:i<todayTasks.length-1?`1px dashed ${T.lineSoft}`:'none',cursor:'pointer',opacity:isDone?0.42:1,transition:'opacity 0.12s,background 0.12s',columnGap:0}}>
-                <div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.06em',fontVariantNumeric:'tabular-nums'}}>{String(i+1).padStart(2,'0')}.</div>
-                <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,fontVariantNumeric:'tabular-nums'}}>{fmtTime(t.timeBlock)}</div>
-                <div style={{fontFamily:PP_M,fontSize:13,color:glyphColor,lineHeight:1}}>{glyph}</div>
-                <div style={{fontFamily:PP_S,fontSize:16,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {isDeep&&!isDone&&<span style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:'0.2em',color:T.mint,marginRight:8,verticalAlign:'middle',border:`1px solid ${T.mint}`,padding:'2px 5px'}}>DEEP</span>}
-                  {t.title}
+              <div key={row.id} onClick={()=>toggle(row)} className="paper-row"
+                style={{display:'grid',gridTemplateColumns:gridCols,padding:'13px 0',borderBottom:i<todayItems.length-1?`1px dashed ${T.lineSoft||T.border}`:'none',cursor:isTask?'pointer':'default',opacity:isDone?0.4:1,transition:'opacity 0.12s,background 0.12s',columnGap:14,alignItems:'center'}}>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em'}}>{fmtTime(row.time)}</div>
+                <div style={{display:'flex',alignItems:'baseline',gap:12,overflow:'hidden'}}>
+                  <span style={{fontFamily:PP_M,fontSize:14,color:glyphColor,lineHeight:1,flexShrink:0}}>{glyph}</span>
+                  <span style={{fontFamily:PP_S,fontSize:17,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {row.title}
+                  </span>
                 </div>
-                <div style={{fontFamily:PP_M,fontSize:9.5,color:T.muted,letterSpacing:'0.1em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fmtKind(t)}</div>
-                <div style={{fontFamily:PP_M,fontSize:11,color:T.textMd,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{t.estimate||'—'}</div>
+                <div style={{fontFamily:PP_M,fontSize:9.5,color:isEvent?(row.calColor||T.muted):T.muted,letterSpacing:'0.12em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textTransform:'uppercase'}}>
+                  {isTask?fmtKindTask(row):fmtKindEvent(row)}
+                </div>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.text,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{row.estimate||'—'}</div>
               </div>
             );
           })
@@ -5088,13 +5132,13 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal}){
       </div>
 
       {/* Stub / ticket footer */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'10px 1.75rem',borderTop:`1px solid ${T.border}`,background:T.bg,gap:12,alignItems:'center'}}>
-        <div style={{...eye,color:T.muted,fontSize:8}}>{done}/{todayTasks.length||0} COMPLETED</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'14px 26px',borderTop:`1px solid ${T.border}`,background:T.card,gap:12,alignItems:'center'}}>
+        <div style={{...eye,color:T.muted,fontSize:8}}>{done}/{totalActive||0} DONE</div>
         <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>
-          {remaining>0?`${remaining} REMAINING · ${hoursStr}`:todayTasks.length>0?'ALL SETTLED':'CLEAN SLATE'}
+          {remaining>0?`${remaining} REMAINING · ${hoursStr}`:totalActive>0?'ALL SETTLED':'CLEAN SLATE'}
         </div>
         <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-          {nextTask?<>NEXT · <span style={{color:T.text}}>{fmtTime(nextTask.timeBlock)} {nextTask.title.slice(0,28).toUpperCase()}</span></>:'VOID WHEN DISCARDED'}
+          {nextItem?<>NEXT UP · <span style={{color:T.text}}>{fmtTime(nextItem.time)} {nextItem.title.slice(0,26).toUpperCase()}</span></>:'VOID WHEN DISCARDED'}
         </div>
       </div>
     </div>
@@ -5462,56 +5506,40 @@ function App(){
 
       {page==="today"&&<>
         <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
-        <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal}/>
+        <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents}/>
 
-        {/* Section: CALENDAR · GOALS */}
-        <div style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
-          <div style={{padding:'20px 1.75rem 12px',display:'flex',alignItems:'center',gap:12,borderBottom:`1px dashed ${T.border}`}}>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION II</div>
-            <div style={{width:24,height:1,background:T.text}}/>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>HORIZON · calendar &amp; goals</div>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
-            <div style={{borderRight:`1px solid ${T.border}`,padding:'22px 1.75rem'}}>
-              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
-                <span>CALENDAR · THIS MONTH</span>
-                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('plan')}>EXPAND →</span>
-              </div>
-              <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>
-            </div>
-            <div style={{padding:'22px 1.75rem'}}>
-              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
-                <span>GOALS · IN FLIGHT</span>
-                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('plan')}>EXPAND →</span>
-              </div>
-              <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={false} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
-            </div>
-          </div>
+        {/* Section label: HORIZON */}
+        <div style={{padding:'28px 1.75rem 10px',display:'flex',alignItems:'center',gap:12}}>
+          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION II</div>
+          <div style={{width:24,height:1,background:T.text}}/>
+          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>HORIZON · calendar &amp; goals</div>
         </div>
 
-        {/* Section: TRIPS · MONEY */}
-        <div style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
-          <div style={{padding:'20px 1.75rem 12px',display:'flex',alignItems:'center',gap:12,borderBottom:`1px dashed ${T.border}`}}>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION III</div>
-            <div style={{width:24,height:1,background:T.text}}/>
-            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>LEDGER · trips &amp; money</div>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0}}>
-            <div style={{borderRight:`1px solid ${T.border}`,padding:'22px 1.75rem'}}>
-              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
-                <span>TRIPS · ON THE WING</span>
-                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('trips')}>EXPAND →</span>
-              </div>
-              <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
-            </div>
-            <div style={{padding:'22px 1.75rem'}}>
-              <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted,marginBottom:14,display:'flex',justifyContent:'space-between'}}>
-                <span>MONEY · LEDGER</span>
-                <span style={{color:T.mint,cursor:'pointer'}} onClick={()=>setPage('money')}>EXPAND →</span>
-              </div>
-              <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={false}/>
-            </div>
-          </div>
+        {/* CALENDAR + GOALS — two cream cards */}
+        <div style={{padding:'0 1.75rem',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
+          <PaperSectionCard label="CALENDAR · THIS MONTH" onExpand={()=>setPage('plan')}>
+            <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>
+          </PaperSectionCard>
+          <PaperSectionCard label="GOALS · IN FLIGHT" onExpand={()=>setPage('plan')}>
+            <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={false} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
+          </PaperSectionCard>
+        </div>
+
+        {/* Section label: LEDGER */}
+        <div style={{padding:'28px 1.75rem 10px',display:'flex',alignItems:'center',gap:12}}>
+          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION III</div>
+          <div style={{width:24,height:1,background:T.text}}/>
+          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>LEDGER · trips &amp; money</div>
+        </div>
+
+        {/* TRIPS + MONEY — two cream cards */}
+        <div style={{padding:'0 1.75rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
+          <PaperSectionCard label="TRIPS · ON THE WING" onExpand={()=>setPage('trips')}>
+            <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
+          </PaperSectionCard>
+          <PaperSectionCard label="MONEY · LEDGER" onExpand={()=>setPage('money')}>
+            <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={false}/>
+          </PaperSectionCard>
         </div>
         <PaperFooter/>
       </>}
