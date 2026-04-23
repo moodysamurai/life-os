@@ -5303,6 +5303,16 @@ function App(){
             <Btn small onClick={()=>setShowAppleCal(true)} title={appleCal.enabled?"Apple Calendar synced — click to manage":"Connect Apple Calendar"} style={{fontSize:11,color:appleStatus==="ok"?"#FA243C":appleStatus==="err"?"#f87171":appleStatus==="loading"?"#fbbf24":T.textMd,transition:"color 0.3s"}}>
               <Ico n={appleCal.enabled?"calendar-check":"calendar-plus"} size={13}/>
             </Btn>
+            {!isMobile&&<div style={{display:"flex",gap:2,padding:"2px",borderRadius:6,border:`1px solid ${T.border}`,background:T.cardAlt}}>
+              {THEME_PRESETS.map(p=><button key={p.name} onClick={()=>{setTheme(p.name);if(p.palette.length)setPalette(p.palette);}} title={p.label} style={{
+                background:theme===p.name?T.mint:"transparent",
+                color:theme===p.name?T.bg:T.textMd,
+                border:"none",borderRadius:4,padding:"1px 6px",cursor:"pointer",
+                fontSize:p.name==="paper"?10:12,
+                fontFamily:p.name==="paper"?T.mono||F:F,
+                fontWeight:700,transition:"all .12s",letterSpacing:p.name==="paper"?"0.1em":"0",
+              }}>{p.icon}</button>)}
+            </div>}
             <Btn small onClick={()=>setShowColorPanel(true)} title="Custom palette" style={{fontSize:11}}><Ico n="palette" size={13}/></Btn>
             <Btn small onClick={()=>setShowCapture(c=>!c)} active={showCapture} title="Quick capture"><Ico n="plus" size={13}/></Btn>
             <Btn small onClick={()=>setCustomizing(c=>!c)} active={customizing}><Ico n="sliders-horizontal" size={13}/></Btn>
