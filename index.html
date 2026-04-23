@@ -4887,7 +4887,7 @@ function WeatherMeta(){
   const T=useT();
   const[w,setW]=useState(null);
   useEffect(()=>{fetch('https://wttr.in/Leiden?format=j1').then(r=>r.json()).then(d=>{const c=d.current_condition?.[0];if(c)setW({t:c.temp_C,desc:(c.weatherDesc?.[0]?.value||'').toUpperCase(),wind:c.windspeedKmph});}).catch(()=>{});},[]);
-  return w?<span>{w.t}° · {w.desc} · {w.wind}KM/H</span>:<span>— · —</span>;
+  return w?<span>{w.t}° · {w.desc}</span>:<span>— · —</span>;
 }
 function PaperMetaStrip({sun}){
   const T=useT();
@@ -4897,14 +4897,14 @@ function PaperMetaStrip({sun}){
   const dateStr=`${D3[now.getDay()]} · ${String(now.getDate()).padStart(2,'0')} ${M3[now.getMonth()]} ${now.getFullYear()}`;
   const wk=Math.ceil((now-new Date(now.getFullYear(),0,1))/604800000);
   const q=Math.ceil((now.getMonth()+1)/3);
-  const Sep=()=><span style={{color:T.border,margin:'0 14px'}}>|</span>;
+  const cellSty={fontFamily:PP_M,fontSize:11,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',whiteSpace:'nowrap'};
   return(
-    <div style={{background:T.bg,borderBottom:`1px solid ${T.border}`,padding:'5px 1.75rem',display:'flex',alignItems:'center'}}>
-      <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',display:'flex',alignItems:'center',flexWrap:'wrap',gap:0}}>
-        <span>{dateStr}</span><Sep/>
-        <span>WEEK {String(wk).padStart(2,'0')} · Q{q}</span><Sep/>
-        <span>LEIDEN, NL · 52.16°N 4.54°E</span><Sep/>
-        <span>{sun?`${sun.rise} ↑ · ${sun.set} ↓`:'—'}</span><Sep/>
+    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,padding:'14px 1.75rem'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:24,...cellSty}}>
+        <span>{dateStr}</span>
+        <span>WEEK {String(wk).padStart(2,'0')} · Q{q}</span>
+        <span>LEIDEN, NL · 52.16°N 4.54°E</span>
+        <span>{sun?`${sun.rise} ↑ · ${sun.set} ↓`:'— · —'}</span>
         <WeatherMeta/>
       </div>
     </div>
