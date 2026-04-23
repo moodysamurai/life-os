@@ -1637,6 +1637,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const planClickRef=useRef(null);
   const [importToast,setImportToast]=useState(null); // null | {count,skipped}
   const csvInputRef=useRef(null);
+  const [dragCatId,setDragCatId]=useState(null);
+  const [dragOverCatId,setDragOverCatId]=useState(null);
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
@@ -1658,6 +1660,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
   const expCats=useMemo(()=>budgetCats.filter(c=>c.type==="expense"),[budgetCats]);
   const incCats=useMemo(()=>budgetCats.filter(c=>c.type==="income"),[budgetCats]);
+  const incSection=useMemo(()=>budgetCats.filter(c=>c.type==="income"||(c.type==="divider"&&c.section==="income")),[budgetCats]);
+  const expSection=useMemo(()=>budgetCats.filter(c=>c.type==="expense"||(c.type==="divider"&&c.section==="expense")),[budgetCats]);
   function getCatIcon(label){return(budgetCats.find(c=>c.label===label)||{icon:"dots-three"}).icon;}
   function getCatColor(label){const i=budgetCats.findIndex(c=>c.label===label);return CAT_COLS[i>=0?i%CAT_COLS.length:0];}
 
@@ -1678,6 +1682,24 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     setBudgetCats(p=>[...p,{id:uid(),label:catAdd.label.trim(),type:catAdd.type,icon:catAdd.icon}]);
     setCatAdd(null);setPickerFor(null);
   }
+  function onCatDragStart(e,id){setDragCatId(id);e.dataTransfer.effectAllowed="move";}
+  function onCatDragOver(e,id){e.preventDefault();if(id!==dragCatId)setDragOverCatId(id);}
+  function onCatDrop(e,targetId){
+    e.preventDefault();
+    if(!dragCatId||dragCatId===targetId){setDragCatId(null);setDragOverCatId(null);return;}
+    setBudgetCats(prev=>{
+      const arr=[...prev];
+      const fromIdx=arr.findIndex(c=>c.id===dragCatId);
+      const toIdx=arr.findIndex(c=>c.id===targetId);
+      if(fromIdx===-1||toIdx===-1)return prev;
+      arr.splice(toIdx,0,arr.splice(fromIdx,1)[0]);
+      return arr;
+    });
+    setDragCatId(null);setDragOverCatId(null);
+  }
+  function onCatDragEnd(){setDragCatId(null);setDragOverCatId(null);}
+  function addDivider(section){setBudgetCats(p=>[...p,{id:uid(),type:"divider",label:"Section",section}]);}
+  function removeDivider(id){setBudgetCats(p=>p.filter(c=>c.id!==id));}
 
   function seedFromFixed(){
     const seen={};
@@ -2177,13 +2199,38 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
         {/* ── Income rows ── */}
         <div style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 0 3px 0",marginBottom:2}}>Income</div>
-        {incCats.map(cat=>{
+        {incSection.map(cat=>{
+          if(cat.type==="divider"){
+            return <div key={cat.id}
+              draggable
+              onDragStart={e=>onCatDragStart(e,cat.id)}
+              onDragOver={e=>onCatDragOver(e,cat.id)}
+              onDrop={e=>onCatDrop(e,cat.id)}
+              onDragEnd={onCatDragEnd}
+              style={{display:"flex",alignItems:"center",marginBottom:3,marginTop:5,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
+              <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
+                <span style={{fontSize:10,color:T.mint,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
+                <span style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
+              </div>
+              <div style={{flex:1,height:1,background:alpha(T.mint,.2)}}/>
+              <div style={{width:50,flexShrink:0,display:"flex",justifyContent:"center"}}>
+                <button onClick={()=>removeDivider(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 4px"}}>×</button>
+              </div>
+            </div>;
+          }
           const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
           const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
-          return <div key={cat.id} style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2}}>
-            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
+          return <div key={cat.id}
+            draggable
+            onDragStart={e=>onCatDragStart(e,cat.id)}
+            onDragOver={e=>onCatDragOver(e,cat.id)}
+            onDrop={e=>onCatDrop(e,cat.id)}
+            onDragEnd={onCatDragEnd}
+            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.mint,.45)}`:"none",borderRadius:5,transition:"outline 0.08s"}}>
+            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:2,paddingRight:4}}>
+              <span draggable={false} style={{fontSize:11,color:T.textLt,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
               <Ico n={cat.icon||"dots-three"} size={11}/>
-              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:66}}>{cat.label}</span>
+              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:52}}>{cat.label}</span>
             </div>
             {planMonths.map(m=>{
               const amt=getPlanAmt(m,cat.label);
@@ -2216,14 +2263,43 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         })}
 
         {/* ── Expense rows ── */}
-        <div style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${alpha(T.border,.2)}`}}>Expenses</div>
-        {expCats.map(cat=>{
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${alpha(T.border,.2)}`}}>
+          <span style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Expenses</span>
+          <button onClick={()=>addDivider("expense")} title="Add section divider"
+            style={{background:"none",border:`1px solid ${alpha(T.pink,.3)}`,cursor:"pointer",color:T.pink,fontSize:8,fontFamily:F,padding:"2px 6px",borderRadius:4,lineHeight:1,letterSpacing:"0.02em",opacity:0.7}}>+ Divider</button>
+        </div>
+        {expSection.map(cat=>{
+          if(cat.type==="divider"){
+            return <div key={cat.id}
+              draggable
+              onDragStart={e=>onCatDragStart(e,cat.id)}
+              onDragOver={e=>onCatDragOver(e,cat.id)}
+              onDrop={e=>onCatDrop(e,cat.id)}
+              onDragEnd={onCatDragEnd}
+              style={{display:"flex",alignItems:"center",marginBottom:3,marginTop:5,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
+              <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
+                <span style={{fontSize:10,color:T.pink,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
+                <span style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
+              </div>
+              <div style={{flex:1,height:1,background:alpha(T.pink,.2)}}/>
+              <div style={{width:50,flexShrink:0,display:"flex",justifyContent:"center"}}>
+                <button onClick={()=>removeDivider(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 4px"}}>×</button>
+              </div>
+            </div>;
+          }
           const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
           const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
-          return <div key={cat.id} style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2}}>
-            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
+          return <div key={cat.id}
+            draggable
+            onDragStart={e=>onCatDragStart(e,cat.id)}
+            onDragOver={e=>onCatDragOver(e,cat.id)}
+            onDrop={e=>onCatDrop(e,cat.id)}
+            onDragEnd={onCatDragEnd}
+            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.pink,.45)}`:"none",borderRadius:5,transition:"outline 0.08s"}}>
+            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:2,paddingRight:4}}>
+              <span draggable={false} style={{fontSize:11,color:T.textLt,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
               <Ico n={cat.icon||"dots-three"} size={11}/>
-              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:66}}>{cat.label}</span>
+              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:52}}>{cat.label}</span>
             </div>
             {planMonths.map(m=>{
               const amt=getPlanAmt(m,cat.label);
@@ -2305,7 +2381,14 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
             {budgetCats.filter(c=>c.type===type).map(cat=>(
-              <div key={cat.id} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.2)}`}}>
+              <div key={cat.id}
+                draggable
+                onDragStart={e=>onCatDragStart(e,cat.id)}
+                onDragOver={e=>onCatDragOver(e,cat.id)}
+                onDrop={e=>onCatDrop(e,cat.id)}
+                onDragEnd={onCatDragEnd}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${dragOverCatId===cat.id?alpha(type==="income"?T.mint:T.pink,.5):alpha(T.border,.2)}`,opacity:dragCatId===cat.id?0.4:1,transition:"border 0.08s"}}>
+                <span style={{fontSize:13,color:T.textLt,cursor:"grab",userSelect:"none",opacity:0.35,lineHeight:1,flexShrink:0}}>⠿</span>
                 <button onClick={()=>{setCatAdd(null);setPickerFor(pickerFor===cat.id?null:cat.id);}}
                   style={{width:26,height:26,borderRadius:6,border:`1px solid ${pickerFor===cat.id?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor===cat.id?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
                   <Ico n={cat.icon||"dots-three"} size={13}/>
