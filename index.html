@@ -5357,32 +5357,10 @@ function App(){
 
   function exportICS(){
     const f=s=>s.replace(/-/g,"");
-    let cal="BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Pratham Life OS//EN
-CALSCALE:GREGORIAN
-";
-    tasks.forEach(t=>{cal+=`BEGIN:VEVENT
-UID:wakuli-${t.id}@plo
-DTSTART;VALUE=DATE:${f(t.deadline)}
-DTEND;VALUE=DATE:${f(t.deadline)}
-SUMMARY:[Wakuli] ${t.title}
-END:VEVENT
-`;});
-    trips.forEach(t=>{cal+=`BEGIN:VEVENT
-UID:trip-${t.id}@plo
-DTSTART;VALUE=DATE:${f(t.startDate)}
-DTEND;VALUE=DATE:${f(t.endDate)}
-SUMMARY:✈ ${t.destination}
-END:VEVENT
-`;});
-    goals.forEach(g=>{if(!g.targetDate)return;cal+=`BEGIN:VEVENT
-UID:goal-${g.id}@plo
-DTSTART;VALUE=DATE:${f(g.targetDate)}
-DTEND;VALUE=DATE:${f(g.targetDate)}
-SUMMARY:[Goal] ${g.title}
-END:VEVENT
-`;});
+    let cal="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Pratham Life OS//EN\r\nCALSCALE:GREGORIAN\r\n";
+    tasks.forEach(t=>{cal+=`BEGIN:VEVENT\r\nUID:wakuli-${t.id}@plo\r\nDTSTART;VALUE=DATE:${f(t.deadline)}\r\nDTEND;VALUE=DATE:${f(t.deadline)}\r\nSUMMARY:[Wakuli] ${t.title}\r\nEND:VEVENT\r\n`;});
+    trips.forEach(t=>{cal+=`BEGIN:VEVENT\r\nUID:trip-${t.id}@plo\r\nDTSTART;VALUE=DATE:${f(t.startDate)}\r\nDTEND;VALUE=DATE:${f(t.endDate)}\r\nSUMMARY:✈ ${t.destination}\r\nEND:VEVENT\r\n`;});
+    goals.forEach(g=>{if(!g.targetDate)return;cal+=`BEGIN:VEVENT\r\nUID:goal-${g.id}@plo\r\nDTSTART;VALUE=DATE:${f(g.targetDate)}\r\nDTEND;VALUE=DATE:${f(g.targetDate)}\r\nSUMMARY:[Goal] ${g.title}\r\nEND:VEVENT\r\n`;});
     cal+="END:VCALENDAR";
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cal],{type:"text/calendar"}));a.download="pratham-2026.ics";document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
