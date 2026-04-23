@@ -4993,6 +4993,206 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   );
 }
 
+// ── Paper Calendar (Today page) ──────────────────────────────────────────
+function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExpand,setModal}){
+  const T=useT();
+  const [cursor,setCursor]=React.useState(()=>{const d=new Date();d.setDate(1);return d;});
+  const now=new Date();
+  const todayS=toStr(now);
+
+  const y=cursor.getFullYear(),m=cursor.getMonth();
+  const first=new Date(y,m,1);
+  // Monday-first offset
+  const offset=(first.getDay()+6)%7;
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const gridStart=new Date(y,m,1-offset);
+  const weeks=Math.ceil((offset+daysInMonth)/7);
+  const cells=Array.from({length:weeks*7},(_,i)=>{const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);return d;});
+
+  // Week number (ISO-ish, simple) for today's week in cursor month
+  const weekNum=(()=>{const d=new Date(now);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-((d.getDay()+6)%7));const w1=new Date(d.getFullYear(),0,4);return Math.round(((d-w1)/86400000-3+((w1.getDay()+6)%7))/7)+1;})();
+
+  const monthMs=`${y}-${String(m+1).padStart(2,'0')}`;
+  const monthStart=`${monthMs}-01`;
+  const monthEnd=`${monthMs}-${String(daysInMonth).padStart(2,'0')}`;
+
+  // Count events in month (tasks + apple + trips)
+  const monthTaskCount=tasks.filter(t=>t.deadline&&t.deadline>=monthStart&&t.deadline<=monthEnd).length;
+  const monthAppleCount=(appleEvents||[]).filter(e=>e.end>=monthStart&&e.start<=monthEnd).length;
+  const monthTripCount=trips.filter(t=>(t.startDate<=monthEnd&&t.endDate>=monthStart)).length;
+  const totalEvents=monthTaskCount+monthAppleCount;
+
+  function dayDots(ds){
+    const dots=[];
+    const dayTasks=tasks.filter(t=>t.deadline===ds);
+    const dayEvts=(appleEvents||[]).filter(e=>e.start<=ds&&e.end>=ds);
+    const dayTrips=trips.filter(t=>ds>=t.startDate&&ds<=t.endDate);
+    const dayGoals=goals.filter(g=>g.targetDate===ds);
+    // Prioritize colors: trip > goal > apple > task
+    if(dayTrips.length)dots.push(T.mint);
+    if(dayGoals.length)dots.push('#8338EC');
+    dayEvts.slice(0,2).forEach(e=>dots.push(e.calColor||T.mint));
+    if(dayTasks.length)dots.push(T.text);
+    return dots.slice(0,3);
+  }
+
+  const monthName=cursor.toLocaleDateString('en-GB',{month:'long'});
+  const cellH=56;
+
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+      {/* Header */}
+      <div style={{padding:'22px 26px 16px',display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:16,borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:14,minWidth:0}}>
+          <div onClick={onExpand} style={{fontFamily:PP_S,fontStyle:'italic',fontSize:36,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1,cursor:onExpand?'pointer':'default'}}>{monthName}</div>
+          <div style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>{y} · W{weekNum}</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          <button onClick={()=>{const d=new Date(cursor);d.setMonth(d.getMonth()-1);setCursor(d);}} style={{fontFamily:PP_M,fontSize:11,background:'transparent',border:`1px solid ${T.border}`,padding:'6px 10px',cursor:'pointer',color:T.text,lineHeight:1}}>◄</button>
+          <button onClick={()=>{const d=new Date();d.setDate(1);setCursor(d);}} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,padding:'7px 12px',cursor:'pointer',color:T.text}}>TODAY</button>
+          <button onClick={()=>{const d=new Date(cursor);d.setMonth(d.getMonth()+1);setCursor(d);}} style={{fontFamily:PP_M,fontSize:11,background:'transparent',border:`1px solid ${T.border}`,padding:'6px 10px',cursor:'pointer',color:T.text,lineHeight:1}}>►</button>
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+        {['MON','TUE','WED','THU','FRI','SAT','SUN'].map((d,i)=>(
+          <div key={d} style={{padding:'9px 0',textAlign:'center',fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',color:T.muted,borderRight:i<6?`1px solid ${T.border}`:'none'}}>{d}</div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',flex:1}}>
+        {cells.map((d,i)=>{
+          const ds=toStr(d);
+          const inMonth=d.getMonth()===m;
+          const isToday=ds===todayS;
+          const dn=d.getDate();
+          const dots=inMonth?dayDots(ds):[];
+          const colIdx=i%7;
+          const rowIdx=Math.floor(i/7);
+          return(
+            <div key={ds} onClick={()=>inMonth&&setModal&&setModal({type:'task',data:{deadline:ds}})}
+              style={{position:'relative',minHeight:cellH,borderRight:colIdx<6?`1px solid ${T.border}`:'none',borderBottom:rowIdx<weeks-1?`1px solid ${T.border}`:'none',cursor:inMonth?'pointer':'default',background:'transparent',transition:'background 0.12s'}}
+              onMouseEnter={e=>{if(inMonth)e.currentTarget.style.background=T.cardAlt||T.border;}}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div style={{position:'absolute',top:6,left:8,fontFamily:PP_M,fontSize:10,fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em',color:isToday?T.mint:inMonth?T.text:T.muted,opacity:inMonth?1:0.4,fontWeight:isToday?700:400}}>
+                {String(dn).padStart(2,'0')}
+              </div>
+              {dots.length>0&&<div style={{position:'absolute',top:8,right:8,display:'flex',gap:2}}>
+                {dots.map((c,di)=><span key={di} style={{width:3,height:3,borderRadius:'50%',background:c,display:'inline-block'}}/>)}
+              </div>}
+              {isToday&&<div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:T.mint}}/>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer legend */}
+      <div style={{display:'flex',justifyContent:'space-between',padding:'11px 26px',borderTop:`1px solid ${T.border}`,alignItems:'center',gap:14}}>
+        <div style={{display:'flex',gap:14,alignItems:'center'}}>
+          <span style={{display:'inline-flex',alignItems:'center',gap:5,fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>
+            <span style={{width:4,height:4,borderRadius:'50%',background:T.text,display:'inline-block'}}/>EVENT
+          </span>
+          <span style={{display:'inline-flex',alignItems:'center',gap:5,fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.mint}}>
+            <span style={{width:4,height:4,borderRadius:'50%',background:T.mint,display:'inline-block'}}/>TODAY
+          </span>
+        </div>
+        <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>
+          {totalEvents} EVENT{totalEvents!==1?'S':''} · {monthTripCount} TRIP{monthTripCount!==1?'S':''}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Paper Goals (Today page) ─────────────────────────────────────────────
+function PaperGoalsTodayCard({goals,setGoals,onExpand}){
+  const T=useT();
+  const active=goals.filter(g=>!g.completed);
+  const onTrack=active.filter(g=>(g.progress||0)>=50).length;
+
+  // Current quarter label
+  const now=new Date();
+  const q=Math.floor(now.getMonth()/3)+1;
+
+  // Sort: highest progress first, then ones with deadlines
+  const sorted=[...active].sort((a,b)=>(b.progress||0)-(a.progress||0));
+
+  function fmtTarget(ds){
+    if(!ds)return '—';
+    try{const d=new Date(ds+'T12:00:00');return d.toLocaleDateString('en-GB',{month:'short',day:'2-digit'}).toUpperCase().replace(',','');}catch(e){return ds;}
+  }
+
+  function segBar(g,isEven){
+    const ms=g.milestones||[];
+    const total=ms.length>0?ms.length:10;
+    const done=ms.length>0?ms.filter(m=>m.done).length:Math.round(((g.progress||0)/100)*total);
+    const color=isEven?T.mint:T.text;
+    const empty=T.border;
+    return(
+      <div style={{display:'flex',gap:2,width:'100%'}}>
+        {Array.from({length:total}).map((_,i)=>(
+          <div key={i} style={{flex:1,height:7,background:i<done?color:empty,opacity:i<done?1:0.55,transition:'background 0.2s'}}/>
+        ))}
+      </div>
+    );
+  }
+
+  function toggleMilestone(gid,mid){
+    setGoals(p=>p.map(g=>{
+      if(g.id!==gid)return g;
+      const ms=g.milestones||[];
+      const updated=ms.map(m=>m.id===mid?{...m,done:!m.done}:m);
+      const autoProg=Math.round(updated.filter(m=>m.done).length/Math.max(1,updated.length)*100);
+      return{...g,milestones:updated,progress:autoProg,lastTouched:new Date().toISOString()};
+    }));
+  }
+
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+      {/* Header */}
+      <div style={{padding:'18px 26px 6px',display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
+        <div onClick={onExpand} style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint,cursor:onExpand?'pointer':'default'}}>GOALS · Q{q} LEDGER</div>
+        <div style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>{onTrack} / {active.length} ON TRACK</div>
+      </div>
+      {/* Italic serif title */}
+      <div style={{padding:'0 26px 16px',fontFamily:PP_S,fontStyle:'italic',fontSize:26,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.1,borderBottom:`1px solid ${T.border}`}}>
+        {active.length===0?'Clean slate':`${['None','One','Two','Three','Four','Five','Six','Seven','Eight','Nine'][active.length]||active.length} open`}
+      </div>
+
+      {/* List */}
+      <div style={{flex:1,padding:'4px 26px 18px'}}>
+        {sorted.length===0
+          ?<div style={{padding:'40px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— set an intention for Q{q} —</div>
+          :sorted.map((g,i)=>{
+            const isEven=i%2===0;
+            const prog=g.progress||0;
+            const ms=g.milestones||[];
+            const msDone=ms.filter(m=>m.done).length;
+            const col=isEven?T.mint:T.text;
+            const noteBase=g.description||(ms.length>0?`${msDone} of ${ms.length} subgoals`:'no subgoals');
+            return(
+              <div key={g.id} style={{padding:'16px 0',borderBottom:i<sorted.length-1?`1px dashed ${T.lineSoft||T.border}`:'none'}}>
+                <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto auto',gap:14,alignItems:'baseline',marginBottom:8}}>
+                  <div style={{fontFamily:PP_S,fontSize:18,fontWeight:500,color:T.text,letterSpacing:'-0.01em',lineHeight:1.25,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</div>
+                  <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>{fmtTarget(g.targetDate)}</div>
+                  <div style={{fontFamily:PP_M,fontSize:12,fontWeight:700,letterSpacing:'0.02em',color:col,fontVariantNumeric:'tabular-nums',minWidth:42,textAlign:'right'}}>{prog}%</div>
+                </div>
+                {segBar(g,isEven)}
+                <div style={{marginTop:8,fontFamily:PP_S,fontStyle:'italic',fontSize:13,color:T.muted,letterSpacing:'-0.005em',lineHeight:1.4}}>
+                  {ms.length>0?<span>{msDone} of {ms.length} subgoals</span>:<span>progress · {prog}%</span>}
+                  {g.description&&<> · <span>{g.description}</span></>}
+                </div>
+              </div>
+            );
+          })
+        }
+      </div>
+    </div>
+  );
+}
+
 // ── Section Card (reusable cream shell for calendar/goals/trips/money) ───
 function PaperSectionCard({label,onExpand,children}){
   const T=useT();
@@ -5508,32 +5708,14 @@ function App(){
         <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
         <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents}/>
 
-        {/* Section label: HORIZON */}
-        <div style={{padding:'28px 1.75rem 10px',display:'flex',alignItems:'center',gap:12}}>
-          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION II</div>
-          <div style={{width:24,height:1,background:T.text}}/>
-          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>HORIZON · calendar &amp; goals</div>
-        </div>
-
-        {/* CALENDAR + GOALS — two cream cards */}
-        <div style={{padding:'0 1.75rem',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
-          <PaperSectionCard label="CALENDAR · THIS MONTH" onExpand={()=>setPage('plan')}>
-            <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={false} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents}/>
-          </PaperSectionCard>
-          <PaperSectionCard label="GOALS · IN FLIGHT" onExpand={()=>setPage('plan')}>
-            <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={false} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
-          </PaperSectionCard>
-        </div>
-
-        {/* Section label: LEDGER */}
-        <div style={{padding:'28px 1.75rem 10px',display:'flex',alignItems:'center',gap:12}}>
-          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>SECTION III</div>
-          <div style={{width:24,height:1,background:T.text}}/>
-          <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>LEDGER · trips &amp; money</div>
+        {/* CALENDAR + GOALS — editorial self-contained cards */}
+        <div style={{padding:'20px 1.75rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
+          <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} onExpand={()=>setPage('plan')} setModal={setModal}/>
+          <PaperGoalsTodayCard goals={goals} setGoals={setGoals} onExpand={()=>setPage('plan')}/>
         </div>
 
         {/* TRIPS + MONEY — two cream cards */}
-        <div style={{padding:'0 1.75rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
+        <div style={{padding:'16px 1.75rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
           <PaperSectionCard label="TRIPS · ON THE WING" onExpand={()=>setPage('trips')}>
             <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
           </PaperSectionCard>
