@@ -499,6 +499,7 @@ function ls(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 // ── QUICK CAPTURE PARSER ───────────────────────────
 function parseDate(text){
   const today=new Date(),lower=text.toLowerCase();
+  if(/\btoday\b/.test(lower)) return toStr(today);
   if(/\btomorrow\b/.test(lower)) return toStr(addDays(today,1));
   if(/\bnext\s+week\b/.test(lower)) return toStr(addDays(today,7));
   const DAYS=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -511,7 +512,8 @@ function parseDate(text){
       if(match){const d=new Date(today.getFullYear(),m,parseInt(match[1]));if(d<today)d.setFullYear(d.getFullYear()+1);return toStr(d);}
     }
   }
-  return toStr(addDays(today,7));
+  // No explicit date hint → leave empty so the task lands in "unscheduled" rather than silently drifting a week out
+  return null;
 }
 function parseTripText(text){
   const lower=text.toLowerCase();
@@ -2612,14 +2614,15 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
     if(a.manualPos!=null&&b.manualPos!=null) return a.manualPos-b.manualPos;
     if(a.manualPos!=null) return -1;
     if(b.manualPos!=null) return 1;
-    return a.deadline.localeCompare(b.deadline);
+    return (a.deadline||"9999-12-31").localeCompare(b.deadline||"9999-12-31");
   });
   const done=tasks.filter(t=>t.completed);
-  const overdue=active.filter(t=>t.deadline<todayStr);
+  const overdue=active.filter(t=>t.deadline&&t.deadline<todayStr);
   const byStatus=pageMode?(filter==="active"?active:filter==="overdue"?overdue:done):active;
   const shown=(tagFilter?byStatus.filter(t=>(t.tags||[]).includes(tagFilter)):byStatus).slice(0,pageMode?9999:7);
   const focusTask=active[0];
   const urgency=dl=>{
+    if(!dl) return{label:"Unscheduled",color:T.textLt};
     if(dl<todayStr) return{label:"Overdue",color:T.pink};
     if(dl===todayStr) return{label:"Today",color:T.yellow};
     const d=Math.ceil((fromStr(dl)-new Date())/86400000);
@@ -2650,7 +2653,7 @@ function WakuliWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
     setDragId(null);setDragOverId(null);
   }
   const Row=({task,highlight})=>{
-    const u=urgency(task.deadline),isOver=!task.completed&&task.deadline<todayStr;
+    const u=urgency(task.deadline),isOver=!task.completed&&!!task.deadline&&task.deadline<todayStr;
     const pcs=PC(T);
     const isDragging=dragId===task.id;
     const isDragOver=dragOverId===task.id&&dragId!==task.id;
@@ -3137,10 +3140,13 @@ function TaskModal({data,setTasks,onClose}){
   const [recur,sR]=useState(data?.recurring||null);
   const [tb,sTb]=useState(data?.timeBlock||null);
   const [tags,sTags]=useState(data?.tags||[]);
+  const [estimate,sEst]=useState(data?.estimate||"");
   const T=useT(),pcs=PC(T);
+  const EST_PRESETS=["15m","30m","45m","1h","1h30m","2h","3h","4h"];
   function save(){
     if(!title.trim()) return;
-    const e={id:data?.id||uid(),title:title.trim(),deadline:dl,priority:pri,notes:notes.trim(),completed:data?.completed||false,recurring:recur,timeBlock:tb,tags};
+    const estTrim=(estimate||"").trim();
+    const e={id:data?.id||uid(),title:title.trim(),deadline:dl,priority:pri,notes:notes.trim(),completed:data?.completed||false,recurring:recur,timeBlock:tb,tags,estimate:estTrim||null};
     setTasks(p=>isE?p.map(t=>t.id===data.id?e:t):[...p,e]);onClose();
   }
   return <ModalShell title={isE?"Edit Task":"New Task"} onClose={onClose} onSave={save}>
@@ -3160,6 +3166,22 @@ function TaskModal({data,setTasks,onClose}){
           style={{flex:1,fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"}}/>
         {tb&&<Btn small ghost onClick={()=>sTb(null)}>Clear</Btn>}
         {!tb&&<span style={{fontSize:10,color:T.textLt,fontFamily:F}}>No time set</span>}
+      </div>
+    </div>
+    <div><Lbl>Duration</Lbl>
+      <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:5}}>
+        <Inp value={estimate} onChange={e=>sEst(e.target.value)} placeholder="e.g. 45m, 1h30m" style={{flex:1}}/>
+        {estimate&&<Btn small ghost onClick={()=>sEst("")}>Clear</Btn>}
+      </div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+        {EST_PRESETS.map(p=>(
+          <button key={p} onClick={()=>sEst(p)}
+            style={{padding:"2px 8px",borderRadius:100,border:`1px solid ${estimate===p?T.mint:T.border}`,
+              background:estimate===p?T.mint+"22":"transparent",color:estimate===p?T.mint:T.textMd,
+              cursor:"pointer",fontSize:10,fontFamily:F,fontWeight:estimate===p?700:400,transition:"all 0.12s"}}>
+            {p}
+          </button>
+        ))}
       </div>
     </div>
     <div><Lbl>Tags</Lbl>
@@ -4023,8 +4045,8 @@ function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
   const [filter,setFilter]=useState("active"); // "active"|"overdue"|"done"
   const [tagFilter,setTagFilter]=useState(null);
 
-  const active=tasks.filter(t=>!t.completed).sort((a,b)=>a.deadline.localeCompare(b.deadline));
-  const overdue=active.filter(t=>t.deadline<todayStr);
+  const active=tasks.filter(t=>!t.completed).sort((a,b)=>(a.deadline||"9999-12-31").localeCompare(b.deadline||"9999-12-31"));
+  const overdue=active.filter(t=>t.deadline&&t.deadline<todayStr);
   const done=tasks.filter(t=>t.completed).slice(0,pageMode?999:10);
 
   const base=filter==="active"?active:filter==="overdue"?overdue:done;
@@ -4044,6 +4066,7 @@ function TasksWidget({tasks,setTasks,onAddTask,onEditTask,pushUndo,pageMode}){
   }
 
   const urgency=dl=>{
+    if(!dl) return{label:"Unscheduled",color:T.textLt};
     if(dl<todayStr) return{label:"Overdue",color:T.pink};
     if(dl===todayStr) return{label:"Today",color:T.yellow};
     const d=Math.ceil((new Date(dl+"T12:00:00")-new Date())/86400000);
@@ -5193,6 +5216,154 @@ function PaperGoalsTodayCard({goals,setGoals,onExpand}){
   );
 }
 
+// ── Paper Trips (Today page) ─────────────────────────────────────────────
+function PaperTripsTodayCard({trips,setTrips,photos,setPhotos,onExpand,onAddTrip}){
+  const T=useT();
+  const todayStr=toStr(new Date());
+  const future=[...trips].filter(t=>t.endDate>=todayStr).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const shown=future.slice(0,3);
+  const count=future.length;
+  const numWord=['No','One','Two','Three','Four','Five','Six','Seven','Eight','Nine'][count]||String(count);
+
+  function fmtRange(sd,ed){
+    try{
+      const a=new Date(sd+'T12:00:00');
+      const b=new Date(ed+'T12:00:00');
+      const fa=a.toLocaleDateString('en-GB',{month:'short',day:'2-digit'}).toUpperCase().replace(',','');
+      const fb=b.toLocaleDateString('en-GB',{month:'short',day:'2-digit'}).toUpperCase().replace(',','');
+      const nights=Math.max(0,Math.round((b-a)/86400000));
+      return `${fa} — ${fb} · ${nights} NIGHT${nights===1?'':'S'}`;
+    }catch(e){return `${sd} — ${ed}`;}
+  }
+  function daysUntil(sd){return Math.ceil((fromStr(sd)-new Date())/86400000);}
+  function handlePhoto(tid,e){
+    const file=e.target.files&&e.target.files[0];if(!file)return;
+    const r=new FileReader();r.onload=ev=>setPhotos(p=>({...p,[tid]:ev.target.result}));r.readAsDataURL(file);
+    e.target.value='';
+  }
+
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+      {/* Header: small-caps label + ADD */}
+      <div style={{padding:'18px 26px 6px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div onClick={onExpand} style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint,cursor:onExpand?'pointer':'default'}}>HORIZON · TRIPS</div>
+        {onAddTrip&&<button onClick={onAddTrip} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.text,background:'transparent',border:`1px solid ${T.border}`,padding:'6px 12px',cursor:'pointer'}}>+ ADD</button>}
+      </div>
+      {/* Italic serif title */}
+      <div style={{padding:'0 26px 16px',fontFamily:PP_S,fontStyle:'italic',fontSize:26,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.1,borderBottom:`1px solid ${T.border}`}}>
+        {count===0?'Nothing on the calendar':`${numWord} on the calendar`}
+      </div>
+
+      {/* Trip rows */}
+      <div style={{flex:1,padding:'4px 26px 18px'}}>
+        {shown.length===0
+          ?<div style={{padding:'40px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— plan an escape —</div>
+          :shown.map((trip,i)=>{
+            const du=daysUntil(trip.startDate);
+            const isNext=i===0;
+            const photo=photos[trip.id];
+            const [bg1,bg2]=dg(trip.destination);
+            const countdownLabel=du<=0?'ONGOING':`IN ${du}D`;
+            return(
+              <div key={trip.id} style={{display:'grid',gridTemplateColumns:'92px 1fr auto',gap:18,alignItems:'center',padding:'16px 0',borderBottom:i<shown.length-1?`1px dashed ${T.lineSoft||T.border}`:'none'}}>
+                {/* Small square photo with No. label */}
+                <label style={{position:'relative',width:92,height:92,display:'block',cursor:'pointer',background:`linear-gradient(135deg,${bg1},${bg2})`,border:`1px solid ${T.border}`,overflow:'hidden',flexShrink:0}}>
+                  {photo&&<img src={photo} alt="" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'}}/>}
+                  <div style={{position:'absolute',top:5,left:6,fontFamily:PP_S,fontStyle:'italic',fontSize:9,color:photo?'rgba(255,255,255,0.9)':T.text,textShadow:photo?'0 1px 2px rgba(0,0,0,0.4)':'none',letterSpacing:'0.04em'}}>
+                    No.{String(i+1).padStart(2,'0')}
+                  </div>
+                  {!photo&&<div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:PP_S,fontStyle:'italic',fontSize:12,color:T.muted,letterSpacing:'0.04em'}}>photo</div>}
+                  <input type="file" accept="image/*" onChange={e=>handlePhoto(trip.id,e)} style={{display:'none'}}/>
+                </label>
+                {/* Middle column: destination, dates, tagline */}
+                <div style={{minWidth:0}}>
+                  <div style={{fontFamily:PP_S,fontSize:22,fontWeight:500,color:isNext?T.red||T.mint:T.text,letterSpacing:'-0.01em',lineHeight:1.15,textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {trip.destination}
+                  </div>
+                  <div style={{marginTop:6,fontFamily:PP_M,fontSize:10,fontWeight:600,letterSpacing:'0.14em',color:T.muted,textTransform:'uppercase'}}>
+                    {fmtRange(trip.startDate,trip.endDate)}
+                  </div>
+                  {trip.notes&&<div style={{marginTop:6,fontFamily:PP_S,fontStyle:'italic',fontSize:13,color:T.muted,letterSpacing:'-0.005em',lineHeight:1.4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {trip.notes}
+                  </div>}
+                </div>
+                {/* Right: countdown */}
+                <div style={{fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:'0.18em',color:isNext?(T.red||T.mint):T.muted,textTransform:'uppercase',whiteSpace:'nowrap',alignSelf:'flex-start',paddingTop:4}}>
+                  {countdownLabel}
+                </div>
+              </div>
+            );
+          })
+        }
+      </div>
+    </div>
+  );
+}
+
+// ── Paper Money (Today page) ─────────────────────────────────────────────
+function PaperMoneyTodayCard({envelopes,onExpand}){
+  const T=useT();
+  const now=new Date();
+  const curMon=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const nextD=new Date(now.getFullYear(),now.getMonth()+1,1);
+  const nextMon=`${nextD.getFullYear()}-${String(nextD.getMonth()+1).padStart(2,'0')}`;
+
+  function sum(month,type){return envelopes.filter(e=>e.month===month&&e.type===type).reduce((s,e)=>s+(e.budgeted||0),0);}
+  const expCur=sum(curMon,'expense');
+  const incCur=sum(curMon,'income');
+  const expNext=sum(nextMon,'expense');
+  const incNext=sum(nextMon,'income');
+
+  const curLabel=MFULL?MFULL[now.getMonth()]:now.toLocaleDateString('en-GB',{month:'long'});
+  const nextLabel=MFULL?MFULL[nextD.getMonth()]:nextD.toLocaleDateString('en-GB',{month:'long'});
+  const fmt=v=>`€ ${Number(v||0).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+      {/* Header */}
+      <div style={{padding:'18px 26px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,borderBottom:`1px solid ${T.border}`}}>
+        <div onClick={onExpand} style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint,cursor:onExpand?'pointer':'default'}}>MONEY · LEDGER</div>
+        <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>
+          {curLabel.slice(0,3).toUpperCase()} → {nextLabel.slice(0,3).toUpperCase()}
+        </div>
+      </div>
+
+      {/* Two bold headings */}
+      <div style={{padding:'26px 26px 28px',display:'flex',flexDirection:'column',gap:26}}>
+        {/* Expenses */}
+        <div>
+          <div style={{fontFamily:PP_S,fontSize:48,fontWeight:600,color:T.red||'#c8412e',letterSpacing:'-0.02em',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>
+            {fmt(expCur)}
+          </div>
+          <div style={{marginTop:10,fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>
+            PLANNED EXPENSES · {curLabel.toUpperCase()}
+            <span style={{marginLeft:10,color:T.textLt||T.muted,fontWeight:600}}>→ {nextLabel.slice(0,3).toUpperCase()} {fmt(expNext)}</span>
+          </div>
+        </div>
+
+        {/* Income */}
+        <div>
+          <div style={{fontFamily:PP_S,fontSize:48,fontWeight:600,color:T.text,letterSpacing:'-0.02em',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>
+            {fmt(incCur)}
+          </div>
+          <div style={{marginTop:10,fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>
+            PLANNED INCOME · {curLabel.toUpperCase()}
+            <span style={{marginLeft:10,color:T.textLt||T.muted,fontWeight:600}}>→ {nextLabel.slice(0,3).toUpperCase()} {fmt(incNext)}</span>
+          </div>
+        </div>
+
+        {/* Net line */}
+        <div style={{marginTop:4,paddingTop:14,borderTop:`1px dashed ${T.lineSoft||T.border}`,display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
+          <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted}}>NET · {curLabel.toUpperCase()}</span>
+          <span style={{fontFamily:PP_M,fontSize:13,fontWeight:700,letterSpacing:'0.02em',color:(incCur-expCur)>=0?T.text:(T.red||'#c8412e'),fontVariantNumeric:'tabular-nums'}}>
+            {(incCur-expCur)>=0?'+':'−'}{fmt(Math.abs(incCur-expCur))}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Section Card (reusable cream shell for calendar/goals/trips/money) ───
 function PaperSectionCard({label,onExpand,children}){
   const T=useT();
@@ -5215,12 +5386,23 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
   const now=new Date(),todayS=toStr(now);
   const parseTV=tb=>{if(!tb)return 9999;if(tb==='am')return 700;if(tb==='pm')return 1300;const[h,m]=tb.split(':').map(Number);return h*100+(m||0);};
 
-  // Today's tasks
-  const todayTaskRows=tasks.filter(t=>t.deadline===todayS).map(t=>({
-    kind:'task',id:'t-'+t.id,time:t.timeBlock||null,timeSort:parseTV(t.timeBlock),
-    title:t.title,completed:!!t.completed,priority:t.priority||'',
-    estimate:t.estimate||null,tags:t.tags||[],type:t.type||'',_raw:t,
-  }));
+  // Today's tasks — include: due today, overdue (not done), and unscheduled (no deadline, not done)
+  const todayTaskRows=tasks.filter(t=>{
+    if(t.deadline===todayS) return true;
+    if(!t.completed && t.deadline && t.deadline<todayS) return true;      // overdue
+    if(!t.completed && (!t.deadline||t.deadline==='')) return true;       // unscheduled
+    return false;
+  }).map(t=>{
+    const bucket=t.deadline===todayS?'today':(!t.deadline?'unscheduled':'overdue');
+    // Overdue / unscheduled sort after timed-today items but before "all day" today ones
+    const baseSort=parseTV(t.timeBlock);
+    const sortBias=bucket==='overdue'?-50:bucket==='unscheduled'?9998:0;
+    return {
+      kind:'task',id:'t-'+t.id,time:t.timeBlock||null,timeSort:baseSort+sortBias,
+      title:t.title,completed:!!t.completed,priority:t.priority||'',
+      estimate:t.estimate||null,tags:t.tags||[],type:t.type||'',bucket,deadline:t.deadline||null,_raw:t,
+    };
+  });
   // Today's apple calendar events (includes multi-day events spanning today)
   const todayEventRows=(appleEvents||[]).filter(e=>e.start<=todayS&&e.end>=todayS).map(e=>{
     const st=e.startTime||null;
@@ -5235,6 +5417,8 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
   const done=todayItems.filter(i=>i.completed).length;
   const remaining=todayItems.filter(i=>!i.completed&&i.kind==='task').length;
   const totalActive=todayItems.filter(i=>i.kind==='task').length;
+  const overdueCount=todayItems.filter(i=>i.kind==='task'&&i.bucket==='overdue'&&!i.completed).length;
+  const unschedCount=todayItems.filter(i=>i.kind==='task'&&i.bucket==='unscheduled'&&!i.completed).length;
   const deepItem=todayItems.find(i=>i.kind==='task'&&i.priority==='high'&&!i.completed);
   const nextItem=todayItems.find(i=>!i.completed);
 
@@ -5252,7 +5436,24 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
     setTasks(p=>p.map(t=>t.id===row._raw.id?{...t,completed:!t.completed}:t));
   }
   const fmtTime=tb=>{if(!tb)return'ALL DAY';if(tb==='am')return'AM';if(tb==='pm')return'PM';return tb;};
-  const fmtKindTask=t=>{const tags=(t.tags||[]);if(tags.length>0)return tags.slice(0,2).join(' · ').toUpperCase();if(t.priority==='high')return'DEEP WORK';return t.type?t.type.toUpperCase():'TASK';};
+  const fmtRowTime=row=>{
+    if(row.kind==='event') return fmtTime(row.time);
+    if(row.bucket==='overdue'){
+      const d=row.deadline?new Date(row.deadline+'T12:00:00'):null;
+      const daysAgo=d?Math.round((new Date(todayS+'T12:00:00')-d)/86400000):0;
+      return daysAgo>0?`${daysAgo}D AGO`:'OVERDUE';
+    }
+    if(row.bucket==='unscheduled') return 'ANY TIME';
+    return fmtTime(row.time);
+  };
+  const fmtKindTask=t=>{
+    const tags=(t.tags||[]);
+    if(tags.length>0) return tags.slice(0,2).join(' · ').toUpperCase();
+    if(t.priority==='high') return 'DEEP WORK';
+    if(t.bucket==='overdue') return 'OVERDUE · CARRY';
+    if(t.bucket==='unscheduled') return 'UNSCHEDULED';
+    return t.type?t.type.toUpperCase():'TASK';
+  };
   const fmtKindEvent=e=>e.calName?`CAL · ${e.calName.toUpperCase()}`:'CALENDAR';
   const onFocus=()=>{
     if(deepItem&&deepItem._raw){ setModal&&setModal({type:'task',data:deepItem._raw}); return; }
@@ -5274,6 +5475,8 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
             <div style={{...eye,color:T.mint,fontSize:10}}>{dateLabel}</div>
             <div style={{...eye,color:T.mint,fontSize:10}}>·</div>
             <div style={{...eye,color:T.mint,fontSize:10}}>{todayItems.length} ITEM{todayItems.length!==1?'S':''}</div>
+            {overdueCount>0&&<><div style={{...eye,color:T.red,fontSize:10}}>·</div><div style={{...eye,color:T.red,fontSize:10}}>{overdueCount} OVERDUE</div></>}
+            {unschedCount>0&&<><div style={{...eye,color:T.muted,fontSize:10}}>·</div><div style={{...eye,color:T.muted,fontSize:10}}>{unschedCount} UNSCHEDULED</div></>}
           </div>
           <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:30,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
             {todayItems.length===0
@@ -5309,12 +5512,14 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
             const isTask=row.kind==='task';
             const isEvent=row.kind==='event';
             const isDeep=isTask&&row.priority==='high';
-            const glyph=isDone?'✓':isDeep?'◆':isEvent?'▪':'○';
-            const glyphColor=isDone?T.mint:isDeep?T.mint:isEvent?(row.calColor||T.mint):T.muted;
+            const isOverdue=isTask&&row.bucket==='overdue';
+            const glyph=isDone?'✓':isOverdue?'!':isDeep?'◆':isEvent?'▪':'○';
+            const glyphColor=isDone?T.mint:isOverdue?T.red:isDeep?T.mint:isEvent?(row.calColor||T.mint):T.muted;
+            const timeColor=isOverdue?T.red:T.muted;
             return(
               <div key={row.id} onClick={()=>toggle(row)} className="paper-row"
                 style={{display:'grid',gridTemplateColumns:gridCols,padding:'13px 0',borderBottom:i<todayItems.length-1?`1px dashed ${T.lineSoft||T.border}`:'none',cursor:isTask?'pointer':'default',opacity:isDone?0.4:1,transition:'opacity 0.12s,background 0.12s',columnGap:14,alignItems:'center'}}>
-                <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em'}}>{fmtTime(row.time)}</div>
+                <div style={{fontFamily:PP_M,fontSize:11,color:timeColor,fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em',fontWeight:isOverdue?700:400}}>{fmtRowTime(row)}</div>
                 <div style={{display:'flex',alignItems:'baseline',gap:12,overflow:'hidden'}}>
                   <span style={{fontFamily:PP_M,fontSize:14,color:glyphColor,lineHeight:1,flexShrink:0}}>{glyph}</span>
                   <span style={{fontFamily:PP_S,fontSize:17,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -5338,7 +5543,7 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
           {remaining>0?`${remaining} REMAINING · ${hoursStr}`:totalActive>0?'ALL SETTLED':'CLEAN SLATE'}
         </div>
         <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-          {nextItem?<>NEXT UP · <span style={{color:T.text}}>{fmtTime(nextItem.time)} {nextItem.title.slice(0,26).toUpperCase()}</span></>:'VOID WHEN DISCARDED'}
+          {nextItem?<>NEXT UP · <span style={{color:T.text}}>{fmtRowTime(nextItem)} {nextItem.title.slice(0,26).toUpperCase()}</span></>:'VOID WHEN DISCARDED'}
         </div>
       </div>
     </div>
@@ -5714,14 +5919,10 @@ function App(){
           <PaperGoalsTodayCard goals={goals} setGoals={setGoals} onExpand={()=>setPage('plan')}/>
         </div>
 
-        {/* TRIPS + MONEY — two cream cards */}
-        <div style={{padding:'16px 1.75rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
-          <PaperSectionCard label="TRIPS · ON THE WING" onExpand={()=>setPage('trips')}>
-            <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:"trip"})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={false}/>
-          </PaperSectionCard>
-          <PaperSectionCard label="MONEY · LEDGER" onExpand={()=>setPage('money')}>
-            <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={false}/>
-          </PaperSectionCard>
+        {/* TRIPS + MONEY — inequal columns for editorial asymmetry */}
+        <div style={{padding:'16px 1.75rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
+          <PaperTripsTodayCard trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onExpand={()=>setPage('trips')} onAddTrip={()=>setModal({type:'trip'})}/>
+          <PaperMoneyTodayCard envelopes={envelopes} onExpand={()=>setPage('money')}/>
         </div>
         <PaperFooter/>
       </>}
