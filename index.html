@@ -5292,6 +5292,214 @@ function PaperGoalsTodayCard({goals,setGoals,onExpand}){
   );
 }
 
+// ── Paper Bingo (Plan page) — calendar-grid aesthetic ────────────────────
+function PaperBingoPlanCard({bingo,setBingo}){
+  const T=useT();
+  const [editIdx,setEditIdx]=React.useState(null);
+  const [editVal,setEditVal]=React.useState("");
+  const LINES=React.useMemo(()=>[
+    [0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],
+    [0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],
+    [0,5,10,15],[3,6,9,12]
+  ],[]);
+  const completedLines=LINES.filter(l=>bingo&&l.every(i=>bingo[i]?.done));
+  const lineSet=React.useMemo(()=>{const s=new Set();completedLines.forEach(l=>l.forEach(i=>s.add(i)));return s;},[completedLines]);
+  const doneCount=(bingo||[]).filter(c=>c.done).length;
+
+  function toggleCell(i){setBingo(p=>p.map((c,idx)=>idx===i?{...c,done:!c.done}:c));}
+  function startEdit(e,i){e.stopPropagation();setEditIdx(i);setEditVal(bingo[i].label||"");}
+  function saveEdit(){if(editIdx===null)return;setBingo(p=>p.map((c,i)=>i===editIdx?{...c,label:editVal}:c));setEditIdx(null);}
+
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
+  if(!bingo) return null;
+
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column'}}>
+      {/* Header */}
+      <div style={{padding:'18px 26px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:14,minWidth:0}}>
+          <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:26,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1}}>2026 Bingo</div>
+          <div style={{...eye,color:T.muted,fontSize:10}}>◉ INTENTIONS</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+          {completedLines.length>0&&<span style={{...eye,color:T.mint,fontSize:9}}>✦ BINGO × {completedLines.length}</span>}
+          <span style={{...eye,color:T.muted,fontSize:10,fontVariantNumeric:'tabular-nums'}}>{doneCount} / 16</span>
+        </div>
+      </div>
+
+      {/* 4×4 grid — calendar-style flat cells */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)'}}>
+        {bingo.map((cell,i)=>{
+          const done=cell.done;
+          const inLine=lineSet.has(i);
+          const isEditing=editIdx===i;
+          const colIdx=i%4;
+          const rowIdx=Math.floor(i/4);
+          return(
+            <div key={cell.id}
+              onClick={()=>!isEditing&&toggleCell(i)}
+              onDoubleClick={e=>startEdit(e,i)}
+              style={{
+                position:'relative',aspectRatio:'1',
+                borderRight:colIdx<3?`1px solid ${T.border}`:'none',
+                borderBottom:rowIdx<3?`1px solid ${T.border}`:'none',
+                background:done?(inLine?`${T.mint}22`:T.cardAlt):'transparent',
+                cursor:isEditing?'text':'pointer',
+                transition:'background 0.12s',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                padding:'12px 10px',userSelect:'none'
+              }}
+              onMouseEnter={e=>{if(!done&&!isEditing)e.currentTarget.style.background=T.cardAlt;}}
+              onMouseLeave={e=>{if(!done&&!isEditing)e.currentTarget.style.background='transparent';}}>
+              {/* Index label */}
+              <div style={{position:'absolute',top:6,left:8,fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.08em',color:T.muted,fontVariantNumeric:'tabular-nums'}}>
+                {String(i+1).padStart(2,'0')}
+              </div>
+              {/* Done tick */}
+              {done&&<div style={{position:'absolute',top:6,right:8,fontFamily:PP_M,fontSize:11,fontWeight:700,color:T.mint}}>✓</div>}
+
+              {/* Label (mono) */}
+              {isEditing
+                ?<input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
+                    onBlur={saveEdit} onKeyDown={e=>{if(e.key==='Enter')saveEdit();e.stopPropagation();}}
+                    onClick={e=>e.stopPropagation()}
+                    style={{width:'100%',background:'transparent',border:`1px solid ${T.border}`,outline:'none',textAlign:'center',fontFamily:PP_M,fontSize:12,color:T.text,padding:'4px',letterSpacing:'0.02em'}}/>
+                :<div style={{textAlign:'center',fontFamily:PP_M,fontSize:12,fontWeight:done?700:500,lineHeight:1.3,color:done?(inLine?T.mint:T.text):T.text,letterSpacing:'0.02em',wordBreak:'break-word',textTransform:'uppercase'}}>
+                    {cell.label||<span style={{opacity:0.25,fontStyle:'italic',fontFamily:PP_S,fontSize:13,fontWeight:400,textTransform:'none'}}>goal {i+1}</span>}
+                  </div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div style={{padding:'11px 26px',borderTop:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center',gap:14}}>
+        <div style={{...eye,color:T.muted,fontSize:9}}>CLICK TO MARK · DOUBLE-CLICK TO EDIT</div>
+        <div style={{...eye,color:doneCount===16?T.mint:T.muted,fontSize:9,fontVariantNumeric:'tabular-nums'}}>
+          {doneCount===16?'ALL COMPLETE':`${Math.round((doneCount/16)*100)}%`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Paper Goals (Plan page) — Today styling + subgoals with checkboxes ───
+function PaperGoalsPlanCard({goals,setGoals,setModal,pushUndo,apiKey}){
+  const T=useT();
+  const active=goals.filter(g=>!g.completed);
+  const done=goals.filter(g=>g.completed);
+  const onTrack=active.filter(g=>(g.progress||0)>=50).length;
+  const now=new Date();
+  const q=Math.floor(now.getMonth()/3)+1;
+  const sorted=[...active].sort((a,b)=>(b.progress||0)-(a.progress||0));
+
+  function fmtTarget(ds){
+    if(!ds)return'—';
+    try{const d=new Date(ds+'T12:00:00');return d.toLocaleDateString('en-GB',{month:'short',day:'2-digit'}).toUpperCase().replace(',','');}catch(e){return ds;}
+  }
+  function segBar(g,isEven){
+    const ms=g.milestones||[];
+    const total=ms.length>0?ms.length:10;
+    const doneN=ms.length>0?ms.filter(m=>m.done).length:Math.round(((g.progress||0)/100)*total);
+    const color=isEven?T.mint:T.text;
+    const empty=T.border;
+    return(
+      <div style={{display:'flex',gap:2,width:'100%'}}>
+        {Array.from({length:total}).map((_,i)=>(
+          <div key={i} style={{flex:1,height:7,background:i<doneN?color:empty,opacity:i<doneN?1:0.55,transition:'background 0.2s'}}/>
+        ))}
+      </div>
+    );
+  }
+  function toggleMilestone(gid,mid){
+    setGoals(p=>p.map(g=>{
+      if(g.id!==gid)return g;
+      const ms=g.milestones||[];
+      const updated=ms.map(m=>m.id===mid?{...m,done:!m.done}:m);
+      const autoProg=Math.round(updated.filter(m=>m.done).length/Math.max(1,updated.length)*100);
+      return{...g,milestones:updated,progress:autoProg,lastTouched:new Date().toISOString()};
+    }));
+  }
+  function delGoal(gid){const g=goals.find(x=>x.id===gid);if(g&&pushUndo)pushUndo({type:'DELETE_GOAL',payload:g});setGoals(p=>p.filter(g=>g.id!==gid));}
+  function editGoal(g){setModal&&setModal({type:'goal',data:g});}
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
+
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+      {/* Header */}
+      <div style={{padding:'18px 26px 6px',display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
+        <div style={{...eye,color:T.mint,fontSize:10}}>GOALS · Q{q} LEDGER</div>
+        <div style={{...eye,color:T.muted,fontSize:10}}>{onTrack} / {active.length} ON TRACK</div>
+      </div>
+      {/* Italic serif title */}
+      <div style={{padding:'0 26px 16px',fontFamily:PP_S,fontStyle:'italic',fontSize:26,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.1,borderBottom:`1px solid ${T.border}`}}>
+        {active.length===0?'Clean slate':`${['None','One','Two','Three','Four','Five','Six','Seven','Eight','Nine'][active.length]||active.length} open`}
+      </div>
+
+      {/* List */}
+      <div style={{flex:1,padding:'4px 26px 18px'}}>
+        {sorted.length===0
+          ?<div style={{padding:'40px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— set an intention for Q{q} —</div>
+          :sorted.map((g,i)=>{
+            const isEven=i%2===0;
+            const prog=g.progress||0;
+            const ms=g.milestones||[];
+            const msDone=ms.filter(m=>m.done).length;
+            const col=isEven?T.mint:T.text;
+            return(
+              <div key={g.id} style={{padding:'18px 0',borderBottom:i<sorted.length-1?`1px dashed ${T.lineSoft||T.border}`:'none'}}>
+                <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto auto auto',gap:10,alignItems:'baseline',marginBottom:8}}>
+                  <div onClick={()=>editGoal(g)} style={{fontFamily:PP_S,fontSize:20,fontWeight:500,color:T.text,letterSpacing:'-0.01em',lineHeight:1.25,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',cursor:'pointer'}}>{g.title}</div>
+                  <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>{fmtTarget(g.targetDate)}</div>
+                  <div style={{fontFamily:PP_M,fontSize:12,fontWeight:700,letterSpacing:'0.02em',color:col,fontVariantNumeric:'tabular-nums',minWidth:42,textAlign:'right'}}>{prog}%</div>
+                  <div style={{display:'flex',gap:2}}>
+                    <button onClick={()=>editGoal(g)} title="Edit" style={{background:'transparent',border:'none',color:T.muted,cursor:'pointer',fontSize:12,padding:'0 3px',lineHeight:1}}>✎</button>
+                    <button onClick={()=>delGoal(g.id)} title="Delete" style={{background:'transparent',border:'none',color:T.muted,cursor:'pointer',fontSize:14,padding:'0 3px',lineHeight:1}}>×</button>
+                  </div>
+                </div>
+                {segBar(g,isEven)}
+                {g.description&&<div style={{marginTop:8,fontFamily:PP_S,fontStyle:'italic',fontSize:13,color:T.muted,letterSpacing:'-0.005em',lineHeight:1.4}}>
+                  {g.description}
+                </div>}
+
+                {/* Subgoals / milestones — listed with checkmarks */}
+                {ms.length>0&&<div style={{marginTop:12,paddingTop:10,borderTop:`1px dashed ${T.lineSoft||T.border}`}}>
+                  <div style={{...eye,color:T.muted,fontSize:8,marginBottom:8}}>SUBGOALS · {msDone} / {ms.length}</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                    {ms.map(m=>(
+                      <button key={m.id} onClick={()=>toggleMilestone(g.id,m.id)}
+                        style={{display:'flex',alignItems:'center',gap:10,background:'transparent',border:'none',cursor:'pointer',padding:'5px 0',textAlign:'left',width:'100%'}}>
+                        <span style={{width:14,height:14,flexShrink:0,border:`1.5px solid ${m.done?T.mint:T.muted}`,background:m.done?T.mint:'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:700,letterSpacing:0}}>
+                          {m.done?'✓':''}
+                        </span>
+                        <span style={{fontFamily:PP_S,fontSize:14,color:m.done?T.muted:T.text,textDecoration:m.done?'line-through':'none',letterSpacing:'-0.005em',lineHeight:1.3}}>{m.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>}
+              </div>
+            );
+          })
+        }
+
+        {/* Completed strip */}
+        {done.length>0&&<div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${T.border}`}}>
+          <div style={{...eye,color:T.muted,fontSize:9,marginBottom:8}}>✓ {done.length} DONE</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {done.map(g=>(
+              <div key={g.id} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',border:`1px solid ${T.mint}`,color:T.mint,fontFamily:PP_M,fontSize:10,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+                ✓ {g.title}
+                <button onClick={()=>editGoal(g)} title="Edit" style={{background:'transparent',border:'none',color:T.mint,cursor:'pointer',fontSize:10,padding:0,opacity:0.6}}>✎</button>
+                <button onClick={()=>delGoal(g.id)} title="Delete" style={{background:'transparent',border:'none',color:T.mint,cursor:'pointer',fontSize:11,padding:0,opacity:0.6}}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
 // ── Paper Trips (Today page) ─────────────────────────────────────────────
 function PaperTripsTodayCard({trips,setTrips,photos,setPhotos,onExpand,onAddTrip}){
   const T=useT();
@@ -5711,9 +5919,10 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
         </div>
       </div>
 
-      {/* Goals & Bingo section */}
-      <div style={{...cardStyle,padding:'22px 26px',minWidth:0}}>
-        <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} onEditGoal={g=>setModal({type:"goal",data:g})} pageMode={true} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
+      {/* Bingo & Goals section — stacked editorial cards */}
+      <div style={{display:'flex',flexDirection:'column',gap:16,minWidth:0}}>
+        {bingo&&<PaperBingoPlanCard bingo={bingo} setBingo={setBingo}/>}
+        <PaperGoalsPlanCard goals={goals} setGoals={setGoals} setModal={setModal} pushUndo={pushUndo} apiKey={apiKey}/>
       </div>
     </div>
 
