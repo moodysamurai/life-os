@@ -2978,9 +2978,73 @@ function BingoCard({bingo,setBingo,pageMode}){
 }
 
 // ── GOALS ──────────────────────────────────────────
+// Generate contextual milestones based on the goal label's keywords.
+function mirrorBingoMilestones(label){
+  const l=(label||"").toLowerCase();
+  let tmpl;
+  if(/\b(learn|read|study|course|book|language|skill)\b/.test(l))
+    tmpl=["Pick resources & schedule","Complete first section","Halfway review","Finish & summarize"];
+  else if(/\b(travel|trip|visit|explore|country|city)\b/.test(l))
+    tmpl=["Research & set dates","Book logistics","Pack & go","Document the trip"];
+  else if(/\b(build|make|create|design|launch|ship|project|portfolio)\b/.test(l))
+    tmpl=["Define scope & sketch","Build prototype","Iterate on feedback","Ship final version"];
+  else if(/\b(run|fitness|gym|climb|swim|marathon|workout|train|weight|yoga)\b/.test(l))
+    tmpl=["Set baseline & plan","Train consistently 4 weeks","Mid-point benchmark","Hit the target"];
+  else if(/\b(write|essay|thesis|paper|publish|blog|article)\b/.test(l))
+    tmpl=["Outline & research","Draft v1","Revise with feedback","Publish / submit"];
+  else if(/\b(save|budget|earn|invest|money|euro|rupee|dollar|income)\b/.test(l))
+    tmpl=["Set target & baseline","Automate monthly contribution","Mid-year checkpoint","Hit target"];
+  else if(/\b(photo|photograph|shoot|camera|album|exhibit)\b/.test(l))
+    tmpl=["Gather references & gear","Shoot first series","Edit & curate","Share or exhibit"];
+  else if(/\b(music|produce|song|album|track|mix|record)\b/.test(l))
+    tmpl=["Sketch ideas & references","Produce rough draft","Mix & revise","Release / archive"];
+  else if(/\b(render|3d|blender|model|scene)\b/.test(l))
+    tmpl=["Collect references","Block out scene","Texture & light","Final render"];
+  else if(/\b(diy|home|decor|interior|furniture|build-out)\b/.test(l))
+    tmpl=["Plan & measure","Source materials","Build / install","Final touches"];
+  else if(/\b(meet|network|friend|date|relationship|community)\b/.test(l))
+    tmpl=["Identify context / places","Show up regularly","Build connection","Deepen it"];
+  else if(/\b(read|books?)\b/.test(l))
+    tmpl=["Pick the first book","Finish 25% of list","Finish 50%","Complete the list"];
+  else if(/\b(thesis|dissertation|research|academic)\b/.test(l))
+    tmpl=["Literature review","Methodology & fieldwork","First full draft","Submit final"];
+  else
+    tmpl=["Define scope & plan","Take first action","Halfway checkpoint","Finalize & reflect"];
+  return tmpl.map(t=>({id:uid(),title:t,done:false}));
+}
 function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,apiKey}){
   const T=useT();
   const [coaching,setCoaching]=useState(null); // goal id being coached
+  const [mirrorFlash,setMirrorFlash]=useState(null); // toast after mirror
+  function mirrorBingoToGoals(){
+    if(!bingo||!setGoals) return;
+    const existing=new Set((goals||[]).map(g=>(g.title||"").toLowerCase().trim()));
+    const now=new Date().toISOString();
+    const toAdd=[];
+    bingo.forEach(cell=>{
+      const lbl=(cell.label||"").trim();
+      if(!lbl) return;
+      if(existing.has(lbl.toLowerCase())) return;
+      toAdd.push({
+        id:uid(),
+        title:lbl,
+        description:"Mirrored from 2026 Bingo",
+        targetDate:"2026-12-31",
+        progress:cell.done?100:0,
+        milestones:mirrorBingoMilestones(lbl),
+        completed:!!cell.done,
+        completedAt:cell.done?now:null,
+        lastTouched:now,
+        createdAt:now,
+        sourceBingoId:cell.id,
+      });
+    });
+    if(toAdd.length===0){setMirrorFlash({msg:"Nothing new to mirror",kind:"info"});setTimeout(()=>setMirrorFlash(null),2200);return;}
+    setGoals(p=>[...p,...toAdd]);
+    if(pushUndo)pushUndo({type:"BULK_ADD_GOALS",payload:toAdd.map(g=>g.id)});
+    setMirrorFlash({msg:`✓ Mirrored ${toAdd.length} goal${toAdd.length>1?"s":""}`,kind:"ok"});
+    setTimeout(()=>setMirrorFlash(null),2600);
+  }
   const updProg=(id,v)=>setGoals(p=>p.map(g=>g.id===id?{...g,progress:+v,lastTouched:new Date().toISOString()}:g));
   const toggle=id=>setGoals(p=>p.map(g=>g.id===id?{...g,completed:!g.completed}:g));
   const del=id=>{const g=goals.find(x=>x.id===id);if(g&&pushUndo)pushUndo({type:"DELETE_GOAL",payload:g});setGoals(p=>p.filter(g=>g.id!==id));};
@@ -3012,8 +3076,16 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,
       </div>
     </div>}
     {/* Bingo card — always at top */}
-    {bingo&&<div style={{marginBottom:pageMode?18:10}}>
+    {bingo&&<div style={{marginBottom:pageMode?10:10}}>
       <BingoCard bingo={bingo} setBingo={setBingo} pageMode={pageMode}/>
+    </div>}
+    {/* Mirror-to-goals action (pageMode only, when there's anything to mirror) */}
+    {bingo&&pageMode&&bingo.some(c=>(c.label||"").trim())&&<div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginBottom:12}}>
+      {mirrorFlash&&<span style={{fontSize:10,fontFamily:F,letterSpacing:"0.04em",color:mirrorFlash.kind==="ok"?T.mint:T.textMd}}>{mirrorFlash.msg}</span>}
+      <button onClick={mirrorBingoToGoals} title="Create a standalone goal (with milestones) for each labelled bingo cell"
+        style={{background:"transparent",border:`1px solid ${T.border}`,color:T.textMd,fontFamily:F,fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",padding:"4px 10px",borderRadius:4,cursor:"pointer"}}>
+        ↓ Mirror bingo → goals
+      </button>
     </div>}
     {/* Divider */}
     {bingo&&pageMode&&<div style={{borderTop:`1px solid ${T.border}`,marginBottom:14}}/>}
