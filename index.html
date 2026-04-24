@@ -3012,7 +3012,7 @@ function mirrorBingoMilestones(label){
     tmpl=["Define scope & plan","Take first action","Halfway checkpoint","Finalize & reflect"];
   return tmpl.map(t=>({id:uid(),title:t,done:false}));
 }
-function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,apiKey}){
+function GoalsWidget({goals,setGoals,onAddGoal,onEditGoal,pageMode,bingo,setBingo,pushUndo,apiKey}){
   const T=useT();
   const [coaching,setCoaching]=useState(null); // goal id being coached
   const [mirrorFlash,setMirrorFlash]=useState(null); // toast after mirror
@@ -3110,7 +3110,8 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,
               </div>
               <div style={{display:"flex",gap:2,alignItems:"center"}}>
                 {pageMode&&apiKey&&<button onClick={()=>setCoaching(g.id)} title="Goal Coach AI" style={{background:"transparent",border:"none",cursor:"pointer",fontSize:11,color:T.textLt,padding:"1px 3px"}}>🎯</button>}
-                <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
+                {onEditGoal&&<button onClick={()=>onEditGoal(g)} title="Edit goal" style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:11,padding:"0 3px",lineHeight:1}}>✎</button>}
+                <button onClick={()=>del(g.id)} title="Delete goal" style={{background:"transparent",border:"none",color:T.textLt,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
               </div>
             </div>
             {/* Milestones */}
@@ -3142,7 +3143,8 @@ function GoalsWidget({goals,setGoals,onAddGoal,pageMode,bingo,setBingo,pushUndo,
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
           {done.map(g=><div key={g.id} style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:100,background:T.mintX,color:T.mint,fontSize:11,fontFamily:F,border:`1px solid ${T.mint}22`}}>
             ✓ {g.title}
-            <button onClick={()=>del(g.id)} style={{background:"transparent",border:"none",color:T.mint,cursor:"pointer",fontSize:11,padding:0,marginLeft:2,opacity:0.5}}>×</button>
+            {onEditGoal&&<button onClick={()=>onEditGoal(g)} title="Edit goal" style={{background:"transparent",border:"none",color:T.mint,cursor:"pointer",fontSize:10,padding:0,marginLeft:2,opacity:0.55}}>✎</button>}
+            <button onClick={()=>del(g.id)} title="Delete goal" style={{background:"transparent",border:"none",color:T.mint,cursor:"pointer",fontSize:11,padding:0,marginLeft:2,opacity:0.5}}>×</button>
           </div>)}
         </div>
       </div>}
@@ -3308,7 +3310,9 @@ function GoalModal({data,setGoals,onClose}){
   function save(){
     if(!title.trim()) return;
     const autoProg=milestones.length>0?Math.round(milestones.filter(m=>m.done).length/milestones.length*100):data?.progress||0;
-    const e={id:data?.id||uid(),title:title.trim(),description:desc.trim(),targetDate:date,progress:autoProg,milestones,completed:data?.completed||false,lastTouched:null};
+    // Preserve createdAt, completedAt, sourceBingoId, and any future extras by spreading `data` first.
+    const e={...(data||{}),id:data?.id||uid(),title:title.trim(),description:desc.trim(),targetDate:date,progress:autoProg,milestones,completed:data?.completed||false,lastTouched:new Date().toISOString()};
+    if(!e.createdAt) e.createdAt=new Date().toISOString();
     setGoals(p=>data?.id?p.map(g=>g.id===data.id?e:g):[...p,e]);onClose();
   }
   return <ModalShell title={data?.id?"Edit Goal":"New Goal"} onClose={onClose} onSave={save}>
@@ -5659,7 +5663,7 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
         <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={true} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={false}/>
       </div>
       <div style={{padding:'24px 1.75rem',overflow:'hidden',minHeight:500}}>
-        <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} pageMode={true} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
+        <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} onEditGoal={g=>setModal({type:"goal",data:g})} pageMode={true} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
       </div>
     </div>
     <div style={{padding:'24px 1.75rem',borderBottom:`1px solid ${T.border}`}}>
