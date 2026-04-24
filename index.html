@@ -5969,11 +5969,497 @@ function TripsPage({trips,setTrips,photos,setPhotos,tripSugg,getTripSugg,loading
   </div>;
 }
 function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats}){
-  return<div>
-    <PaperPageHdr title="Money." sub="BUDGET · ENVELOPES · PLAN"/>
-    <div style={{padding:'24px 2rem'}}>
-      <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={true}/>
+  const T=useT();
+  const today=new Date(),todayStr=toStr(today);
+  const ym0=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  const [mon,setMon]=useState(ym0);
+  const [showAddEntry,setShowAddEntry]=useState(false);
+  const [editEntryId,setEditEntryId]=useState(null);
+  const [entryForm,setEntryForm]=useState({date:todayStr,amount:'',type:'expense',category:'Food',description:''});
+  const [envEditId,setEnvEditId]=useState(null);
+  const [envForm,setEnvForm]=useState({category:'',type:'expense',budgeted:'',isFixed:false});
+  const [quickEnvId,setQuickEnvId]=useState(null);
+  const [quickForm,setQuickForm]=useState({amount:'',date:todayStr,desc:''});
+  const csvInputRef=useRef(null);
+  const [importToast,setImportToast]=useState(null);
+
+  const monLabel=useMemo(()=>{const p=mon.split('-');return MFULL[parseInt(p[1])-1]+' '+p[0];},[mon]);
+  const prevMon=()=>{const d=new Date(mon+'-01');d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
+  const nextMon=()=>{const d=new Date(mon+'-01');d.setMonth(d.getMonth()+1);setMon(toStr(d).slice(0,7));};
+
+  const entries=useMemo(()=>budget.filter(e=>e.date.startsWith(mon)).sort((a,b)=>b.date.localeCompare(a.date)),[budget,mon]);
+  const actualIncome=useMemo(()=>entries.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0),[entries]);
+  const actualExpense=useMemo(()=>entries.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0),[entries]);
+  const actualNet=actualIncome-actualExpense;
+
+  const monEnv=useMemo(()=>envelopes.filter(e=>e.month===mon),[envelopes,mon]);
+  const incomeEnv=useMemo(()=>monEnv.filter(e=>e.type==='income'),[monEnv]);
+  const expEnv=useMemo(()=>monEnv.filter(e=>e.type==='expense'),[monEnv]);
+  const budgetedIncome=useMemo(()=>incomeEnv.reduce((s,e)=>s+e.budgeted,0),[incomeEnv]);
+  const budgetedExpense=useMemo(()=>expEnv.reduce((s,e)=>s+e.budgeted,0),[expEnv]);
+  const unallocated=budgetedIncome-budgetedExpense;
+
+  const catActuals=useMemo(()=>{const m={};entries.filter(e=>e.type==='expense').forEach(e=>{m[e.category]=(m[e.category]||0)+e.amount;});return m;},[entries]);
+  const expCats=useMemo(()=>budgetCats.filter(c=>c.type==='expense'),[budgetCats]);
+  const incCats=useMemo(()=>budgetCats.filter(c=>c.type==='income'),[budgetCats]);
+
+  const planMonths=useMemo(()=>{
+    const ms=[];
+    for(let i=0;i<6;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
+    return ms;
+  },[]);
+  const planTotals=useMemo(()=>{
+    let bal=0;
+    return planMonths.map(m=>{
+      const inc=incCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
+      const exp=expCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
+      bal+=inc-exp;
+      return{m,inc,exp,net:inc-exp,running:bal};
+    });
+  },[planMonths,incCats,expCats,envelopes]);
+
+  const cardStyle={background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'};
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
+  const num={fontFamily:PP_M,fontVariantNumeric:'tabular-nums'};
+  const inp={fontFamily:PP_M,fontSize:11,background:T.inp,border:`1px solid ${T.border}`,borderRadius:3,color:T.text,padding:'6px 8px',outline:'none'};
+
+  function startAdd(){setEntryForm({date:todayStr,amount:'',type:'expense',category:expCats[0]?.label||'Other',description:''});setEditEntryId(null);setShowAddEntry(true);}
+  function startEdit(en){setEntryForm({date:en.date,amount:String(en.amount),type:en.type,category:en.category,description:en.description||''});setEditEntryId(en.id);setShowAddEntry(true);}
+  function saveEntry(){
+    const amt=parseFloat(entryForm.amount);if(!amt||isNaN(amt))return;
+    const en={id:editEntryId||uid(),date:entryForm.date,amount:amt,type:entryForm.type,category:entryForm.category,description:entryForm.description};
+    setBudget(p=>editEntryId?p.map(x=>x.id===editEntryId?en:x):[...p,en]);
+    setShowAddEntry(false);setEditEntryId(null);
+  }
+  function delEntry(id){setBudget(p=>p.filter(x=>x.id!==id));}
+
+  function openNewEnv(type){
+    const def=budgetCats.find(c=>c.type===type);
+    setEnvForm({category:def?.label||'Other',type,budgeted:'',isFixed:false});
+    setEnvEditId(`new-${type}`);
+    setQuickEnvId(null);
+  }
+  function openEditEnv(env){
+    setEnvForm({category:env.category,type:env.type,budgeted:String(env.budgeted),isFixed:!!env.isFixed});
+    setEnvEditId(env.id);
+    setQuickEnvId(null);
+  }
+  function saveEnv(){
+    const amt=parseFloat(envForm.budgeted);if(!amt||isNaN(amt))return;
+    if(typeof envEditId==='string'&&envEditId.startsWith('new-')){
+      setEnvelopes(p=>[...p,{id:uid(),month:mon,category:envForm.category,type:envForm.type,budgeted:amt,isFixed:envForm.isFixed}]);
+    }else{
+      setEnvelopes(p=>p.map(e=>e.id===envEditId?{...e,category:envForm.category,budgeted:amt,isFixed:envForm.isFixed}:e));
+    }
+    setEnvEditId(null);
+  }
+  function delEnv(id){setEnvelopes(p=>p.filter(e=>e.id!==id));}
+
+  function openQuick(env){
+    if(quickEnvId===env.id){setQuickEnvId(null);return;}
+    setQuickForm({amount:'',date:todayStr,desc:''});setQuickEnvId(env.id);setEnvEditId(null);
+  }
+  function saveQuick(env){
+    const amt=parseFloat(quickForm.amount);if(!amt||isNaN(amt))return;
+    setBudget(p=>[...p,{id:uid(),date:quickForm.date||todayStr,amount:amt,type:env.type,category:env.category,description:quickForm.desc}]);
+    setQuickEnvId(null);
+  }
+
+  function seedFromFixed(){
+    const seen={};
+    [...envelopes.filter(e=>e.isFixed)].reverse().forEach(e=>{const k=`${e.type}_${e.category}`;if(!seen[k])seen[k]=e;});
+    const toAdd=Object.values(seen).map(e=>({...e,id:uid(),month:mon}));
+    if(toAdd.length>0)setEnvelopes(p=>[...p.filter(e=>e.month!==mon),...toAdd]);
+  }
+
+  function handleCsvImport(ev){
+    const file=ev.target.files&&ev.target.files[0];
+    if(!file)return;ev.target.value='';
+    const reader=new FileReader();
+    reader.onload=evt=>{
+      const text=evt.target.result||'';
+      const lines=text.split(/\r?\n/).filter(l=>l.trim());
+      if(lines.length<2){setImportToast({count:0,skipped:0,err:'No data rows.'});return;}
+      const headers=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/^"|"$/g,''));
+      const idx={
+        date:headers.findIndex(h=>h==='date'),
+        amount:headers.findIndex(h=>h==='amount'),
+        desc:headers.findIndex(h=>['description','desc','merchant','name'].includes(h)),
+        cat:headers.findIndex(h=>['category','cat'].includes(h)),
+        type:headers.findIndex(h=>h==='type'),
+      };
+      if(idx.date<0||idx.amount<0){setImportToast({count:0,skipped:0,err:"CSV needs 'date' and 'amount'."});return;}
+      const newEntries=[];const skipped={dup:0,bad:0};
+      setBudget(prev=>{
+        for(let i=1;i<lines.length;i++){
+          const cols=lines[i].match(/("(?:[^"]|"")*"|[^,]*)/g).map(v=>v.replace(/^"|"$/g,'').replace(/""/g,'"').trim());
+          const date=(cols[idx.date]||'').slice(0,10);
+          const amt=parseFloat(cols[idx.amount]||'0');
+          if(!date||isNaN(amt)||amt<=0){skipped.bad++;continue;}
+          const desc=idx.desc>=0?(cols[idx.desc]||''):'';
+          const cat=idx.cat>=0&&cols[idx.cat]?cols[idx.cat]:'Other';
+          const rawType=idx.type>=0?(cols[idx.type]||'expense').toLowerCase():'expense';
+          const type=rawType==='income'?'income':'expense';
+          const isDup=prev.some(x=>x.date===date&&x.amount===amt&&(x.description||'')===(desc||''));
+          const isNewDup=newEntries.some(x=>x.date===date&&x.amount===amt&&(x.description||'')===(desc||''));
+          if(isDup||isNewDup){skipped.dup++;continue;}
+          newEntries.push({id:uid(),date,amount:amt,type,category:cat,description:desc});
+        }
+        setTimeout(()=>setImportToast({count:newEntries.length,skipped:skipped.dup+skipped.bad}),0);
+        return newEntries.length===0?prev:[...prev,...newEntries];
+      });
+    };
+    reader.readAsText(file);
+    setTimeout(()=>setImportToast(null),4000);
+  }
+
+  const fmtDate=ds=>{try{return new Date(ds+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).toUpperCase().replace(',','');}catch(e){return ds;}};
+
+  // Render helpers (defined before return so they capture latest closure values per render)
+  const renderEnvEditForm=(env)=>{
+    const cats=envForm.type==='income'?incCats:expCats;
+    return <div style={{display:'grid',gridTemplateColumns:'1fr 90px auto auto auto',gap:6,padding:'10px 0 12px',alignItems:'center',borderBottom:`1px dashed ${T.lineSoft}`}}>
+      <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={inp}>
+        {cats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
+      </select>
+      <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={inp}/>
+      <label style={{...eye,fontSize:8,color:T.muted,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+        <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>RECUR
+      </label>
+      <PpBtn onClick={saveEnv} accent>SAVE</PpBtn>
+      <PpBtn onClick={()=>setEnvEditId(null)}>×</PpBtn>
+    </div>;
+  };
+  const renderQuickForm=(env)=>(
+    <div style={{display:'grid',gridTemplateColumns:'100px 110px 1fr auto auto',gap:6,padding:'10px 0 12px',alignItems:'center',borderBottom:`1px dashed ${T.lineSoft}`}}>
+      <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==='Enter')saveQuick(env);if(ev.key==='Escape')setQuickEnvId(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={inp}/>
+      <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={inp}/>
+      <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note" style={inp}/>
+      <PpBtn onClick={()=>saveQuick(env)} accent>LOG</PpBtn>
+      <PpBtn onClick={()=>setQuickEnvId(null)}>×</PpBtn>
     </div>
+  );
+  const renderNewEnvForm=(type)=>{
+    const cats=type==='income'?incCats:expCats;
+    return <div style={{display:'grid',gridTemplateColumns:'1fr 90px auto auto auto',gap:6,padding:'12px 0',alignItems:'center'}}>
+      <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={inp}>
+        {cats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
+      </select>
+      <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} onKeyDown={ev=>{if(ev.key==='Enter')saveEnv();if(ev.key==='Escape')setEnvEditId(null);}} placeholder="€" type="number" min="0" step="1" style={inp}/>
+      <label style={{...eye,fontSize:8,color:T.muted,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+        <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>RECUR
+      </label>
+      <PpBtn onClick={saveEnv} accent>ADD</PpBtn>
+      <PpBtn onClick={()=>setEnvEditId(null)}>×</PpBtn>
+    </div>;
+  };
+
+  return <div>
+    <PaperPageHdr title="Money." sub="LEDGER · ENVELOPES · CASH FLOW" action={
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <PpBtn onClick={prevMon}>‹</PpBtn>
+        <span style={{...eye,fontSize:10,color:T.mint,minWidth:120,textAlign:'center'}}>{monLabel}</span>
+        <PpBtn onClick={nextMon}>›</PpBtn>
+        {mon!==ym0&&<PpBtn onClick={()=>setMon(ym0)}>NOW</PpBtn>}
+        <PpBtn onClick={startAdd} accent>+ ENTRY</PpBtn>
+      </div>
+    }/>
+
+    {/* OVERVIEW HERO CARD */}
+    <div style={{margin:'24px 2rem 0',...cardStyle}}>
+      <div style={{padding:'22px 26px 18px',borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+          <div style={{...eye,color:T.mint,fontSize:10}}>OVERVIEW</div>
+          <div style={{...eye,color:T.mint,fontSize:10}}>·</div>
+          <div style={{...eye,color:T.mint,fontSize:10}}>{monLabel.toUpperCase()}</div>
+          <div style={{...eye,color:T.mint,fontSize:10}}>·</div>
+          <div style={{...eye,color:T.mint,fontSize:10}}>{entries.length} ENTR{entries.length===1?'Y':'IES'}</div>
+          {unallocated<0&&budgetedIncome>0&&<><div style={{...eye,color:T.red,fontSize:10}}>·</div><div style={{...eye,color:T.red,fontSize:10}}>OVER BUDGET</div></>}
+        </div>
+        <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:30,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
+          {entries.length===0
+            ? <><span>The ledger is empty.</span> <span style={{color:T.muted}}>A clean slate for {monLabel.split(' ')[0]}.</span></>
+            : <><span style={{...num,fontStyle:'normal',fontSize:22,letterSpacing:0}}>€{actualIncome.toFixed(0)}</span> earned, <span style={{...num,fontStyle:'normal',fontSize:22,letterSpacing:0}}>€{actualExpense.toFixed(0)}</span> spent. {actualNet>=0?<>A surplus of <span style={{...num,fontStyle:'normal',fontSize:22,letterSpacing:0}}>€{actualNet.toFixed(0)}</span>.</>:<><span style={{color:T.red}}>A deficit of <span style={{...num,fontStyle:'normal',fontSize:22,letterSpacing:0,color:T.red}}>€{Math.abs(actualNet).toFixed(0)}</span>.</span></>}</>
+          }
+        </div>
+      </div>
+
+      {/* Stat strip */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',padding:'18px 26px',borderBottom:`1px solid ${T.border}`,gap:0}}>
+        {[
+          {label:'INCOME',val:actualIncome,sub:budgetedIncome>0?`of €${budgetedIncome.toFixed(0)} planned`:'no plan',color:T.text,sign:false},
+          {label:'EXPENSES',val:actualExpense,sub:budgetedExpense>0?`of €${budgetedExpense.toFixed(0)} planned`:'no plan',color:T.text,sign:false},
+          {label:'NET',val:actualNet,sub:actualNet>=0?'in the black':'overspent',color:actualNet>=0?T.text:T.red,sign:true},
+          {label:'UNALLOCATED',val:unallocated,sub:budgetedIncome>0?'budget room':'set income first',color:unallocated>=0?T.mint:T.red,sign:true},
+        ].map((s,i)=>(
+          <div key={s.label} style={{paddingRight:14,paddingLeft:i===0?0:14,borderLeft:i>0?`1px solid ${T.border}`:'none'}}>
+            <div style={{...eye,color:T.muted,fontSize:8,marginBottom:8}}>{s.label}</div>
+            <div style={{...num,fontSize:26,fontWeight:500,color:s.color,letterSpacing:'-0.025em',lineHeight:1}}>
+              {s.sign&&s.val<0?'−':''}€{Math.abs(s.val).toFixed(0)}
+            </div>
+            <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:13,color:T.muted,marginTop:6,letterSpacing:'-0.005em'}}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Allocation gauge */}
+      {budgetedIncome>0&&<div style={{padding:'14px 26px',borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7}}>
+          <div style={{...eye,color:T.muted,fontSize:8}}>ALLOCATION</div>
+          <div style={{...eye,color:unallocated>=0?T.muted:T.red,fontSize:8}}>
+            {unallocated>=0?<>€<span style={num}>{unallocated.toFixed(0)}</span> UNALLOCATED</>:<>€<span style={num}>{Math.abs(unallocated).toFixed(0)}</span> OVER</>}
+          </div>
+        </div>
+        <div style={{height:4,background:T.lineSoft,overflow:'hidden',position:'relative'}}>
+          <div style={{position:'absolute',top:0,bottom:0,left:0,width:`${Math.min(100,budgetedIncome>0?(budgetedExpense/budgetedIncome)*100:100)}%`,background:budgetedExpense>budgetedIncome?T.red:T.text,transition:'width .3s'}}/>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+          <span style={{...eye,color:T.muted,fontSize:8}}>€<span style={num}>{budgetedExpense.toFixed(0)}</span> ALLOCATED</span>
+          <span style={{...eye,color:T.muted,fontSize:8}}>OF €<span style={num}>{budgetedIncome.toFixed(0)}</span> INCOME</span>
+        </div>
+      </div>}
+
+      {/* Add-entry inline form */}
+      {showAddEntry&&<div style={{padding:'14px 26px',borderBottom:`1px solid ${T.border}`,background:'rgba(29,26,20,0.025)'}}>
+        <div style={{...eye,color:T.muted,fontSize:8,marginBottom:10}}>{editEntryId?'EDIT ENTRY':'NEW ENTRY'}</div>
+        <div style={{display:'grid',gridTemplateColumns:'120px 100px 100px 1fr 1.4fr auto auto',gap:8,alignItems:'center'}}>
+          <input type="date" value={entryForm.date} onChange={e=>setEntryForm(p=>({...p,date:e.target.value}))} style={inp}/>
+          <input type="number" min="0" step="0.01" placeholder="Amount" value={entryForm.amount} onChange={e=>setEntryForm(p=>({...p,amount:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')saveEntry();if(e.key==='Escape')setShowAddEntry(false);}} style={inp}/>
+          <select value={entryForm.type} onChange={e=>setEntryForm(p=>({...p,type:e.target.value,category:(e.target.value==='income'?incCats[0]?.label:expCats[0]?.label)||'Other'}))} style={inp}>
+            <option value="expense">EXPENSE</option>
+            <option value="income">INCOME</option>
+          </select>
+          <select value={entryForm.category} onChange={e=>setEntryForm(p=>({...p,category:e.target.value}))} style={inp}>
+            {(entryForm.type==='income'?incCats:expCats).map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
+          </select>
+          <input placeholder="Description" value={entryForm.description} onChange={e=>setEntryForm(p=>({...p,description:e.target.value}))} style={inp}/>
+          <PpBtn onClick={saveEntry} accent>SAVE</PpBtn>
+          <PpBtn onClick={()=>{setShowAddEntry(false);setEditEntryId(null);}}>×</PpBtn>
+        </div>
+      </div>}
+
+      {/* Footer ticket */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'14px 26px',gap:12,alignItems:'center'}}>
+        <div style={{...eye,color:T.muted,fontSize:8}}>{incomeEnv.length+expEnv.length} ENVELOPES</div>
+        <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>
+          {budgetedIncome>0?<><span style={num}>{Math.round((budgetedExpense/Math.max(1,budgetedIncome))*100)}</span>% PLANNED</>:'NO BUDGET YET'}
+        </div>
+        <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>
+          {entries.length>0?<>LAST ENTRY · <span style={{color:T.text}}>{fmtDate(entries[0].date)}</span></>:'NO ENTRIES'}
+        </div>
+      </div>
+    </div>
+
+    {/* ENVELOPES + LEDGER 2-up */}
+    <div style={{padding:'20px 2rem 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
+
+      {/* ENVELOPES CARD */}
+      <div style={cardStyle}>
+        <div style={{padding:'18px 22px 14px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
+          <div style={{minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+              <div style={{...eye,color:T.mint,fontSize:10}}>ENVELOPES</div>
+              <div style={{...eye,color:T.muted,fontSize:9}}>· {monLabel.split(' ')[0].toUpperCase()}</div>
+            </div>
+            <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:18,color:T.muted,letterSpacing:'-0.01em'}}>
+              {monEnv.length===0?'No plan yet for this month.':`${incomeEnv.length} income · ${expEnv.length} expense`}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
+            {monEnv.length===0&&envelopes.some(e=>e.isFixed)&&<PpBtn onClick={seedFromFixed} accent>SEED</PpBtn>}
+            <PpBtn onClick={()=>openNewEnv('income')} accent>+ IN</PpBtn>
+            <PpBtn onClick={()=>openNewEnv('expense')} accent>+ OUT</PpBtn>
+          </div>
+        </div>
+
+        {/* INCOME table */}
+        {(incomeEnv.length>0||envEditId==='new-income')&&<div style={{padding:'0 22px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 80px 60px',padding:'10px 0',borderBottom:`1px solid ${T.border}`,columnGap:10}}>
+            <div style={{...eye,color:T.muted,fontSize:8}}>INCOME</div>
+            <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>BUDGET</div>
+            <div></div>
+          </div>
+          {incomeEnv.map((env,i)=>(
+            <React.Fragment key={env.id}>
+              <div className="paper-row" style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 80px 60px',padding:'12px 0',borderBottom:i<incomeEnv.length-1?`1px dashed ${T.lineSoft}`:'none',columnGap:10,alignItems:'center'}}>
+                <div style={{display:'flex',alignItems:'baseline',gap:10,overflow:'hidden'}}>
+                  <span style={{fontFamily:PP_M,fontSize:11,color:T.mint,lineHeight:1}}>●</span>
+                  <span style={{fontFamily:PP_S,fontSize:16,color:T.text,letterSpacing:'-0.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{env.category}</span>
+                  {env.isFixed&&<span style={{...eye,color:T.muted,fontSize:7}}>FIXED</span>}
+                </div>
+                <div style={{...num,fontSize:13,color:T.text,textAlign:'right',fontWeight:500}}>€{env.budgeted.toFixed(0)}</div>
+                <div style={{display:'flex',gap:0,justifyContent:'flex-end'}}>
+                  <button onClick={()=>openQuick(env)} title="Quick log" style={{background:'transparent',border:'none',cursor:'pointer',color:T.mint,fontSize:14,padding:'0 4px',lineHeight:1}}>+</button>
+                  <button onClick={()=>openEditEnv(env)} title="Edit" style={{background:'transparent',border:'none',cursor:'pointer',color:T.muted,fontSize:11,padding:'0 4px',lineHeight:1}}>✎</button>
+                  <button onClick={()=>delEnv(env.id)} title="Delete" style={{background:'transparent',border:'none',cursor:'pointer',color:T.muted,fontSize:14,padding:'0 4px',lineHeight:1}}>×</button>
+                </div>
+              </div>
+              {envEditId===env.id&&renderEnvEditForm(env)}
+              {quickEnvId===env.id&&renderQuickForm(env)}
+            </React.Fragment>
+          ))}
+          {envEditId==='new-income'&&renderNewEnvForm('income')}
+        </div>}
+
+        {/* EXPENSES table */}
+        {(expEnv.length>0||envEditId==='new-expense')&&<div style={{padding:'0 22px',borderTop:incomeEnv.length>0?`1px solid ${T.border}`:'none'}}>
+          <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 70px 70px 60px',padding:'10px 0',borderBottom:`1px solid ${T.border}`,columnGap:10}}>
+            <div style={{...eye,color:T.muted,fontSize:8}}>EXPENSES</div>
+            <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>SPENT</div>
+            <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>BUDGET</div>
+            <div></div>
+          </div>
+          {expEnv.map((env,i)=>{
+            const actual=catActuals[env.category]||0;
+            const pct=env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):0;
+            const over=actual>env.budgeted;
+            return(
+              <React.Fragment key={env.id}>
+                <div className="paper-row" style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 70px 70px 60px',padding:'12px 0',borderBottom:i<expEnv.length-1?`1px dashed ${T.lineSoft}`:'none',columnGap:10,alignItems:'center'}}>
+                  <div style={{display:'flex',flexDirection:'column',gap:6,overflow:'hidden'}}>
+                    <div style={{display:'flex',alignItems:'baseline',gap:10,overflow:'hidden'}}>
+                      <span style={{fontFamily:PP_M,fontSize:11,color:over?T.red:T.muted,lineHeight:1}}>{over?'!':'○'}</span>
+                      <span style={{fontFamily:PP_S,fontSize:16,color:T.text,letterSpacing:'-0.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{env.category}</span>
+                      {env.isFixed&&<span style={{...eye,color:T.muted,fontSize:7}}>FIXED</span>}
+                    </div>
+                    <div style={{height:2,background:T.lineSoft,position:'relative',overflow:'hidden'}}>
+                      <div style={{position:'absolute',top:0,bottom:0,left:0,width:`${pct}%`,background:over?T.red:T.text,transition:'width .3s'}}/>
+                    </div>
+                  </div>
+                  <div style={{...num,fontSize:13,color:over?T.red:T.text,textAlign:'right',fontWeight:500}}>€{actual.toFixed(0)}</div>
+                  <div style={{...num,fontSize:12,color:T.muted,textAlign:'right'}}>€{env.budgeted.toFixed(0)}</div>
+                  <div style={{display:'flex',gap:0,justifyContent:'flex-end'}}>
+                    <button onClick={()=>openQuick(env)} title="Quick log" style={{background:'transparent',border:'none',cursor:'pointer',color:T.mint,fontSize:14,padding:'0 4px',lineHeight:1}}>+</button>
+                    <button onClick={()=>openEditEnv(env)} title="Edit" style={{background:'transparent',border:'none',cursor:'pointer',color:T.muted,fontSize:11,padding:'0 4px',lineHeight:1}}>✎</button>
+                    <button onClick={()=>delEnv(env.id)} title="Delete" style={{background:'transparent',border:'none',cursor:'pointer',color:T.muted,fontSize:14,padding:'0 4px',lineHeight:1}}>×</button>
+                  </div>
+                </div>
+                {envEditId===env.id&&renderEnvEditForm(env)}
+                {quickEnvId===env.id&&renderQuickForm(env)}
+              </React.Fragment>
+            );
+          })}
+          {envEditId==='new-expense'&&renderNewEnvForm('expense')}
+        </div>}
+
+        {monEnv.length===0&&envEditId!=='new-income'&&envEditId!=='new-expense'&&
+          <div style={{padding:'34px 22px',fontFamily:PP_S,fontStyle:'italic',fontSize:14,color:T.muted,textAlign:'center'}}>— no envelopes set for {monLabel} —</div>
+        }
+
+        {/* Footer */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'13px 22px',borderTop:`1px solid ${T.border}`,gap:10,alignItems:'center'}}>
+          <div style={{...eye,color:T.muted,fontSize:8}}>IN <span style={{...num,letterSpacing:0,color:T.text}}>€{budgetedIncome.toFixed(0)}</span></div>
+          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>OUT <span style={{...num,letterSpacing:0,color:T.text}}>€{budgetedExpense.toFixed(0)}</span></div>
+          <div style={{...eye,color:unallocated>=0?T.muted:T.red,fontSize:8,textAlign:'right'}}>{unallocated>=0?'FREE':'OVER'} <span style={{...num,letterSpacing:0,color:unallocated>=0?T.text:T.red}}>€{Math.abs(unallocated).toFixed(0)}</span></div>
+        </div>
+      </div>
+
+      {/* LEDGER CARD */}
+      <div style={cardStyle}>
+        <div style={{padding:'18px 22px 14px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
+          <div style={{minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+              <div style={{...eye,color:T.mint,fontSize:10}}>LEDGER</div>
+              <div style={{...eye,color:T.muted,fontSize:9}}>· <span style={num}>{entries.length}</span> ENTR{entries.length===1?'Y':'IES'}</div>
+            </div>
+            <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:18,color:T.muted,letterSpacing:'-0.01em'}}>
+              {entries.length===0?'No transactions yet.':`Recorded for ${monLabel.split(' ')[0]}.`}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
+            <input ref={csvInputRef} type="file" accept=".csv,text/csv" onChange={handleCsvImport} style={{display:'none'}}/>
+            <PpBtn onClick={()=>csvInputRef.current?.click()}>IMPORT CSV</PpBtn>
+            <PpBtn onClick={startAdd} accent>+ ENTRY</PpBtn>
+          </div>
+        </div>
+
+        {entries.length===0
+          ?<div style={{padding:'34px 22px',fontFamily:PP_S,fontStyle:'italic',fontSize:14,color:T.muted,textAlign:'center'}}>— no entries logged for {monLabel} —</div>
+          :<div style={{padding:'0 22px',maxHeight:520,overflowY:'auto'}}>
+            <div style={{display:'grid',gridTemplateColumns:'72px minmax(0,1fr) 100px 80px 24px',padding:'10px 0',borderBottom:`1px solid ${T.border}`,columnGap:10,position:'sticky',top:0,background:T.card,zIndex:1}}>
+              <div style={{...eye,color:T.muted,fontSize:8}}>DATE</div>
+              <div style={{...eye,color:T.muted,fontSize:8}}>DESCRIPTION</div>
+              <div style={{...eye,color:T.muted,fontSize:8}}>CATEGORY</div>
+              <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>AMOUNT</div>
+              <div></div>
+            </div>
+            {entries.map((en,i)=>(
+              <div key={en.id} className="paper-row" onClick={()=>startEdit(en)} style={{display:'grid',gridTemplateColumns:'72px minmax(0,1fr) 100px 80px 24px',padding:'11px 0',borderBottom:i<entries.length-1?`1px dashed ${T.lineSoft}`:'none',columnGap:10,alignItems:'center',cursor:'pointer'}}>
+                <div style={{...num,fontSize:10,color:T.muted,letterSpacing:'0.04em'}}>{fmtDate(en.date)}</div>
+                <div style={{fontFamily:PP_S,fontSize:14,color:T.text,letterSpacing:'-0.005em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{en.description||<span style={{color:T.muted,fontStyle:'italic'}}>(no note)</span>}</div>
+                <div style={{...eye,color:T.muted,fontSize:8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{en.category}</div>
+                <div style={{...num,fontSize:13,color:T.text,textAlign:'right',fontWeight:500}}>{en.type==='income'?'+':'−'}€{en.amount.toFixed(0)}</div>
+                <button onClick={ev=>{ev.stopPropagation();delEntry(en.id);}} style={{background:'transparent',border:'none',cursor:'pointer',color:T.muted,fontSize:14,padding:'0 3px',lineHeight:1}}>×</button>
+              </div>
+            ))}
+          </div>
+        }
+
+        {/* Footer */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'13px 22px',borderTop:`1px solid ${T.border}`,gap:10,alignItems:'center'}}>
+          <div style={{...eye,color:T.muted,fontSize:8}}>+IN <span style={{...num,letterSpacing:0,color:T.text}}>€{actualIncome.toFixed(0)}</span></div>
+          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>−OUT <span style={{...num,letterSpacing:0,color:T.text}}>€{actualExpense.toFixed(0)}</span></div>
+          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>NET <span style={{...num,letterSpacing:0,color:actualNet>=0?T.text:T.red}}>{actualNet<0?'−':''}€{Math.abs(actualNet).toFixed(0)}</span></div>
+        </div>
+      </div>
+    </div>
+
+    {/* 6-MONTH OUTLOOK CARD */}
+    <div style={{margin:'20px 2rem 0',...cardStyle}}>
+      <div style={{padding:'18px 26px 14px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:10,flexWrap:'wrap'}}>
+        <div style={{minWidth:0}}>
+          <div style={{...eye,color:T.mint,fontSize:10,marginBottom:6}}>6-MONTH OUTLOOK · CASH FLOW PROJECTION</div>
+          <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:18,color:T.muted,letterSpacing:'-0.01em'}}>
+            Rolling balance from envelope budgets, current month forward.
+          </div>
+        </div>
+      </div>
+      <div style={{padding:'0 26px',overflowX:'auto'}}>
+        <div style={{display:'grid',gridTemplateColumns:`140px repeat(6,minmax(78px,1fr))`,padding:'12px 0',borderBottom:`1px solid ${T.border}`,columnGap:12}}>
+          <div style={{...eye,color:T.muted,fontSize:8}}></div>
+          {planTotals.map(({m})=>{
+            const lbl=MFULL[parseInt(m.split('-')[1])-1].slice(0,3).toUpperCase();
+            const isCur=m===ym0;
+            return <div key={m} style={{...eye,color:isCur?T.mint:T.muted,fontSize:8,textAlign:'right'}}>{lbl} '{m.slice(2,4)}</div>;
+          })}
+        </div>
+        {[
+          {label:'INCOME',vals:planTotals.map(p=>p.inc),sign:false},
+          {label:'EXPENSES',vals:planTotals.map(p=>p.exp),sign:false},
+          {label:'NET',vals:planTotals.map(p=>p.net),sign:true},
+        ].map((row,ri)=>(
+          <div key={row.label} style={{display:'grid',gridTemplateColumns:`140px repeat(6,minmax(78px,1fr))`,padding:'12px 0',borderBottom:ri<2?`1px dashed ${T.lineSoft}`:`1px solid ${T.border}`,columnGap:12,alignItems:'center'}}>
+            <div style={{...eye,color:T.muted,fontSize:8}}>{row.label}</div>
+            {row.vals.map((v,i)=>{
+              const hasData=planTotals[i].inc>0||planTotals[i].exp>0;
+              if(!hasData)return <div key={i} style={{...num,fontSize:11,color:T.muted,textAlign:'right',opacity:0.4}}>—</div>;
+              const c=row.sign?(v>=0?T.text:T.red):T.text;
+              return <div key={i} style={{...num,fontSize:13,color:c,textAlign:'right',fontWeight:500}}>{row.sign&&v<0?'−':row.sign&&v>0?'+':''}€{Math.abs(v).toFixed(0)}</div>;
+            })}
+          </div>
+        ))}
+        <div style={{display:'grid',gridTemplateColumns:`140px repeat(6,minmax(78px,1fr))`,padding:'14px 0',columnGap:12,alignItems:'center',background:'rgba(29,26,20,0.03)'}}>
+          <div style={{...eye,color:T.text,fontSize:8}}>RUNNING BALANCE</div>
+          {planTotals.map(({m,running},i)=>{
+            const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0);
+            if(!hasData)return <div key={m} style={{...num,fontSize:11,color:T.muted,textAlign:'right',opacity:0.4}}>—</div>;
+            return <div key={m} style={{...num,fontSize:15,color:running>=0?T.text:T.red,textAlign:'right',fontWeight:600,letterSpacing:'-0.02em'}}>{running<0?'−':''}€{Math.abs(running).toFixed(0)}</div>;
+          })}
+        </div>
+      </div>
+      <div style={{padding:'10px 26px',borderTop:`1px solid ${T.border}`,...eye,color:T.muted,fontSize:8,textAlign:'center'}}>
+        EDIT BUDGETS PER ENVELOPE TO RESHAPE THE PROJECTION
+      </div>
+    </div>
+
+    {/* Toast */}
+    {importToast&&<div style={{position:'fixed',bottom:24,right:24,zIndex:1000,padding:'12px 18px',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',...eye,fontSize:9,color:importToast.err?T.red:T.text}}>
+      {importToast.err
+        ?`IMPORT FAILED · ${importToast.err}`
+        :`IMPORTED ${importToast.count} ENTR${importToast.count===1?'Y':'IES'}${importToast.skipped?` · ${importToast.skipped} SKIPPED`:''}`}
+    </div>}
+
+    <div style={{height:28}}/>
     <PaperFooter/>
   </div>;
 }
