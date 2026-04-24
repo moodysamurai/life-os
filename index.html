@@ -5146,10 +5146,10 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
   }
 
   const monthName=cursor.toLocaleDateString('en-GB',{month:'long'});
-  const cellH=expanded?96:56;
+  const cellH=96;
 
   return(
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0,height:expanded?'auto':720}}>
       {/* Header */}
       <div style={{padding:'22px 26px 16px',display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:16,borderBottom:`1px solid ${T.border}`}}>
         <div style={{display:'flex',alignItems:'baseline',gap:14,minWidth:0}}>
@@ -5171,28 +5171,33 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
       </div>
 
       {/* Day cells */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',flex:1}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',flex:1,minHeight:0,gridAutoRows:expanded?`minmax(${cellH}px,1fr)`:'1fr'}}>
         {cells.map((d,i)=>{
           const ds=toStr(d);
           const inMonth=d.getMonth()===m;
           const isToday=ds===todayS;
           const dn=d.getDate();
-          const dots=inMonth?dayDots(ds):[];
-          const evts=expanded&&inMonth?dayEvents(ds,3):[];
+          const evts=inMonth?dayEvents(ds,3):[];
           const colIdx=i%7;
           const rowIdx=Math.floor(i/7);
           return(
             <div key={ds} onClick={()=>inMonth&&setModal&&setModal({type:'task',data:{deadline:ds}})}
-              style={{position:'relative',minHeight:cellH,borderRight:colIdx<6?`1px solid ${T.border}`:'none',borderBottom:rowIdx<weeks-1?`1px solid ${T.border}`:'none',cursor:inMonth?'pointer':'default',background:'transparent',transition:'background 0.12s',overflow:'hidden'}}
+              style={{position:'relative',borderRight:colIdx<6?`1px solid ${T.border}`:'none',borderBottom:rowIdx<weeks-1?`1px solid ${T.border}`:'none',cursor:inMonth?'pointer':'default',background:'transparent',transition:'background 0.12s',overflow:'hidden'}}
               onMouseEnter={e=>{if(inMonth)e.currentTarget.style.background=T.cardAlt||T.border;}}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <div style={{position:'absolute',top:6,left:8,fontFamily:PP_M,fontSize:10,fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em',color:isToday?T.mint:inMonth?T.text:T.muted,opacity:inMonth?1:0.4,fontWeight:isToday?700:400}}>
+              <div style={{position:'absolute',top:isToday?2:6,left:isToday?10:8,
+                fontFamily:isToday?PP_S:PP_M,
+                fontStyle:isToday?'italic':'normal',
+                fontSize:isToday?36:10,
+                fontVariantNumeric:'tabular-nums',
+                letterSpacing:isToday?'-0.01em':'0.02em',
+                lineHeight:1,
+                color:isToday?T.text:inMonth?T.text:T.muted,
+                opacity:inMonth?1:0.4,
+                fontWeight:400}}>
                 {String(dn).padStart(2,'0')}
               </div>
-              {!expanded&&dots.length>0&&<div style={{position:'absolute',top:8,right:8,display:'flex',gap:2}}>
-                {dots.map((c,di)=><span key={di} style={{width:3,height:3,borderRadius:'50%',background:c,display:'inline-block'}}/>)}
-              </div>}
-              {expanded&&evts.length>0&&<div style={{position:'absolute',top:22,left:4,right:4,display:'flex',flexDirection:'column',gap:2}}>
+              {evts.length>0&&<div style={{position:'absolute',top:isToday?48:22,left:4,right:4,display:'flex',flexDirection:'column',gap:2}}>
                 {evts.map((ev,ei)=>(
                   <div key={ei} style={{display:'flex',alignItems:'center',gap:4,minWidth:0}}>
                     <span style={{width:4,height:4,borderRadius:'50%',background:ev.color,flexShrink:0}}/>
@@ -5268,19 +5273,19 @@ function PaperGoalsTodayCard({goals,setGoals,onExpand}){
   }
 
   return(
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0,height:720}}>
       {/* Header */}
-      <div style={{padding:'18px 26px 6px',display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
+      <div style={{padding:'18px 26px 6px',display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12,flexShrink:0}}>
         <div onClick={onExpand} style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint,cursor:onExpand?'pointer':'default'}}>GOALS · Q{q} LEDGER</div>
         <div style={{fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>{onTrack} / {active.length} ON TRACK</div>
       </div>
       {/* Italic serif title */}
-      <div style={{padding:'0 26px 16px',fontFamily:PP_S,fontStyle:'italic',fontSize:26,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.1,borderBottom:`1px solid ${T.border}`}}>
+      <div style={{padding:'0 26px 16px',fontFamily:PP_S,fontStyle:'italic',fontSize:26,fontWeight:400,color:T.text,letterSpacing:'-0.01em',lineHeight:1.1,borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
         {active.length===0?'Clean slate':`${['None','One','Two','Three','Four','Five','Six','Seven','Eight','Nine'][active.length]||active.length} open`}
       </div>
 
       {/* List */}
-      <div style={{flex:1,padding:'4px 26px 18px'}}>
+      <div style={{flex:1,minHeight:0,overflowY:'auto',padding:'4px 26px 18px'}}>
         {sorted.length===0
           ?<div style={{padding:'40px 0',fontFamily:PP_S,fontStyle:'italic',color:T.muted,fontSize:16,textAlign:'center'}}>— set an intention for Q{q} —</div>
           :sorted.map((g,i)=>{
