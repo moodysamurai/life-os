@@ -5656,19 +5656,74 @@ function PaperPageHdr({title,sub,action}){
 // ── Sub-pages ─────────────────────────────────────────────────────────────
 function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trips,appleEvents,setModal,setFocusDay,pushUndo,bingo,setBingo,apiKey}){
   const T=useT();
+  const now=new Date();
+  const y=now.getFullYear(),m=now.getMonth();
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const monthMs=`${y}-${String(m+1).padStart(2,'0')}`;
+  const monthStart=`${monthMs}-01`;
+  const monthEnd=`${monthMs}-${String(daysInMonth).padStart(2,'0')}`;
+  const mT=tasks.filter(t=>!t.completed&&t.deadline&&t.deadline>=monthStart&&t.deadline<=monthEnd).sort((a,b)=>(a.deadline||'').localeCompare(b.deadline||''));
+  const mTr=trips.filter(t=>(t.startDate<=monthEnd&&t.endDate>=monthStart)).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const monthLabel=now.toLocaleDateString('en-GB',{month:'long'}).toUpperCase();
+  const cardStyle={background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'};
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase'};
+  function fmtDate(ds){try{return new Date(ds+'T12:00:00').toLocaleDateString('en-GB',{month:'short',day:'2-digit'}).toUpperCase().replace(',','');}catch(e){return ds;}}
+
   return<div>
     <PaperPageHdr title="Plan." sub="CALENDAR · GOALS · TASKS" action={<div style={{display:'flex',gap:8}}><PpBtn onClick={()=>setModal({type:'task'})}>+ TASK</PpBtn><PpBtn onClick={()=>setModal({type:'goal'})}>+ GOAL</PpBtn></div>}/>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:`1px solid ${T.border}`}}>
-      <div style={{borderRight:`1px solid ${T.border}`,padding:'24px 1.75rem',overflow:'hidden',minHeight:500}}>
-        <CalendarWidget tasks={tasks} trips={trips} goals={goals} completions={completions} pageMode={true} onAddTask={ds=>setModal({type:"task",data:{deadline:ds}})} appleEvents={appleEvents} hideHeat={false}/>
+
+    {/* Row 1 — Calendar column (mini cal + this-month list) | Goals column */}
+    <div style={{padding:'20px 1.75rem 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
+      {/* Calendar section */}
+      <div style={{display:'flex',flexDirection:'column',gap:16,minWidth:0}}>
+        <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} setModal={setModal}/>
+
+        {/* Tasks + Trips this month — at the bottom of the calendar section */}
+        <div style={{...cardStyle,padding:'18px 26px 22px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,gap:10,flexWrap:'wrap'}}>
+            <div style={{...eye,color:T.mint,fontSize:10}}>THIS MONTH · {monthLabel}</div>
+            <div style={{...eye,color:T.muted,fontSize:9}}>{mT.length} TASK{mT.length!==1?'S':''} · {mTr.length} TRIP{mTr.length!==1?'S':''}</div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+            <div style={{minWidth:0}}>
+              <div style={{...eye,color:T.muted,fontSize:8,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${T.border}`}}>TASKS</div>
+              {mT.length===0
+                ?<div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:13,color:T.muted,padding:'10px 0'}}>— none scheduled —</div>
+                :mT.map((t,i)=>(
+                  <div key={t.id} onClick={()=>setModal({type:'task',data:t})} className="paper-row" style={{display:'flex',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:i<mT.length-1?`1px dashed ${T.lineSoft||T.border}`:'none',cursor:'pointer',alignItems:'baseline'}}>
+                    <span className="row-title" style={{fontFamily:PP_S,fontSize:15,color:T.text,letterSpacing:'-0.005em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.title}</span>
+                    <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,color:T.muted,letterSpacing:'0.14em',flexShrink:0}}>{fmtDate(t.deadline)}</span>
+                  </div>
+                ))}
+            </div>
+            <div style={{minWidth:0}}>
+              <div style={{...eye,color:T.muted,fontSize:8,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${T.border}`}}>TRIPS</div>
+              {mTr.length===0
+                ?<div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:13,color:T.muted,padding:'10px 0'}}>— none planned —</div>
+                :mTr.map((t,i)=>(
+                  <div key={t.id} onClick={()=>setModal({type:'trip',data:t})} className="paper-row" style={{padding:'8px 0',borderBottom:i<mTr.length-1?`1px dashed ${T.lineSoft||T.border}`:'none',cursor:'pointer'}}>
+                    <div className="row-title" style={{fontFamily:PP_S,fontSize:15,color:T.text,fontWeight:500,letterSpacing:'-0.005em',textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.destination}</div>
+                    <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,color:T.muted,letterSpacing:'0.14em',marginTop:2}}>{fmtDate(t.startDate)} — {fmtDate(t.endDate)}</div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
       </div>
-      <div style={{padding:'24px 1.75rem',overflow:'hidden',minHeight:500}}>
+
+      {/* Goals & Bingo section */}
+      <div style={{...cardStyle,padding:'22px 26px',minWidth:0}}>
         <GoalsWidget goals={goals} setGoals={setGoals} onAddGoal={()=>setModal({type:"goal"})} onEditGoal={g=>setModal({type:"goal",data:g})} pageMode={true} bingo={bingo} setBingo={setBingo} pushUndo={pushUndo} apiKey={apiKey}/>
       </div>
     </div>
-    <div style={{padding:'24px 1.75rem',borderBottom:`1px solid ${T.border}`}}>
-      <TasksWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
+
+    {/* Row 2 — Tasks, full width */}
+    <div style={{padding:'16px 1.75rem 28px'}}>
+      <div style={{...cardStyle,padding:'22px 26px'}}>
+        <TasksWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
+      </div>
     </div>
+
     <PaperFooter/>
   </div>;
 }
