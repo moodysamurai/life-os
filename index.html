@@ -430,7 +430,7 @@ function FadeIn({children,delay=0,style={}}){
 
 // ── UTILS ──────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
-const toStr=d=>(d instanceof Date?d:new Date(d)).toISOString().split("T")[0];
+const toStr=d=>{const x=d instanceof Date?d:new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;};
 const fromStr=s=>new Date(s+"T12:00:00");
 const addDays=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
 const getMon=d=>{const dy=d.getDay();return addDays(d,dy===0?-6:1-dy);};
@@ -874,7 +874,7 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
       textTransform:"uppercase",color:T.muted};
     const statBorder={borderLeft:`1px solid ${T.text}`,paddingLeft:14,paddingRight:10};
     return <div className="greet-in" style={{
-      padding:"28px 1.75rem 0",
+      padding:"28px 4rem 0",
       borderBottom:`1px solid ${T.border}`,
       background:T.bg,
     }}>
@@ -981,7 +981,7 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
   }
 
   return <div className="greet-in" style={{
-    padding:"22px 1.75rem 18px",
+    padding:"22px 4rem 18px",
     borderBottom:`1px solid ${alpha(T.border,.35)}`,
     display:"flex",justifyContent:"space-between",alignItems:"center",gap:24,
   }}>
@@ -4965,11 +4965,11 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile}){
     {id:'settings',label:'⚙',title:'Settings'},
   ];
   return(
-    <header style={{background:T.bg,borderBottom:`1px solid ${T.text}`,padding:'0 1.75rem',position:'sticky',top:0,zIndex:100}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',height:42}}>
+    <header style={{background:T.bg,padding:'0 4rem',position:'sticky',top:0,zIndex:100}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',height:42,borderBottom:`1px solid ${T.text}`}}>
         <div style={{display:'flex',alignItems:'center'}}>
           <button onClick={()=>setPage('today')} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_S,fontSize:18,fontWeight:600,color:T.text,letterSpacing:'-0.01em',padding:'0 16px 0 0'}}>受付係</button>
-          {!isMobile&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',borderLeft:`1px solid ${T.border}`,paddingLeft:16}}>DAILY DISPATCH · NO. {String(dayOfYear).padStart(4,'0')}</div>}
+          {!isMobile&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',borderLeft:`1px solid ${T.border}`,paddingLeft:16}}>THE RECEPTIONIST'S REPORT · NO. {String(dayOfYear).padStart(4,'0')}</div>}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:isMobile?14:26}}>
           {NAV.map(item=>(
@@ -4998,8 +4998,8 @@ function PaperMetaStrip({sun}){
   const q=Math.ceil((now.getMonth()+1)/3);
   const cellSty={fontFamily:PP_M,fontSize:11,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',whiteSpace:'nowrap'};
   return(
-    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:'14px 1.75rem'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:24,...cellSty}}>
+    <div style={{background:T.bg,padding:'0 4rem'}}>
+      <div style={{borderBottom:`1px solid ${T.border}`,padding:'14px 0',display:'flex',alignItems:'center',justifyContent:'space-between',gap:24,...cellSty}}>
         <span>{dateStr}</span>
         <span>WEEK {String(wk).padStart(2,'0')} · Q{q}</span>
         <span>LEIDEN, NL · 52.16°N 4.54°E</span>
@@ -5051,7 +5051,7 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   );
   const deepLabel=deepTask?deepTask.title.split('—')[0].split(':')[0].trim():'';
   return(
-    <div style={{background:T.bg,padding:'26px 1.75rem 0',position:'relative'}}>
+    <div style={{background:T.bg,padding:'26px 4rem 0',position:'relative'}}>
       {/* Eyebrow */}
       <div style={{...tinyLbl,marginBottom:30}}>To the bearer — {DAYS_LONG[now.getDay()].toLowerCase()} {tod}</div>
 
@@ -5773,7 +5773,7 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
   const gridCols='86px minmax(0,1fr) 180px 72px';
 
   return(
-    <div style={{margin:'24px 1.75rem 0',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
+    <div style={{margin:'24px 4rem 0',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
       {/* Header band */}
       <div style={{padding:'22px 26px 18px',borderBottom:`1px solid ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
         <div>
@@ -5863,7 +5863,7 @@ function PaperFooter(){
   const T=useT();
   const eye={fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:'0.2em',color:T.muted};
   return(
-    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,padding:'10px 1.75rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <div style={{background:T.bg,borderTop:`1px solid ${T.border}`,padding:'10px 4rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <div style={{display:'flex',gap:8}}>{[0,1,2,3].map(i=><span key={i} style={{...eye,fontSize:12,color:i===0?T.mint:T.border}}>○</span>)}</div>
       <div style={eye}>PRINTED LOCALLY · THANK YOU</div>
       <div style={{...eye,letterSpacing:'0.04em',fontWeight:400}}>{Array.from({length:20},(_,i)=><span key={i} style={{opacity:i%5===4?0.2:0.85}}>|</span>)}</div>
@@ -5875,7 +5875,7 @@ function PaperFooter(){
 function PaperPageHdr({title,sub,action}){
   const T=useT();
   return(
-    <div style={{padding:'24px 1.75rem 20px',borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+    <div style={{padding:'24px 4rem 20px',borderBottom:`1px solid ${T.border}`,background:T.bg}}>
       {sub&&<div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted,marginBottom:8}}>{sub}</div>}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
         <h2 style={{fontFamily:PP_S,fontSize:44,fontWeight:400,color:T.text,letterSpacing:'-0.025em',lineHeight:0.95,margin:0}}>{title}</h2>
@@ -5905,7 +5905,7 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
     <PaperPageHdr title="Plan." sub="CALENDAR · GOALS · TASKS" action={<div style={{display:'flex',gap:8}}><PpBtn onClick={()=>setModal({type:'task'})}>+ TASK</PpBtn><PpBtn onClick={()=>setModal({type:'goal'})}>+ GOAL</PpBtn></div>}/>
 
     {/* Row 1 — Calendar column (mini cal + this-month list) | Goals column */}
-    <div style={{padding:'20px 1.75rem 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
+    <div style={{padding:'20px 4rem 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
       {/* Calendar section */}
       <div style={{display:'flex',flexDirection:'column',gap:16,minWidth:0}}>
         <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} setModal={setModal} expanded={true}/>
@@ -5962,7 +5962,7 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
 function TripsPage({trips,setTrips,photos,setPhotos,tripSugg,getTripSugg,loadingSugg,pushUndo,setModal}){
   return<div>
     <PaperPageHdr title="Trips." sub="HORIZON · TRAVEL" action={<PpBtn onClick={()=>setModal({type:'trip'})}>+ ADD TRIP</PpBtn>}/>
-    <div style={{padding:'24px 1.75rem'}}>
+    <div style={{padding:'24px 4rem'}}>
       <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:'trip'})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={true}/>
     </div>
     <PaperFooter/>
@@ -5971,7 +5971,7 @@ function TripsPage({trips,setTrips,photos,setPhotos,tripSugg,getTripSugg,loading
 function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats}){
   return<div>
     <PaperPageHdr title="Money." sub="BUDGET · ENVELOPES · PLAN"/>
-    <div style={{padding:'24px 1.75rem'}}>
+    <div style={{padding:'24px 4rem'}}>
       <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={true}/>
     </div>
     <PaperFooter/>
@@ -5980,7 +5980,7 @@ function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudget
 function ReviewPage({tasks,setTasks,goals,apiKey,setModal,pushUndo}){
   return<div>
     <PaperPageHdr title="Review." sub="WAKULI · WEEKLY DIGEST"/>
-    <div style={{padding:'24px 1.75rem'}}>
+    <div style={{padding:'24px 4rem'}}>
       <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
     </div>
     <PaperFooter/>
@@ -5989,7 +5989,7 @@ function ReviewPage({tasks,setTasks,goals,apiKey,setModal,pushUndo}){
 function WkPage({tasks,completions,setCompletions,appleEvents,setModal,setFocusDay}){
   return<div>
     <PaperPageHdr title="Week." sub="KANBAN · WEEK VIEW"/>
-    <div style={{padding:'24px 1.75rem'}}>
+    <div style={{padding:'24px 4rem'}}>
       <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={true} appleEvents={appleEvents}/>
     </div>
     <PaperFooter/>
@@ -6000,7 +6000,7 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
   return<div>
     <PaperPageHdr title="Settings." sub="SYSTEM · INTEGRATIONS"/>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:'28px 1.75rem',borderBottom:`1px solid ${T.border}`}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:'28px 4rem',borderBottom:`1px solid ${T.border}`}}>
       <div style={{paddingRight:40,borderRight:`1px solid ${T.border}`}}>
         {[
           {label:'CLOUD SYNC',status:syncStatus==='ok'?'CONNECTED':syncStatus==='err'?'ERROR':'NOT CONNECTED',ok:syncStatus==='ok',action:onOpenSync,btn:'CONFIGURE'},
@@ -6286,7 +6286,7 @@ function App(){
     document.body.appendChild(inp);inp.click();document.body.removeChild(inp);
   }
 
-  const maxW={maxWidth:1200,margin:'0 auto',padding:'0 1.75rem'};
+  const maxW={maxWidth:1200,margin:'0 auto',padding:'0 4rem'};
 
   return <TC.Provider value={T}>
     <div className="theme-paper" style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:PP_M,position:"relative"}}>
@@ -6298,13 +6298,13 @@ function App(){
         <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents}/>
 
         {/* CALENDAR + GOALS — editorial self-contained cards */}
-        <div style={{padding:'20px 1.75rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
+        <div style={{padding:'20px 4rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
           <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} onExpand={()=>setPage('plan')} setModal={setModal}/>
           <PaperGoalsTodayCard goals={goals} setGoals={setGoals} onExpand={()=>setPage('plan')}/>
         </div>
 
         {/* TRIPS + MONEY — inequal columns for editorial asymmetry */}
-        <div style={{padding:'16px 1.75rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
+        <div style={{padding:'16px 4rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
           <PaperTripsTodayCard trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onExpand={()=>setPage('trips')} onAddTrip={()=>setModal({type:'trip'})}/>
           <PaperMoneyTodayCard envelopes={envelopes} onExpand={()=>setPage('money')}/>
         </div>
