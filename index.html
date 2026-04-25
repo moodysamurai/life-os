@@ -2025,7 +2025,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     setEnvelopes(prev=>prev.filter(e=>!(planMonths.includes(e.month)&&e.category===cat)));
   }
 
-  const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:6,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
+  const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:0,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
 
   return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:6,position:"relative"}}>
 
@@ -2036,9 +2036,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted||T.textLt}}>NO. {mon.replace("-","·")}</span>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:4,fontFamily:PP_M,fontSize:10}}>
-        <button onClick={prevMon} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:2,padding:"2px 8px",cursor:"pointer",color:T.text,fontFamily:PP_M,fontSize:11,lineHeight:1}}>‹</button>
+        <button onClick={prevMon} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:0,padding:"2px 8px",cursor:"pointer",color:T.text,fontFamily:PP_M,fontSize:11,lineHeight:1}}>‹</button>
         {mon!==ym0&&<button onClick={()=>setMon(ym0)} style={{background:"none",border:"none",cursor:"pointer",color:T.red||T.mint,fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.15em",textTransform:"uppercase",padding:"0 4px"}}>NOW</button>}
-        <button onClick={nextMon} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:2,padding:"2px 8px",cursor:"pointer",color:T.text,fontFamily:PP_M,fontSize:11,lineHeight:1}}>›</button>
+        <button onClick={nextMon} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:0,padding:"2px 8px",cursor:"pointer",color:T.text,fontFamily:PP_M,fontSize:11,lineHeight:1}}>›</button>
       </div>
     </div>}
     {!pageMode&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,position:"relative",zIndex:10}}>
@@ -2062,22 +2062,22 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     {tab==="plan"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>
 
       {monEnv.length===0&&envelopes.some(e=>e.isFixed)&&
-        <div style={{padding:"8px 12px",borderRadius:8,background:alpha(T.mint,.1),border:`1px solid ${alpha(T.mint,.3)}`,display:"flex",alignItems:"center",gap:8}}>
+        <div style={{padding:"8px 12px",borderRadius:0,background:alpha(T.mint,.1),border:`1px solid ${alpha(T.mint,.3)}`,display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:10,color:T.mint,fontFamily:F,flex:1}}>No plan for {monLabel} yet — copy fixed items?</span>
           <Btn small primary onClick={seedFromFixed}>Seed</Btn>
         </div>
       }
 
       {(budgetedIncome>0||budgetedExpense>0)&&
-        <div style={{padding:"8px 10px",borderRadius:8,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.28)}`}}>
+        <div style={{padding:"8px 10px",borderRadius:0,background:T.cardAlt}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-            <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Allocation</span>
+            <span style={{fontSize:9,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Allocation</span>
             <span style={{fontSize:10,fontFamily:F,color:unallocated>=0?T.mint:T.pink,fontWeight:700}}>
               {unallocated>=0?`€${unallocated.toFixed(0)} unallocated`:`€${Math.abs(unallocated).toFixed(0)} over budget`}
             </span>
           </div>
-          <div style={{height:6,borderRadius:3,background:alpha(T.border,.4),overflow:"hidden"}}>
-            <div style={{width:Math.min(100,budgetedIncome>0?(budgetedExpense/budgetedIncome)*100:100)+"%",height:"100%",background:budgetedExpense>budgetedIncome?T.pink:T.mint,borderRadius:3,transition:"width 0.3s"}}/>
+          <div style={{height:6,borderRadius:0,background:T.cardAlt,overflow:"hidden"}}>
+            <div style={{width:Math.min(100,budgetedIncome>0?(budgetedExpense/budgetedIncome)*100:100)+"%",height:"100%",background:budgetedExpense>budgetedIncome?T.pink:T.mint,borderRadius:0,transition:"width 0.3s"}}/>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
             <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>€{budgetedExpense.toFixed(0)} allocated</span>
@@ -2093,14 +2093,14 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             {label:"Income",count:incomeEnv.length,fixed:incomeEnv.filter(e=>e.isFixed).length,total:budgetedIncome,color:T.mint,bg:alpha(T.mint,.08),border:alpha(T.mint,.22)},
             {label:"Expenses",count:expEnv.length,fixed:expEnv.filter(e=>e.isFixed).length,total:budgetedExpense,color:T.pink,bg:alpha(T.pink,.08),border:alpha(T.pink,.22)},
           ].map(({label,count,fixed,total,color,bg,border})=>(
-            <div key={label} style={{flex:1,padding:"7px 9px",borderRadius:8,background:bg,border:`1px solid ${border}`,display:"flex",flexDirection:"column",gap:3}}>
+            <div key={label} style={{flex:1,padding:"7px 9px",borderRadius:0,background:bg,border:`1px solid ${border}`,display:"flex",flexDirection:"column",gap:3}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:9,fontWeight:700,color,fontFamily:F,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</span>
                 <span style={{fontSize:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>€{total.toFixed(0)}</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
                 <span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{count} {count===1?"item":"items"}</span>
-                {fixed>0&&<span style={{fontSize:7,color,fontFamily:F,background:alpha(color,.15),padding:"1px 5px",borderRadius:4,letterSpacing:"0.04em"}}>{fixed} recurring</span>}
+                {fixed>0&&<span style={{fontSize:7,color,fontFamily:F,background:alpha(color,.15),padding:"1px 5px",borderRadius:0,letterSpacing:"0.04em"}}>{fixed} recurring</span>}
               </div>
             </div>
           ))}
@@ -2108,33 +2108,33 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       }
 
       {/* Income envelopes */}
-      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+      <div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-          <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Income</span>
+          <span style={{fontSize:9,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Income</span>
           <button onClick={()=>openNewEnv("income")} style={{background:"none",border:"none",cursor:"pointer",color:T.mint,fontSize:12,fontFamily:F,padding:"0 2px",lineHeight:1}}>+</button>
         </div>
         {incCats.map(cat=>{
           const env=incomeEnv.find(e=>e.category===cat.label);
           const sk=`si-${cat.id}`;
-          return <div key={cat.id}>
+          return <div key={cat.id} style={{borderBottom:`1px solid ${T.border}`}}>
             {env
-              ?<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.18)}`}}>
+              ?<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:0,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.18)}`}}>
                   <Ico n={getCatIcon(env.category)} size={12}/>
                   <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
-                  {env.isFixed&&<span style={{fontSize:7,color:T.mint,fontFamily:F,background:alpha(T.mint,.15),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
+                  {env.isFixed&&<span style={{fontSize:7,color:T.mint,fontFamily:F,background:alpha(T.mint,.15),padding:"1px 5px",borderRadius:0,letterSpacing:"0.05em"}}>FIXED</span>}
                   <span style={{fontSize:11,color:T.mint,fontFamily:F,fontWeight:700}}>€{env.budgeted.toFixed(0)}</span>
-                  <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.mint,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.mint,.4):"transparent"}`,borderRadius:4,cursor:"pointer",color:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
+                  <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.mint,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.mint,.4):"transparent"}`,borderRadius:0,cursor:"pointer",color:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
                   <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
                   <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
                 </div>
-              :<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.06),border:`1px solid ${alpha(T.border,.13)}`}}>
+              :<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:0,background:T.cardAlt}}>
                   <Ico n={getCatIcon(cat.label)} size={12}/>
                   <span style={{fontSize:10,color:T.textLt,fontFamily:F,flex:1}}>{cat.label}</span>
                   <button onClick={()=>{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}} style={{background:"none",border:"none",cursor:"pointer",color:T.mint,fontSize:9,fontFamily:F,padding:"0 4px"}}>Set</button>
                 </div>
             }
             {env&&quickRec===env.id&&
-              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:7,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.25)}`,marginTop:3,alignItems:"center"}}>
+              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:0,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.25)}`,marginTop:3,alignItems:"center"}}>
                 <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...IS,width:80,flex:1}}/>
                 <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...IS,width:110}}/>
                 <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...IS,flex:2}}/>
@@ -2143,7 +2143,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               </div>
             }
             {env&&showEnvEdit===env.id&&
-              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
+              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4}}>
                   <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
                     {incCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
@@ -2160,7 +2160,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               </div>
             }
             {!env&&showEnvEdit===sk&&
-              <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.28)}`,marginTop:3}}>
+              <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
                   <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))}
                     onKeyDown={ev=>{if(ev.key==="Enter"){const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"income",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}if(ev.key==="Escape")setShowEnvEdit(null);}}
@@ -2180,9 +2180,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       </div>
 
       {/* Expense envelopes */}
-      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+      <div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-          <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Expenses</span>
+          <span style={{fontSize:9,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Expenses</span>
           <button onClick={()=>openNewEnv("expense")} style={{background:"none",border:"none",cursor:"pointer",color:T.pink,fontSize:12,fontFamily:F,padding:"0 2px",lineHeight:1}}>+</button>
         </div>
         {expCats.map(cat=>{
@@ -2192,30 +2192,30 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           const pct=env&&env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):0;
           const over=env&&actual>env.budgeted;
           const cc=getCatColor(cat.label);
-          return <div key={cat.id}>
+          return <div key={cat.id} style={{borderBottom:`1px solid ${T.border}`}}>
             {env
-              ?<div style={{display:"flex",flexDirection:"column",gap:3,padding:"6px 8px",borderRadius:7,background:over?alpha(T.pink,.07):alpha(T.border,.1),border:`1px solid ${over?alpha(T.pink,.22):alpha(T.border,.22)}`}}>
+              ?<div style={{display:"flex",flexDirection:"column",gap:3,padding:"6px 8px",borderRadius:0,background:over?alpha(T.pink,.07):alpha(T.border,.1),border:`1px solid ${over?alpha(T.pink,.22):alpha(T.border,.22)}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:5}}>
                     <Ico n={getCatIcon(env.category)} size={12}/>
                     <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
-                    {env.isFixed&&<span style={{fontSize:7,color:T.textLt,fontFamily:F,background:alpha(T.border,.3),padding:"1px 5px",borderRadius:4,letterSpacing:"0.05em"}}>FIXED</span>}
+                    {env.isFixed&&<span style={{fontSize:7,color:T.textLt,fontFamily:F,background:T.cardAlt,padding:"1px 5px",borderRadius:0,letterSpacing:"0.05em"}}>FIXED</span>}
                     <span style={{fontSize:9,fontFamily:F,color:over?T.pink:T.textMd}}>€{actual.toFixed(0)}<span style={{color:T.textLt}}> / €{env.budgeted.toFixed(0)}</span></span>
-                    <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.pink,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.pink,.4):"transparent"}`,borderRadius:4,cursor:"pointer",color:over?T.pink:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
+                    <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.pink,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.pink,.4):"transparent"}`,borderRadius:0,cursor:"pointer",color:over?T.pink:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
                     <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
                     <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
                   </div>
-                  <div style={{height:3,borderRadius:2,background:alpha(T.border,.4),overflow:"hidden"}}>
-                    <div style={{width:pct+"%",height:"100%",borderRadius:2,background:over?T.pink:cc,transition:"width 0.3s"}}/>
+                  <div style={{height:3,borderRadius:0,background:T.cardAlt,overflow:"hidden"}}>
+                    <div style={{width:pct+"%",height:"100%",borderRadius:0,background:over?T.pink:cc,transition:"width 0.3s"}}/>
                   </div>
                 </div>
-              :<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.06),border:`1px solid ${alpha(T.border,.13)}`}}>
+              :<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:0,background:T.cardAlt}}>
                   <Ico n={getCatIcon(cat.label)} size={12}/>
                   <span style={{fontSize:10,color:T.textLt,fontFamily:F,flex:1}}>{cat.label}</span>
                   <button onClick={()=>{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}} style={{background:"none",border:"none",cursor:"pointer",color:T.pink,fontSize:9,fontFamily:F,padding:"0 4px"}}>Set</button>
                 </div>
             }
             {env&&quickRec===env.id&&
-              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3,alignItems:"center"}}>
+              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3,alignItems:"center"}}>
                 <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...IS,width:80,flex:1}}/>
                 <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...IS,width:110}}/>
                 <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...IS,flex:2}}/>
@@ -2224,7 +2224,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               </div>
             }
             {env&&showEnvEdit===env.id&&
-              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:3}}>
+              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4}}>
                   <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
                     {expCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
@@ -2241,7 +2241,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               </div>
             }
             {!env&&showEnvEdit===sk&&
-              <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${alpha(T.border,.28)}`,marginTop:3}}>
+              <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
                   <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))}
                     onKeyDown={ev=>{if(ev.key==="Enter"){const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"expense",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}if(ev.key==="Escape")setShowEnvEdit(null);}}
@@ -2260,7 +2260,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         })}
 
         {showEnvEdit==="new"&&
-          <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:7,background:alpha(T.border,.15),border:`1px solid ${alpha(T.border,.35)}`,marginTop:2}}>
+          <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:2}}>
             <div style={{display:"flex",gap:4}}>
               <select value={envForm.type} onChange={ev=>setEnvForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))} style={{...IS,width:90}}>
                 <option value="expense">Expense</option>
@@ -2285,12 +2285,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     </div>}
 
     {/* ── 6-MONTH PLANNER TAB ── */}
-    {tab==="trends"&&<div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:0}}>
+    {tab==="trends"&&<div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt,padding:8}}>
       <div style={{minWidth:400}}>
 
         {/* Column headers */}
-        <div style={{display:"flex",alignItems:"center",paddingBottom:5,borderBottom:`1px solid ${alpha(T.border,.3)}`,marginBottom:5,position:"sticky",top:0,background:T.card,zIndex:3}}>
-          <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Category</div>
+        <div style={{display:"flex",alignItems:"center",paddingBottom:5,borderBottom:`1px solid ${T.border}`,marginBottom:5,position:"sticky",top:0,background:T.card,zIndex:3}}>
+          <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Category</div>
           {planMonths.map(m=>{
             const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
             const isCur=m===ym0;
@@ -2303,7 +2303,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         </div>
 
         {/* ── Income rows ── */}
-        <div style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 0 3px 0",marginBottom:2}}>Income</div>
+        <div style={{fontSize:8,color:T.mint,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",padding:"3px 0 3px 0",marginBottom:2}}>Income</div>
         {incSection.map(cat=>{
           if(cat.type==="divider"){
             return <div key={cat.id}
@@ -2315,7 +2315,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               style={{display:"flex",alignItems:"center",marginBottom:3,marginTop:5,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
               <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
                 <span style={{fontSize:10,color:T.mint,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
-                <span style={{fontSize:8,color:T.mint,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
+                <span style={{fontSize:8,color:T.mint,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
               </div>
               <div style={{flex:1,height:1,background:alpha(T.mint,.2)}}/>
               <div style={{width:50,flexShrink:0,display:"flex",justifyContent:"center"}}>
@@ -2331,7 +2331,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             onDragOver={e=>onCatDragOver(e,cat.id)}
             onDrop={e=>onCatDrop(e,cat.id)}
             onDragEnd={onCatDragEnd}
-            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.mint,.45)}`:"none",borderRadius:5,transition:"outline 0.08s"}}>
+            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.mint,.45)}`:"none",borderRadius:0,transition:"outline 0.08s"}}>
             <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:2,paddingRight:4}}>
               <span draggable={false} style={{fontSize:11,color:T.textLt,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
               <Ico n={cat.icon||"dots-three"} size={11}/>
@@ -2345,12 +2345,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                     onChange={ev=>setPlanVal(ev.target.value)}
                     onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}}
                     onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
-                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.mint,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
+                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.mint,.5)}`,borderRadius:0,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
                 : <div key={m}
                     onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,"income",fillAmt);}},220);}}
                     onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
                     title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
-                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.mint,.1):"transparent",border:`1px solid ${amt>0?alpha(T.mint,.25):"transparent"}`,transition:"background 0.1s"}}>
+                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:0,background:amt>0?alpha(T.mint,.1):"transparent",border:`1px solid ${amt>0?alpha(T.mint,.25):"transparent"}`,transition:"background 0.1s"}}>
                     {amt>0
                       ? <span style={{fontSize:9,color:T.mint,fontFamily:F,fontWeight:600}}>€{amt}</span>
                       : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
@@ -2358,20 +2358,20 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             })}
             <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
               <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,"income",fillAmt);}} title={fillAmt?`Fill all · €${fillAmt}`:"Double-click a cell to set an amount first"}
-                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:fillAmt?"pointer":"default",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
+                style={{width:20,height:20,borderRadius:0,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:fillAmt?"pointer":"default",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
                 <Ico n="arrows-clockwise" size={9}/>
               </button>
               <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
-                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.border,.35)}`,background:alpha(T.border,.1),cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
+                style={{width:20,height:20,borderRadius:0,border:`1px solid ${T.border}`,background:T.cardAlt,cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
             </div>
           </div>;
         })}
 
         {/* ── Expense rows ── */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${alpha(T.border,.2)}`}}>
-          <span style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Expenses</span>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${T.border}`}}>
+          <span style={{fontSize:8,color:T.pink,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Expenses</span>
           <button onClick={()=>addDivider("expense")} title="Add section divider"
-            style={{background:"none",border:`1px solid ${alpha(T.pink,.3)}`,cursor:"pointer",color:T.pink,fontSize:8,fontFamily:F,padding:"2px 6px",borderRadius:4,lineHeight:1,letterSpacing:"0.02em",opacity:0.7}}>+ Divider</button>
+            style={{background:"none",border:`1px solid ${alpha(T.pink,.3)}`,cursor:"pointer",color:T.pink,fontSize:8,fontFamily:F,padding:"2px 6px",borderRadius:0,lineHeight:1,letterSpacing:"0.02em",opacity:0.7}}>+ Divider</button>
         </div>
         {expSection.map(cat=>{
           if(cat.type==="divider"){
@@ -2384,7 +2384,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               style={{display:"flex",alignItems:"center",marginBottom:3,marginTop:5,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
               <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
                 <span style={{fontSize:10,color:T.pink,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
-                <span style={{fontSize:8,color:T.pink,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
+                <span style={{fontSize:8,color:T.pink,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
               </div>
               <div style={{flex:1,height:1,background:alpha(T.pink,.2)}}/>
               <div style={{width:50,flexShrink:0,display:"flex",justifyContent:"center"}}>
@@ -2400,7 +2400,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             onDragOver={e=>onCatDragOver(e,cat.id)}
             onDrop={e=>onCatDrop(e,cat.id)}
             onDragEnd={onCatDragEnd}
-            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.pink,.45)}`:"none",borderRadius:5,transition:"outline 0.08s"}}>
+            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.pink,.45)}`:"none",borderRadius:0,transition:"outline 0.08s"}}>
             <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:2,paddingRight:4}}>
               <span draggable={false} style={{fontSize:11,color:T.textLt,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
               <Ico n={cat.icon||"dots-three"} size={11}/>
@@ -2414,12 +2414,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                     onChange={ev=>setPlanVal(ev.target.value)}
                     onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}}
                     onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
-                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.pink,.5)}`,borderRadius:4,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
+                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.pink,.5)}`,borderRadius:0,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
                 : <div key={m}
                     onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,"expense",fillAmt);}},220);}}
                     onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
                     title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
-                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:5,background:amt>0?alpha(T.pink,.1):"transparent",border:`1px solid ${amt>0?alpha(T.pink,.25):"transparent"}`,transition:"background 0.1s"}}>
+                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:0,background:amt>0?alpha(T.pink,.1):"transparent",border:`1px solid ${amt>0?alpha(T.pink,.25):"transparent"}`,transition:"background 0.1s"}}>
                     {amt>0
                       ? <span style={{fontSize:9,color:T.pink,fontFamily:F,fontWeight:600}}>€{amt}</span>
                       : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
@@ -2427,20 +2427,20 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             })}
             <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
               <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,"expense",fillAmt);}} title={fillAmt?`Fill all · €${fillAmt}`:"Double-click a cell to set an amount first"}
-                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:fillAmt?"pointer":"default",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
+                style={{width:20,height:20,borderRadius:0,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:fillAmt?"pointer":"default",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
                 <Ico n="arrows-clockwise" size={9}/>
               </button>
               <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
-                style={{width:20,height:20,borderRadius:4,border:`1px solid ${alpha(T.border,.35)}`,background:alpha(T.border,.1),cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
+                style={{width:20,height:20,borderRadius:0,border:`1px solid ${T.border}`,background:T.cardAlt,cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
             </div>
           </div>;
         })}
 
         {/* ── Rolling balance rows ── */}
-        <div style={{marginTop:4,borderTop:`1px solid ${alpha(T.border,.3)}`,paddingTop:5,display:"flex",flexDirection:"column",gap:1}}>
+        <div style={{marginTop:4,borderTop:`1px solid ${T.border}`,paddingTop:5,display:"flex",flexDirection:"column",gap:1}}>
           {/* Net this month row */}
           <div style={{display:"flex",alignItems:"center"}}>
-            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>Month net</div>
+            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Month net</div>
             {planTotals.map(({m,inc,exp,net})=>{
               const hasAny=inc>0||exp>0;
               return <div key={m} style={{width:52,flexShrink:0,textAlign:"center"}}>
@@ -2452,8 +2452,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <div style={{width:50,flexShrink:0}}/>
           </div>
           {/* Running balance row */}
-          <div style={{display:"flex",alignItems:"center",background:alpha(T.border,.1),borderRadius:6,padding:"3px 0"}}>
-            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",paddingLeft:3}}>
+          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,borderRadius:0,padding:"3px 0"}}>
+            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",paddingLeft:3}}>
               Balance
               <div style={{fontSize:7,color:T.textLt,fontWeight:400,marginTop:1,opacity:0.7}}>carry-over</div>
             </div>
@@ -2474,28 +2474,28 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         </div>
 
         {/* ── Savings Calculator ── */}
-        <div style={{marginTop:10,borderTop:`1px solid ${alpha(T.border,.25)}`,paddingTop:8}}>
+        <div style={{marginTop:10,borderTop:`1px solid ${T.border}`,paddingTop:8}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-            <span style={{fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>Savings Projection</span>
+            <span style={{fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Savings Projection</span>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
               <label style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:T.textLt,fontFamily:F}}>
                 <span style={{opacity:0.7}}>Start €</span>
                 <input type="number" min="0" step="100" value={savingsStart||""}
                   onChange={ev=>{const v=parseFloat(ev.target.value)||0;setSavingsStart(v);ls("plo3_sav_start",String(v));}}
                   placeholder="0"
-                  style={{width:62,fontSize:9,background:T.inp,border:`1px solid ${alpha(T.border,.6)}`,borderRadius:4,color:T.text,padding:"2px 5px",fontFamily:F,outline:"none",textAlign:"right"}}/>
+                  style={{width:62,fontSize:9,background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"2px 5px",fontFamily:F,outline:"none",textAlign:"right"}}/>
               </label>
               <label style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:T.textLt,fontFamily:F}}>
                 <span style={{opacity:0.7}}>Rate %</span>
                 <input type="number" min="0" max="100" step="0.1" value={savingsRate||""}
                   onChange={ev=>{const v=parseFloat(ev.target.value)||0;setSavingsRate(v);ls("plo3_sav_rate",String(v));}}
                   placeholder="0"
-                  style={{width:46,fontSize:9,background:T.inp,border:`1px solid ${alpha(T.border,.6)}`,borderRadius:4,color:T.text,padding:"2px 5px",fontFamily:F,outline:"none",textAlign:"right"}}/>
+                  style={{width:46,fontSize:9,background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"2px 5px",fontFamily:F,outline:"none",textAlign:"right"}}/>
               </label>
             </div>
           </div>
           <div style={{display:"flex",alignItems:"center"}}>
-            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",paddingLeft:3}}>
+            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",paddingLeft:3}}>
               Savings
               {savingsRate>0&&<div style={{fontSize:7,color:T.textLt,fontWeight:400,marginTop:1,opacity:0.7}}>{savingsRate}% p.a.</div>}
             </div>
@@ -2539,10 +2539,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       {["expense","income"].map(type=>(
         <div key={type}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-            <span style={{fontSize:9,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{type==="income"?"Income":"Expenses"}</span>
+            <span style={{fontSize:9,color:T.muted||T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>{type==="income"?"Income":"Expenses"}</span>
             <button onClick={()=>{setCatAdd({type,label:"",icon:"dots-three"});setPickerFor(null);}} style={{background:"none",border:"none",cursor:"pointer",color:type==="income"?T.mint:T.pink,fontSize:13,fontFamily:F,lineHeight:1,padding:"0 2px"}}>+</button>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          <div style={{display:"flex",flexDirection:"column",gap:0,border:`1px solid ${T.border}`,background:T.cardAlt}}>
             {budgetCats.filter(c=>c.type===type).map(cat=>(
               <div key={cat.id}
                 draggable
@@ -2550,10 +2550,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                 onDragOver={e=>onCatDragOver(e,cat.id)}
                 onDrop={e=>onCatDrop(e,cat.id)}
                 onDragEnd={onCatDragEnd}
-                style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.12),border:`1px solid ${dragOverCatId===cat.id?alpha(type==="income"?T.mint:T.pink,.5):alpha(T.border,.2)}`,opacity:dragCatId===cat.id?0.4:1,transition:"border 0.08s"}}>
+                style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:0,background:dragOverCatId===cat.id?alpha(type==="income"?T.mint:T.pink,.08):"transparent",borderBottom:`1px solid ${T.border}`,opacity:dragCatId===cat.id?0.4:1,transition:"background 0.08s"}}>
                 <span style={{fontSize:13,color:T.textLt,cursor:"grab",userSelect:"none",opacity:0.35,lineHeight:1,flexShrink:0}}>⠿</span>
                 <button onClick={()=>{setCatAdd(null);setPickerFor(pickerFor===cat.id?null:cat.id);}}
-                  style={{width:26,height:26,borderRadius:6,border:`1px solid ${pickerFor===cat.id?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor===cat.id?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
+                  style={{width:26,height:26,borderRadius:0,border:`1px solid ${pickerFor===cat.id?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor===cat.id?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
                   <Ico n={cat.icon||"dots-three"} size={13}/>
                 </button>
                 {catEditId===cat.id
@@ -2568,9 +2568,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               </div>
             ))}
             {catAdd?.type===type&&
-              <div style={{display:"flex",alignItems:"center",gap:4,padding:"5px 8px",borderRadius:7,background:alpha(T.border,.08),border:`1px dashed ${alpha(T.border,.35)}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:4,padding:"5px 8px",borderRadius:0,background:T.cardAlt,border:`1px dashed ${alpha(T.border,.35)}`}}>
                 <button onClick={()=>setPickerFor(pickerFor==="new"?null:"new")}
-                  style={{width:26,height:26,borderRadius:6,border:`1px solid ${pickerFor==="new"?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor==="new"?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
+                  style={{width:26,height:26,borderRadius:0,border:`1px solid ${pickerFor==="new"?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor==="new"?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
                   <Ico n={catAdd.icon} size={13}/>
                 </button>
                 <input value={catAdd.label} onChange={ev=>setCatAdd(p=>({...p,label:ev.target.value}))}
@@ -2591,15 +2591,15 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
     {/* ── ICON PICKER OVERLAY ── */}
     {pickerFor&&
-      <div style={{position:"absolute",bottom:0,left:0,right:0,zIndex:30,background:T.card,borderTop:`1px solid ${alpha(T.border,.5)}`,borderRadius:"0 0 10px 10px",padding:"8px 10px",boxShadow:`0 -6px 20px ${alpha("#000",.25)}`}}>
+      <div style={{position:"absolute",bottom:0,left:0,right:0,zIndex:30,background:T.card,borderTop:`1px solid ${T.border}`,borderRadius:0,padding:"8px 10px",boxShadow:`0 -6px 20px ${alpha("#000",.25)}`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <span style={{fontSize:8,color:T.textLt,fontFamily:F,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>Choose icon</span>
+          <span style={{fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Choose icon</span>
           <button onClick={()=>setPickerFor(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:15,lineHeight:1,padding:"0 2px"}}>×</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3,maxHeight:140,overflowY:"auto"}}>
           {BUDGET_ICONS.map(icon=>(
             <button key={icon} onClick={()=>pickIcon(icon)} title={icon.replace(/-/g," ")}
-              style={{padding:5,borderRadius:5,border:`1px solid ${curPickerIcon===icon?alpha(T.mint,.55):"transparent"}`,background:curPickerIcon===icon?alpha(T.mint,.15):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.1s",color:T.text}}>
+              style={{padding:5,borderRadius:0,border:`1px solid ${curPickerIcon===icon?alpha(T.mint,.55):"transparent"}`,background:curPickerIcon===icon?alpha(T.mint,.15):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.1s",color:T.text}}>
               <Ico n={icon} size={14}/>
             </button>
           ))}
