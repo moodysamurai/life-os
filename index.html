@@ -20,8 +20,8 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body,#root{height:100%;min-height:100vh;}
-body{font-family:'Geist','Helvetica Neue',system-ui,sans-serif;}
-input,textarea,button,select{font-family:'Geist','Helvetica Neue',system-ui,sans-serif;}
+body{font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace;}
+input,textarea,button,select{font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:2px;}
@@ -232,7 +232,9 @@ function parseCoolorsUrl(url){
 
 const TC=createContext(buildDark(DEFAULT_PALETTE));
 const useT=()=>useContext(TC);
-const F="'Geist','Helvetica Neue',system-ui,sans-serif";
+// F kept as an alias of the mono stack so legacy widgets pick up the editorial typography.
+// Helvetica/Geist removed site-wide — headings use PP_S (Fraunces serif), data uses PP_M (mono).
+const F='"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace';
 
 // ── ICON HELPER ─────────────────────────────────────
 const Ico=({n,size=13,style={}})=><iconify-icon icon={`ph:${n}`} width={size} height={size} style={{display:"inline-flex",verticalAlign:"middle",flexShrink:0,...style}}/>;
@@ -1231,7 +1233,7 @@ function WeatherWidget(){
     {/* Temp + icon */}
     <div style={{display:"flex",alignItems:"center",gap:10}}>
       {w.iconurl&&<img src={w.iconurl} width={36} height={36} alt={desc} style={{imageRendering:"crisp-edges",filter:"brightness(1.1)"}}/>}
-      <span style={{fontSize:42,fontWeight:900,fontFamily:"'Geist','Helvetica Neue',system-ui,sans-serif",letterSpacing:"-2px",lineHeight:1,color:"#ffffff"}}>{temp}</span>
+      <span style={{fontSize:42,fontWeight:900,fontFamily:F,letterSpacing:"-2px",lineHeight:1,color:"#ffffff"}}>{temp}</span>
     </div>
     {/* Description */}
     <span style={{fontSize:11,color:"rgba(255,255,255,0.85)",fontFamily:F,textAlign:"right",maxWidth:160,lineHeight:1.3}}>{desc}</span>
@@ -2058,231 +2060,270 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       })}
     </div>
 
-    {/* ── PLAN TAB ── */}
-    {tab==="plan"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>
+    {/* ── PLAN TAB ── editorial paper layout ── */}
+    {tab==="plan"&&(()=>{
+      const ACC=T.red||T.mint;
+      const PIS={fontFamily:PP_M,fontSize:13,padding:"9px 11px",background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,outline:"none"};
+      const GHOST_BTN={background:"transparent",border:`1px solid ${T.border}`,cursor:"pointer",color:T.muted||T.textLt,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",padding:"8px 16px"};
+      const PRIMARY_BTN={background:ACC,border:"none",cursor:"pointer",color:T.bg,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",padding:"9px 18px"};
+      const ICON_BTN_BORDER={background:"transparent",border:`1px solid ${T.border}`,cursor:"pointer",color:T.muted||T.textLt,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,fontFamily:PP_M};
+      const eye={fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted||T.textLt};
+      const sectionDivider={borderTop:`1px solid ${T.lineSoft||T.borderSft}`};
+      return <div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:30,paddingTop:22,paddingBottom:8}}>
 
-      {monEnv.length===0&&envelopes.some(e=>e.isFixed)&&
-        <div style={{padding:"8px 12px",borderRadius:0,background:alpha(T.mint,.1),border:`1px solid ${alpha(T.mint,.3)}`,display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:10,color:T.mint,fontFamily:F,flex:1}}>No plan for {monLabel} yet — copy fixed items?</span>
-          <Btn small primary onClick={seedFromFixed}>Seed</Btn>
-        </div>
-      }
+        {/* ── Seed prompt ── */}
+        {monEnv.length===0&&envelopes.some(e=>e.isFixed)&&
+          <div style={{padding:"18px 22px",background:alpha(ACC,.06),border:`1px solid ${alpha(ACC,.22)}`,display:"flex",alignItems:"center",gap:18}}>
+            <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:18,fontWeight:400,color:T.text,flex:1,lineHeight:1.35,letterSpacing:"-0.005em"}}>No plan for {monLabel} yet — carry over the recurring items?</span>
+            <button onClick={seedFromFixed} style={PRIMARY_BTN}>Seed</button>
+          </div>
+        }
 
-      {(budgetedIncome>0||budgetedExpense>0)&&
-        <div style={{padding:"8px 10px",borderRadius:0,background:T.cardAlt}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-            <span style={{fontSize:9,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Allocation</span>
-            <span style={{fontSize:10,fontFamily:F,color:unallocated>=0?T.mint:T.pink,fontWeight:700}}>
-              {unallocated>=0?`€${unallocated.toFixed(0)} unallocated`:`€${Math.abs(unallocated).toFixed(0)} over budget`}
-            </span>
-          </div>
-          <div style={{height:6,borderRadius:0,background:T.cardAlt,overflow:"hidden"}}>
-            <div style={{width:Math.min(100,budgetedIncome>0?(budgetedExpense/budgetedIncome)*100:100)+"%",height:"100%",background:budgetedExpense>budgetedIncome?T.pink:T.mint,borderRadius:0,transition:"width 0.3s"}}/>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
-            <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>€{budgetedExpense.toFixed(0)} allocated</span>
-            <span style={{fontSize:8,color:T.textLt,fontFamily:F}}>of €{budgetedIncome.toFixed(0)} income</span>
-          </div>
-        </div>
-      }
-
-      {/* ── Summary counts ── */}
-      {(incomeEnv.length>0||expEnv.length>0)&&
-        <div style={{display:"flex",gap:5,flexShrink:0}}>
+        {/* ── Two big editorial summary blocks: Income / Expenses ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
           {[
-            {label:"Income",count:incomeEnv.length,fixed:incomeEnv.filter(e=>e.isFixed).length,total:budgetedIncome,color:T.mint,bg:alpha(T.mint,.08),border:alpha(T.mint,.22)},
-            {label:"Expenses",count:expEnv.length,fixed:expEnv.filter(e=>e.isFixed).length,total:budgetedExpense,color:T.pink,bg:alpha(T.pink,.08),border:alpha(T.pink,.22)},
-          ].map(({label,count,fixed,total,color,bg,border})=>(
-            <div key={label} style={{flex:1,padding:"7px 9px",borderRadius:0,background:bg,border:`1px solid ${border}`,display:"flex",flexDirection:"column",gap:3}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:9,fontWeight:700,color,fontFamily:F,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</span>
-                <span style={{fontSize:13,fontWeight:800,color,fontFamily:F,letterSpacing:"-0.5px"}}>€{total.toFixed(0)}</span>
+            {key:"income",label:"Income",total:budgetedIncome,count:incomeEnv.length,fixed:incomeEnv.filter(e=>e.isFixed).length},
+            {key:"expense",label:"Expenses",total:budgetedExpense,count:expEnv.length,fixed:expEnv.filter(e=>e.isFixed).length},
+          ].map(s=>(
+            <div key={s.key} style={{padding:"24px 28px",background:alpha(ACC,.05),border:`1px solid ${alpha(ACC,.2)}`,display:"flex",flexDirection:"column",gap:18}}>
+              <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:14}}>
+                <div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:30,fontWeight:400,color:ACC,letterSpacing:"-0.015em",lineHeight:1}}>{s.label}</div>
+                <div style={{fontFamily:PP_M,fontSize:34,fontWeight:600,color:ACC,letterSpacing:"-0.025em",fontVariantNumeric:"tabular-nums",lineHeight:1}}>€{s.total.toFixed(0)}</div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <span style={{fontSize:9,color:T.textMd,fontFamily:F}}>{count} {count===1?"item":"items"}</span>
-                {fixed>0&&<span style={{fontSize:7,color,fontFamily:F,background:alpha(color,.15),padding:"1px 5px",borderRadius:0,letterSpacing:"0.04em"}}>{fixed} recurring</span>}
+              <div style={{display:"flex",alignItems:"center",gap:12,fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:T.muted||T.textLt}}>
+                <span>{s.count} {s.count===1?"item":"items"}</span>
+                {s.fixed>0&&<span style={{color:ACC,background:alpha(ACC,.1),padding:"4px 10px",letterSpacing:"0.18em"}}>{s.fixed} recurring</span>}
               </div>
             </div>
           ))}
         </div>
-      }
 
-      {/* Income envelopes */}
-      <div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-          <span style={{fontSize:9,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Income</span>
-          <button onClick={()=>openNewEnv("income")} style={{background:"none",border:"none",cursor:"pointer",color:T.mint,fontSize:12,fontFamily:F,padding:"0 2px",lineHeight:1}}>+</button>
-        </div>
-        {incCats.map(cat=>{
-          const env=incomeEnv.find(e=>e.category===cat.label);
-          const sk=`si-${cat.id}`;
-          return <div key={cat.id} style={{borderBottom:`1px solid ${T.border}`}}>
-            {env
-              ?<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:0,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.18)}`}}>
-                  <Ico n={getCatIcon(env.category)} size={12}/>
-                  <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
-                  {env.isFixed&&<span style={{fontSize:7,color:T.mint,fontFamily:F,background:alpha(T.mint,.15),padding:"1px 5px",borderRadius:0,letterSpacing:"0.05em"}}>FIXED</span>}
-                  <span style={{fontSize:11,color:T.mint,fontFamily:F,fontWeight:700}}>€{env.budgeted.toFixed(0)}</span>
-                  <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.mint,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.mint,.4):"transparent"}`,borderRadius:0,cursor:"pointer",color:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
-                  <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
-                  <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
-                </div>
-              :<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:0,background:T.cardAlt}}>
-                  <Ico n={getCatIcon(cat.label)} size={12}/>
-                  <span style={{fontSize:10,color:T.textLt,fontFamily:F,flex:1}}>{cat.label}</span>
-                  <button onClick={()=>{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}} style={{background:"none",border:"none",cursor:"pointer",color:T.mint,fontSize:9,fontFamily:F,padding:"0 4px"}}>Set</button>
-                </div>
-            }
-            {env&&quickRec===env.id&&
-              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:0,background:alpha(T.mint,.07),border:`1px solid ${alpha(T.mint,.25)}`,marginTop:3,alignItems:"center"}}>
-                <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...IS,width:80,flex:1}}/>
-                <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...IS,width:110}}/>
-                <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...IS,flex:2}}/>
-                <Btn small primary onClick={()=>saveQuick(env)}>Log</Btn>
-                <button onClick={()=>setQuickRec(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
-              </div>
-            }
-            {env&&showEnvEdit===env.id&&
-              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
-                <div style={{display:"flex",gap:4}}>
-                  <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
-                    {incCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
-                  </select>
-                  <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:80}}/>
-                </div>
-                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
-                  <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring — auto-seeds each month
-                </label>
-                <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-                  <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
-                  <Btn small primary onClick={saveEnvelope}>Save</Btn>
-                </div>
-              </div>
-            }
-            {!env&&showEnvEdit===sk&&
-              <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
-                <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                  <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))}
-                    onKeyDown={ev=>{if(ev.key==="Enter"){const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"income",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}if(ev.key==="Escape")setShowEnvEdit(null);}}
-                    placeholder="Budget €" type="number" min="0" step="1" style={{...IS,flex:1}}/>
-                  <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer",flexShrink:0}}>
-                    <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring
-                  </label>
-                </div>
-                <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-                  <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
-                  <Btn small primary onClick={()=>{const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"income",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}}>Set</Btn>
-                </div>
-              </div>
-            }
-          </div>;
-        })}
-      </div>
-
-      {/* Expense envelopes */}
-      <div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-          <span style={{fontSize:9,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Expenses</span>
-          <button onClick={()=>openNewEnv("expense")} style={{background:"none",border:"none",cursor:"pointer",color:T.pink,fontSize:12,fontFamily:F,padding:"0 2px",lineHeight:1}}>+</button>
-        </div>
-        {expCats.map(cat=>{
-          const env=expEnv.find(e=>e.category===cat.label);
-          const sk=`se-${cat.id}`;
-          const actual=env?catActuals[env.category]||0:0;
-          const pct=env&&env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):0;
-          const over=env&&actual>env.budgeted;
-          const cc=getCatColor(cat.label);
-          return <div key={cat.id} style={{borderBottom:`1px solid ${T.border}`}}>
-            {env
-              ?<div style={{display:"flex",flexDirection:"column",gap:3,padding:"6px 8px",borderRadius:0,background:over?alpha(T.pink,.07):alpha(T.border,.1),border:`1px solid ${over?alpha(T.pink,.22):alpha(T.border,.22)}`}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5}}>
-                    <Ico n={getCatIcon(env.category)} size={12}/>
-                    <span style={{fontSize:10,color:T.text,fontFamily:F,flex:1,fontWeight:500}}>{env.category}</span>
-                    {env.isFixed&&<span style={{fontSize:7,color:T.textLt,fontFamily:F,background:T.cardAlt,padding:"1px 5px",borderRadius:0,letterSpacing:"0.05em"}}>FIXED</span>}
-                    <span style={{fontSize:9,fontFamily:F,color:over?T.pink:T.textMd}}>€{actual.toFixed(0)}<span style={{color:T.textLt}}> / €{env.budgeted.toFixed(0)}</span></span>
-                    <button onClick={()=>openQuick(env)} title="Quick record" style={{background:quickRec===env.id?alpha(T.pink,.18):"none",border:`1px solid ${quickRec===env.id?alpha(T.pink,.4):"transparent"}`,borderRadius:0,cursor:"pointer",color:over?T.pink:T.mint,fontSize:11,lineHeight:1,padding:"1px 4px",fontFamily:F}}>+</button>
-                    <button onClick={()=>openEditEnv(env)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:9,fontFamily:F,padding:"0 2px"}}>edit</button>
-                    <button onClick={()=>removeEnvelope(env.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
-                  </div>
-                  <div style={{height:3,borderRadius:0,background:T.cardAlt,overflow:"hidden"}}>
-                    <div style={{width:pct+"%",height:"100%",borderRadius:0,background:over?T.pink:cc,transition:"width 0.3s"}}/>
-                  </div>
-                </div>
-              :<div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:0,background:T.cardAlt}}>
-                  <Ico n={getCatIcon(cat.label)} size={12}/>
-                  <span style={{fontSize:10,color:T.textLt,fontFamily:F,flex:1}}>{cat.label}</span>
-                  <button onClick={()=>{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}} style={{background:"none",border:"none",cursor:"pointer",color:T.pink,fontSize:9,fontFamily:F,padding:"0 4px"}}>Set</button>
-                </div>
-            }
-            {env&&quickRec===env.id&&
-              <div style={{display:"flex",gap:4,padding:"7px 9px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3,alignItems:"center"}}>
-                <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...IS,width:80,flex:1}}/>
-                <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...IS,width:110}}/>
-                <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...IS,flex:2}}/>
-                <Btn small primary onClick={()=>saveQuick(env)}>Log</Btn>
-                <button onClick={()=>setQuickRec(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 2px"}}>×</button>
-              </div>
-            }
-            {env&&showEnvEdit===env.id&&
-              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
-                <div style={{display:"flex",gap:4}}>
-                  <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
-                    {expCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
-                  </select>
-                  <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:80}}/>
-                </div>
-                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
-                  <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring — auto-seeds each month
-                </label>
-                <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-                  <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
-                  <Btn small primary onClick={saveEnvelope}>Save</Btn>
-                </div>
-              </div>
-            }
-            {!env&&showEnvEdit===sk&&
-              <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:3}}>
-                <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                  <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))}
-                    onKeyDown={ev=>{if(ev.key==="Enter"){const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"expense",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}if(ev.key==="Escape")setShowEnvEdit(null);}}
-                    placeholder="Budget €" type="number" min="0" step="1" style={{...IS,flex:1}}/>
-                  <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer",flexShrink:0}}>
-                    <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring
-                  </label>
-                </div>
-                <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-                  <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
-                  <Btn small primary onClick={()=>{const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"expense",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}}>Set</Btn>
-                </div>
-              </div>
-            }
-          </div>;
-        })}
-
-        {showEnvEdit==="new"&&
-          <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px 10px",borderRadius:0,background:T.cardAlt,border:`1px solid ${T.border}`,marginTop:2}}>
-            <div style={{display:"flex",gap:4}}>
-              <select value={envForm.type} onChange={ev=>setEnvForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))} style={{...IS,width:90}}>
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
-              </select>
-              <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...IS,flex:1}}>
-                {envFormCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
-              </select>
-              <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...IS,width:70}}/>
+        {/* ── Allocation rule ── */}
+        {(budgetedIncome>0||budgetedExpense>0)&&
+          <div style={{...sectionDivider,paddingTop:18}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}>
+              <span style={eye}>Allocation</span>
+              <span style={{fontFamily:PP_M,fontSize:13,fontWeight:600,color:unallocated>=0?T.text:ACC,fontVariantNumeric:"tabular-nums",letterSpacing:"0.02em"}}>
+                {unallocated>=0?`€${unallocated.toFixed(0)} unallocated`:`€${Math.abs(unallocated).toFixed(0)} over budget`}
+              </span>
             </div>
-            <label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textMd,fontFamily:F,cursor:"pointer"}}>
-              <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>
-              Recurring — auto-seeds each month
-            </label>
-            <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-              <Btn small ghost onClick={()=>setShowEnvEdit(null)}>Cancel</Btn>
-              <Btn small primary onClick={saveEnvelope}>Add</Btn>
+            <div style={{height:8,background:T.cardAlt,overflow:"hidden"}}>
+              <div style={{width:Math.min(100,budgetedIncome>0?(budgetedExpense/budgetedIncome)*100:100)+"%",height:"100%",background:budgetedExpense>budgetedIncome?ACC:T.text,transition:"width 0.3s"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted||T.textLt,fontVariantNumeric:"tabular-nums"}}>
+              <span>€{budgetedExpense.toFixed(0)} allocated</span>
+              <span>of €{budgetedIncome.toFixed(0)} income</span>
             </div>
           </div>
         }
-      </div>
-    </div>}
+
+        {/* ── INCOME ledger ── */}
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:14,borderBottom:`1px solid ${T.border}`}}>
+            <div style={eye}>Income</div>
+            <button onClick={()=>openNewEnv("income")} aria-label="Add income" style={{...GHOST_BTN,padding:"7px 14px",letterSpacing:"0.22em"}}>+ Add</button>
+          </div>
+          {incCats.map(cat=>{
+            const env=incomeEnv.find(e=>e.category===cat.label);
+            const sk=`si-${cat.id}`;
+            const isLast=cat===incCats[incCats.length-1];
+            return <div key={cat.id} style={{borderBottom:isLast?"none":`1px dashed ${T.lineSoft||T.borderSft}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:14,padding:"18px 4px",background:env?alpha(ACC,.04):"transparent"}}>
+                <button onClick={()=>{if(env){openEditEnv(env);}else{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}}} title={env?"Edit envelope":"Set budget"} style={{width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${env?alpha(ACC,.35):T.border}`,background:env?alpha(ACC,.07):"transparent",color:env?ACC:T.text,cursor:"pointer",padding:0,flexShrink:0}}>
+                  <Ico n={getCatIcon(cat.label)} size={20}/>
+                </button>
+                <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:4}}>
+                  <div style={{fontFamily:PP_S,fontSize:18,fontWeight:500,color:env?T.text:T.muted||T.textLt,letterSpacing:"-0.005em",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cat.label}</div>
+                  {env?.isFixed
+                    ?<div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:ACC}}>Fixed · auto-seeds each month</div>
+                    :env?null
+                    :<div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:13,color:T.muted||T.textLt,letterSpacing:"-0.005em",opacity:.85}}>not budgeted</div>}
+                </div>
+                {env
+                  ?<>
+                      <div style={{fontFamily:PP_M,fontSize:20,fontWeight:600,color:ACC,letterSpacing:"-0.015em",fontVariantNumeric:"tabular-nums",minWidth:88,textAlign:"right"}}>€{env.budgeted.toFixed(0)}</div>
+                      <button onClick={()=>openQuick(env)} title="Quick record" style={{...ICON_BTN_BORDER,border:`1px solid ${quickRec===env.id?alpha(ACC,.55):alpha(ACC,.35)}`,background:quickRec===env.id?alpha(ACC,.16):alpha(ACC,.06),color:ACC}}>
+                        <Ico n="plus" size={16}/>
+                      </button>
+                      <button onClick={()=>openEditEnv(env)} title="Edit" style={ICON_BTN_BORDER}>
+                        <Ico n="pencil-simple" size={15}/>
+                      </button>
+                      <button onClick={()=>removeEnvelope(env.id)} title="Remove" style={{...ICON_BTN_BORDER,fontSize:18,lineHeight:1}}>×</button>
+                    </>
+                  :<button onClick={()=>{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}} style={{background:"transparent",border:`1px solid ${alpha(ACC,.4)}`,cursor:"pointer",color:ACC,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",padding:"10px 18px"}}>Set</button>
+                }
+              </div>
+              {env&&quickRec===env.id&&
+                <div style={{display:"flex",gap:8,padding:"10px 4px 16px",alignItems:"center",flexWrap:"wrap"}}>
+                  <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...PIS,flex:"1 1 110px",minWidth:110}}/>
+                  <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...PIS,width:160}}/>
+                  <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...PIS,flex:"2 1 200px",minWidth:160}}/>
+                  <button onClick={()=>saveQuick(env)} style={PRIMARY_BTN}>Log</button>
+                  <button onClick={()=>setQuickRec(null)} style={{...ICON_BTN_BORDER,fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              }
+              {env&&showEnvEdit===env.id&&
+                <div style={{display:"flex",flexDirection:"column",gap:10,padding:"10px 4px 16px"}}>
+                  <div style={{display:"flex",gap:8}}>
+                    <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...PIS,flex:1}}>
+                      {incCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
+                    </select>
+                    <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...PIS,width:120}}/>
+                  </div>
+                  <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted||T.textLt,cursor:"pointer"}}>
+                    <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring — auto-seeds each month
+                  </label>
+                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                    <button onClick={()=>setShowEnvEdit(null)} style={GHOST_BTN}>Cancel</button>
+                    <button onClick={saveEnvelope} style={PRIMARY_BTN}>Save</button>
+                  </div>
+                </div>
+              }
+              {!env&&showEnvEdit===sk&&
+                <div style={{display:"flex",flexDirection:"column",gap:10,padding:"10px 4px 16px"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))}
+                      onKeyDown={ev=>{if(ev.key==="Enter"){const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"income",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}if(ev.key==="Escape")setShowEnvEdit(null);}}
+                      placeholder="Budget €" type="number" min="0" step="1" style={{...PIS,flex:1}}/>
+                    <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted||T.textLt,cursor:"pointer",flexShrink:0}}>
+                      <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring
+                    </label>
+                  </div>
+                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                    <button onClick={()=>setShowEnvEdit(null)} style={GHOST_BTN}>Cancel</button>
+                    <button onClick={()=>{const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"income",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}} style={PRIMARY_BTN}>Set</button>
+                  </div>
+                </div>
+              }
+            </div>;
+          })}
+        </div>
+
+        {/* ── EXPENSES ledger ── */}
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:14,borderBottom:`1px solid ${T.border}`}}>
+            <div style={eye}>Expenses</div>
+            <button onClick={()=>openNewEnv("expense")} aria-label="Add expense" style={{...GHOST_BTN,padding:"7px 14px",letterSpacing:"0.22em"}}>+ Add</button>
+          </div>
+          {expCats.map(cat=>{
+            const env=expEnv.find(e=>e.category===cat.label);
+            const sk=`se-${cat.id}`;
+            const actual=env?catActuals[env.category]||0:0;
+            const pct=env&&env.budgeted>0?Math.min(100,(actual/env.budgeted)*100):0;
+            const over=env&&actual>env.budgeted;
+            const isLast=cat===expCats[expCats.length-1];
+            // Segmented progress (10 segments) for editorial Goals-card feel
+            const segCount=10;
+            const segDone=env?Math.min(segCount,Math.round((pct/100)*segCount)):0;
+            return <div key={cat.id} style={{borderBottom:isLast?"none":`1px dashed ${T.lineSoft||T.borderSft}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:14,padding:"18px 4px 12px",background:env?(over?alpha(ACC,.06):alpha(T.text,.025)):"transparent"}}>
+                <button onClick={()=>{if(env){openEditEnv(env);}else{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}}} title={env?"Edit envelope":"Set budget"} style={{width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${env?(over?alpha(ACC,.45):T.border):T.border}`,background:env?(over?alpha(ACC,.08):T.cardAlt):"transparent",color:env?(over?ACC:T.text):T.text,cursor:"pointer",padding:0,flexShrink:0}}>
+                  <Ico n={getCatIcon(cat.label)} size={20}/>
+                </button>
+                <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:4}}>
+                  <div style={{fontFamily:PP_S,fontSize:18,fontWeight:500,color:env?T.text:T.muted||T.textLt,letterSpacing:"-0.005em",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cat.label}</div>
+                  {env?.isFixed
+                    ?<div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:T.muted||T.textLt}}>Fixed · auto-seeds each month</div>
+                    :env?null
+                    :<div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:13,color:T.muted||T.textLt,letterSpacing:"-0.005em",opacity:.85}}>not budgeted</div>}
+                </div>
+                {env
+                  ?<>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,minWidth:130}}>
+                        <div style={{fontFamily:PP_M,fontSize:18,fontWeight:600,color:over?ACC:T.text,letterSpacing:"-0.015em",fontVariantNumeric:"tabular-nums",lineHeight:1.1}}>
+                          €{actual.toFixed(0)} <span style={{color:T.muted||T.textLt,fontWeight:500}}>/ €{env.budgeted.toFixed(0)}</span>
+                        </div>
+                        <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:over?ACC:T.muted||T.textLt}}>{over?"over · ":""}{Math.round(pct)}%</div>
+                      </div>
+                      <button onClick={()=>openQuick(env)} title="Quick record" style={{...ICON_BTN_BORDER,border:`1px solid ${quickRec===env.id?alpha(ACC,.55):alpha(ACC,.35)}`,background:quickRec===env.id?alpha(ACC,.16):alpha(ACC,.06),color:ACC}}>
+                        <Ico n="plus" size={16}/>
+                      </button>
+                      <button onClick={()=>openEditEnv(env)} title="Edit" style={ICON_BTN_BORDER}>
+                        <Ico n="pencil-simple" size={15}/>
+                      </button>
+                      <button onClick={()=>removeEnvelope(env.id)} title="Remove" style={{...ICON_BTN_BORDER,fontSize:18,lineHeight:1}}>×</button>
+                    </>
+                  :<button onClick={()=>{if(showEnvEdit===sk){setShowEnvEdit(null);}else{setEnvForm(p=>({...p,budgeted:"",isFixed:false}));setShowEnvEdit(sk);}}} style={{background:"transparent",border:`1px solid ${alpha(ACC,.4)}`,cursor:"pointer",color:ACC,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",padding:"10px 18px"}}>Set</button>
+                }
+              </div>
+              {env&&
+                <div style={{padding:"0 4px 18px",display:"flex",gap:3}}>
+                  {Array.from({length:segCount}).map((_,i)=>(
+                    <div key={i} style={{flex:1,height:6,background:i<segDone?(over?ACC:T.text):T.border,opacity:i<segDone?1:.55,transition:"background 0.2s"}}/>
+                  ))}
+                </div>
+              }
+              {env&&quickRec===env.id&&
+                <div style={{display:"flex",gap:8,padding:"4px 4px 16px",alignItems:"center",flexWrap:"wrap"}}>
+                  <input autoFocus value={quickForm.amount} onChange={ev=>setQuickForm(p=>({...p,amount:ev.target.value}))} onKeyDown={ev=>{if(ev.key==="Enter")saveQuick(env);if(ev.key==="Escape")setQuickRec(null);}} placeholder="Amount €" type="number" min="0" step="0.01" style={{...PIS,flex:"1 1 110px",minWidth:110}}/>
+                  <input value={quickForm.date} onChange={ev=>setQuickForm(p=>({...p,date:ev.target.value}))} type="date" style={{...PIS,width:160}}/>
+                  <input value={quickForm.desc} onChange={ev=>setQuickForm(p=>({...p,desc:ev.target.value}))} placeholder="Note (optional)" style={{...PIS,flex:"2 1 200px",minWidth:160}}/>
+                  <button onClick={()=>saveQuick(env)} style={PRIMARY_BTN}>Log</button>
+                  <button onClick={()=>setQuickRec(null)} style={{...ICON_BTN_BORDER,fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              }
+              {env&&showEnvEdit===env.id&&
+                <div style={{display:"flex",flexDirection:"column",gap:10,padding:"4px 4px 16px"}}>
+                  <div style={{display:"flex",gap:8}}>
+                    <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...PIS,flex:1}}>
+                      {expCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
+                    </select>
+                    <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...PIS,width:120}}/>
+                  </div>
+                  <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted||T.textLt,cursor:"pointer"}}>
+                    <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring — auto-seeds each month
+                  </label>
+                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                    <button onClick={()=>setShowEnvEdit(null)} style={GHOST_BTN}>Cancel</button>
+                    <button onClick={saveEnvelope} style={PRIMARY_BTN}>Save</button>
+                  </div>
+                </div>
+              }
+              {!env&&showEnvEdit===sk&&
+                <div style={{display:"flex",flexDirection:"column",gap:10,padding:"10px 4px 16px"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <input autoFocus value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))}
+                      onKeyDown={ev=>{if(ev.key==="Enter"){const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"expense",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}if(ev.key==="Escape")setShowEnvEdit(null);}}
+                      placeholder="Budget €" type="number" min="0" step="1" style={{...PIS,flex:1}}/>
+                    <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted||T.textLt,cursor:"pointer",flexShrink:0}}>
+                      <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring
+                    </label>
+                  </div>
+                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                    <button onClick={()=>setShowEnvEdit(null)} style={GHOST_BTN}>Cancel</button>
+                    <button onClick={()=>{const a=parseFloat(envForm.budgeted);if(!isNaN(a)&&a>0){setEnvelopes(p=>[...p,{id:uid(),month:mon,category:cat.label,type:"expense",budgeted:a,isFixed:!!envForm.isFixed}]);setShowEnvEdit(null);}}} style={PRIMARY_BTN}>Set</button>
+                  </div>
+                </div>
+              }
+            </div>;
+          })}
+
+          {/* New envelope (any type) */}
+          {showEnvEdit==="new"&&
+            <div style={{display:"flex",flexDirection:"column",gap:10,padding:"16px 4px 4px",borderTop:`1px solid ${T.lineSoft||T.borderSft}`,marginTop:8}}>
+              <div style={eye}>New envelope</div>
+              <div style={{display:"flex",gap:8}}>
+                <select value={envForm.type} onChange={ev=>setEnvForm(p=>({...p,type:ev.target.value,category:ev.target.value==="income"?"Stipend":"Food"}))} style={{...PIS,width:130}}>
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                </select>
+                <select value={envForm.category} onChange={ev=>setEnvForm(p=>({...p,category:ev.target.value}))} style={{...PIS,flex:1}}>
+                  {envFormCats.map(c=><option key={c.id} value={c.label}>{c.label}</option>)}
+                </select>
+                <input value={envForm.budgeted} onChange={ev=>setEnvForm(p=>({...p,budgeted:ev.target.value}))} placeholder="€" type="number" min="0" step="1" style={{...PIS,width:110}}/>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted||T.textLt,cursor:"pointer"}}>
+                <input type="checkbox" checked={envForm.isFixed} onChange={ev=>setEnvForm(p=>({...p,isFixed:ev.target.checked}))}/>Recurring — auto-seeds each month
+              </label>
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button onClick={()=>setShowEnvEdit(null)} style={GHOST_BTN}>Cancel</button>
+                <button onClick={saveEnvelope} style={PRIMARY_BTN}>Add</button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>;
+    })()}
 
     {/* ── 6-MONTH PLANNER TAB ── */}
     {tab==="trends"&&<div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt,padding:8}}>
