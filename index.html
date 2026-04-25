@@ -2326,254 +2326,220 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     })()}
 
     {/* ── 6-MONTH PLANNER TAB ── */}
-    {tab==="trends"&&<div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:0,border:"1px solid "+T.border,background:T.cardAlt,padding:8}}>
-      <div style={{minWidth:400}}>
+    {tab==="trends"&&(()=>{
+      const OLIVE="#6b7c3a";
+      const RED=T.red||T.mint;
+      const COL_W=52;
+      const LBL_W=128;
+      const ACT_W=58;
+      const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted};
+      const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
 
-        {/* Column headers */}
-        <div style={{display:"flex",alignItems:"center",paddingBottom:5,borderBottom:`1px solid ${T.border}`,marginBottom:5,position:"sticky",top:0,background:T.card,zIndex:3}}>
-          <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Category</div>
+      const renderRow=(cat,kind)=>{
+        const ACC=kind==="income"?OLIVE:RED;
+        if(cat.type==="divider"){
+          return <div key={cat.id}
+            draggable
+            onDragStart={e=>onCatDragStart(e,cat.id)}
+            onDragOver={e=>onCatDragOver(e,cat.id)}
+            onDrop={e=>onCatDrop(e,cat.id)}
+            onDragEnd={onCatDragEnd}
+            style={{display:"flex",alignItems:"center",marginBottom:2,marginTop:3,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
+            <div style={{width:LBL_W,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:6}}>
+              <span style={{fontSize:10,color:ACC,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
+              <span style={{...eye,color:ACC,fontSize:8,opacity:0.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cat.label}</span>
+            </div>
+            <div style={{flex:1,height:1,background:alpha(ACC,.18)}}/>
+            <div style={{width:ACT_W,flexShrink:0,display:"flex",justifyContent:"center"}}>
+              <button onClick={()=>removeDivider(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.muted,fontSize:13,lineHeight:1,padding:"0 4px"}}>×</button>
+            </div>
+          </div>;
+        }
+        const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
+        const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
+        return <div key={cat.id}
+          draggable
+          onDragStart={e=>onCatDragStart(e,cat.id)}
+          onDragOver={e=>onCatDragOver(e,cat.id)}
+          onDrop={e=>onCatDrop(e,cat.id)}
+          onDragEnd={onCatDragEnd}
+          style={{display:"flex",alignItems:"center",minHeight:24,marginBottom:1,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`1px solid ${alpha(ACC,.5)}`:"none",borderRadius:0,transition:"outline 0.08s"}}>
+          <div style={{width:LBL_W,flexShrink:0,display:"flex",alignItems:"center",gap:6,paddingRight:6}}>
+            <span draggable={false} style={{fontSize:11,color:T.muted,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
+            <span style={{width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",color:ACC,flexShrink:0}}><Ico n={cat.icon||"dots-three"} size={14}/></span>
+            <span style={{...numF,fontSize:10,color:T.text,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cat.label}</span>
+          </div>
+          {planMonths.map(m=>{
+            const amt=getPlanAmt(m,cat.label);
+            const editing=planCell&&planCell.month===m&&planCell.cat===cat.label;
+            return editing
+              ? <input key={m} autoFocus type="number" min="0" step="1" value={planVal}
+                  onChange={ev=>setPlanVal(ev.target.value)}
+                  onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,kind,planVal);setPlanCell(null);}}
+                  onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,kind,planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
+                  style={{width:COL_W-2,flexShrink:0,fontSize:11,background:T.inp,border:`1px solid ${alpha(ACC,.55)}`,borderRadius:0,color:T.text,padding:"3px 4px",fontFamily:PP_M,outline:"none",textAlign:"center"}}/>
+              : <div key={m}
+                  onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,kind,fillAmt);}},220);}}
+                  onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
+                  title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
+                  style={{width:COL_W,flexShrink:0,height:22,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:0,background:amt>0?alpha(ACC,.1):"transparent",borderLeft:`1px solid ${alpha(T.border,.4)}`,transition:"background 0.1s"}}>
+                  {amt>0
+                    ? <span style={{...numF,fontSize:10,color:ACC,fontWeight:600}}>€{amt}</span>
+                    : <span style={{...numF,fontSize:11,color:T.muted,opacity:0.25}}>·</span>}
+                </div>;
+          })}
+          <div style={{width:ACT_W,flexShrink:0,display:"flex",gap:4,justifyContent:"center",alignItems:"center"}}>
+            <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,kind,fillAmt);}} title={fillAmt?`Fill all 12 months · €${fillAmt}`:"Set an amount first"}
+              style={{width:22,height:22,borderRadius:0,border:`1px solid ${alpha(ACC,.35)}`,background:alpha(ACC,.1),cursor:fillAmt?"pointer":"default",color:ACC,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.3}}>
+              <Ico n="arrows-clockwise" size={11}/>
+            </button>
+            <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 12 months"
+              style={{width:22,height:22,borderRadius:0,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.muted,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:13,lineHeight:1}}>×</button>
+          </div>
+        </div>;
+      };
+
+      const incTotal=planTotals.reduce((s,{inc})=>s+inc,0);
+      const expTotal=planTotals.reduce((s,{exp})=>s+exp,0);
+      const yearNet=incTotal-expTotal;
+
+      return <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:10,paddingTop:14,paddingBottom:6,overflow:"hidden"}}>
+
+        {/* ── Year overview strip ── */}
+        <div style={{display:"flex",alignItems:"baseline",gap:24,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            <span style={{...eye,fontSize:9,color:OLIVE,opacity:0.85}}>12-Month Income</span>
+            <span style={{...numF,fontSize:22,color:OLIVE,fontWeight:600,letterSpacing:"-0.5px"}}>€{incTotal.toFixed(0)}</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            <span style={{...eye,fontSize:9,color:RED,opacity:0.85}}>12-Month Expenses</span>
+            <span style={{...numF,fontSize:22,color:RED,fontWeight:600,letterSpacing:"-0.5px"}}>€{expTotal.toFixed(0)}</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            <span style={{...eye,fontSize:9,opacity:0.85}}>Net Year</span>
+            <span style={{...numF,fontSize:22,color:yearNet>=0?OLIVE:RED,fontWeight:600,letterSpacing:"-0.5px"}}>{yearNet>=0?"+":"−"}€{Math.abs(yearNet).toFixed(0)}</span>
+          </div>
+          <div style={{flex:1}}/>
+          <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:13,color:T.muted,opacity:0.8,textAlign:"right",maxWidth:240,lineHeight:1.3}}>Click cells to fill · double-click to edit · drag rows to reorder.</span>
+        </div>
+
+        {/* ── Month column header ── */}
+        <div style={{display:"flex",alignItems:"flex-end",paddingBottom:5,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:9}}>Category</div>
           {planMonths.map(m=>{
             const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
             const isCur=m===ym0;
-            return <div key={m} style={{width:52,flexShrink:0,textAlign:"center",paddingBottom:2}}>
-              <div style={{fontSize:8,fontWeight:isCur?700:500,color:isCur?T.mint:T.textMd,fontFamily:F,letterSpacing:"0.03em"}}>{lbl}</div>
-              <div style={{fontSize:7,color:T.textLt,fontFamily:F}}>{m.slice(2,4)}</div>
+            return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
+              <div style={{...numF,fontSize:10,fontWeight:isCur?700:500,color:isCur?RED:T.text,letterSpacing:"0.05em",textTransform:"uppercase"}}>{lbl}</div>
+              <div style={{...numF,fontSize:8,color:T.muted,opacity:0.7,marginTop:1}}>'{m.slice(2,4)}</div>
             </div>;
           })}
-          <div style={{width:50,flexShrink:0}}/>
+          <div style={{width:ACT_W,flexShrink:0}}/>
         </div>
 
-        {/* ── Income rows ── */}
-        <div style={{fontSize:8,color:T.mint,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",padding:"3px 0 3px 0",marginBottom:2}}>Income</div>
-        {incSection.map(cat=>{
-          if(cat.type==="divider"){
-            return <div key={cat.id}
-              draggable
-              onDragStart={e=>onCatDragStart(e,cat.id)}
-              onDragOver={e=>onCatDragOver(e,cat.id)}
-              onDrop={e=>onCatDrop(e,cat.id)}
-              onDragEnd={onCatDragEnd}
-              style={{display:"flex",alignItems:"center",marginBottom:3,marginTop:5,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
-              <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
-                <span style={{fontSize:10,color:T.mint,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
-                <span style={{fontSize:8,color:T.mint,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
-              </div>
-              <div style={{flex:1,height:1,background:alpha(T.mint,.2)}}/>
-              <div style={{width:50,flexShrink:0,display:"flex",justifyContent:"center"}}>
-                <button onClick={()=>removeDivider(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 4px"}}>×</button>
-              </div>
-            </div>;
-          }
-          const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
-          const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
-          return <div key={cat.id}
-            draggable
-            onDragStart={e=>onCatDragStart(e,cat.id)}
-            onDragOver={e=>onCatDragOver(e,cat.id)}
-            onDrop={e=>onCatDrop(e,cat.id)}
-            onDragEnd={onCatDragEnd}
-            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.mint,.45)}`:"none",borderRadius:0,transition:"outline 0.08s"}}>
-            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:2,paddingRight:4}}>
-              <span draggable={false} style={{fontSize:11,color:T.textLt,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
-              <Ico n={cat.icon||"dots-three"} size={11}/>
-              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:52}}>{cat.label}</span>
-            </div>
-            {planMonths.map(m=>{
-              const amt=getPlanAmt(m,cat.label);
-              const editing=planCell&&planCell.month===m&&planCell.cat===cat.label;
-              return editing
-                ? <input key={m} autoFocus type="number" min="0" step="1" value={planVal}
-                    onChange={ev=>setPlanVal(ev.target.value)}
-                    onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}}
-                    onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"income",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
-                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.mint,.5)}`,borderRadius:0,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
-                : <div key={m}
-                    onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,"income",fillAmt);}},220);}}
-                    onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
-                    title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
-                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:0,background:amt>0?alpha(T.mint,.1):"transparent",border:`1px solid ${amt>0?alpha(T.mint,.25):"transparent"}`,transition:"background 0.1s"}}>
-                    {amt>0
-                      ? <span style={{fontSize:9,color:T.mint,fontFamily:F,fontWeight:600}}>€{amt}</span>
-                      : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
-                  </div>;
-            })}
-            <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
-              <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,"income",fillAmt);}} title={fillAmt?`Fill all · €${fillAmt}`:"Double-click a cell to set an amount first"}
-                style={{width:20,height:20,borderRadius:0,border:`1px solid ${alpha(T.mint,.35)}`,background:alpha(T.mint,.12),cursor:fillAmt?"pointer":"default",color:T.mint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
-                <Ico n="arrows-clockwise" size={9}/>
-              </button>
-              <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
-                style={{width:20,height:20,borderRadius:0,border:`1px solid ${T.border}`,background:T.cardAlt,cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
-            </div>
-          </div>;
-        })}
+        {/* ── Scrollable middle: income + expenses ── */}
+        <div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:8}}>
 
-        {/* ── Expense rows ── */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0 3px 0",marginTop:4,marginBottom:2,borderTop:`1px solid ${T.border}`}}>
-          <span style={{fontSize:8,color:T.pink,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Expenses</span>
-          <button onClick={()=>addDivider("expense")} title="Add section divider"
-            style={{background:"none",border:`1px solid ${alpha(T.pink,.3)}`,cursor:"pointer",color:T.pink,fontSize:8,fontFamily:F,padding:"2px 6px",borderRadius:0,lineHeight:1,letterSpacing:"0.02em",opacity:0.7}}>+ Divider</button>
+          {/* Income section */}
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
+              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:OLIVE,letterSpacing:"-0.3px",lineHeight:1}}>Income</span>
+              <span style={{...eye,fontSize:8,color:OLIVE,opacity:0.6}}>{incSection.filter(c=>c.type!=="divider").length} cats · €{incTotal.toFixed(0)}/yr</span>
+              <div style={{flex:1,height:1,background:alpha(OLIVE,.18),alignSelf:"center"}}/>
+              <button onClick={()=>addDivider("income")} title="Add divider"
+                style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(OLIVE,.35)}`,padding:"3px 8px",cursor:"pointer",color:OLIVE,letterSpacing:"0.2em"}}>+ DIVIDER</button>
+            </div>
+            {incSection.map(cat=>renderRow(cat,"income"))}
+          </div>
+
+          {/* Expenses section */}
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
+              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:RED,letterSpacing:"-0.3px",lineHeight:1}}>Expenses</span>
+              <span style={{...eye,fontSize:8,color:RED,opacity:0.6}}>{expSection.filter(c=>c.type!=="divider").length} cats · €{expTotal.toFixed(0)}/yr</span>
+              <div style={{flex:1,height:1,background:alpha(RED,.18),alignSelf:"center"}}/>
+              <button onClick={()=>addDivider("expense")} title="Add divider"
+                style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(RED,.35)}`,padding:"3px 8px",cursor:"pointer",color:RED,letterSpacing:"0.2em"}}>+ DIVIDER</button>
+            </div>
+            {expSection.map(cat=>renderRow(cat,"expense"))}
+          </div>
         </div>
-        {expSection.map(cat=>{
-          if(cat.type==="divider"){
-            return <div key={cat.id}
-              draggable
-              onDragStart={e=>onCatDragStart(e,cat.id)}
-              onDragOver={e=>onCatDragOver(e,cat.id)}
-              onDrop={e=>onCatDrop(e,cat.id)}
-              onDragEnd={onCatDragEnd}
-              style={{display:"flex",alignItems:"center",marginBottom:3,marginTop:5,opacity:dragCatId===cat.id?0.4:1,cursor:"grab"}}>
-              <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:4,paddingRight:4}}>
-                <span style={{fontSize:10,color:T.pink,userSelect:"none",opacity:0.4,lineHeight:1}}>⠿</span>
-                <span style={{fontSize:8,color:T.pink,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:64,opacity:0.7}}>{cat.label}</span>
-              </div>
-              <div style={{flex:1,height:1,background:alpha(T.pink,.2)}}/>
-              <div style={{width:50,flexShrink:0,display:"flex",justifyContent:"center"}}>
-                <button onClick={()=>removeDivider(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:12,lineHeight:1,padding:"0 4px"}}>×</button>
-              </div>
-            </div>;
-          }
-          const fixedAmt=envelopes.find(e=>e.category===cat.label&&e.isFixed)?.budgeted||null;
-          const fillAmt=fixedAmt||planMonths.map(pm=>getPlanAmt(pm,cat.label)).find(a=>a>0)||null;
-          return <div key={cat.id}
-            draggable
-            onDragStart={e=>onCatDragStart(e,cat.id)}
-            onDragOver={e=>onCatDragOver(e,cat.id)}
-            onDrop={e=>onCatDrop(e,cat.id)}
-            onDragEnd={onCatDragEnd}
-            style={{display:"flex",alignItems:"center",minHeight:28,marginBottom:2,opacity:dragCatId===cat.id?0.4:1,outline:dragOverCatId===cat.id?`2px solid ${alpha(T.pink,.45)}`:"none",borderRadius:0,transition:"outline 0.08s"}}>
-            <div style={{width:88,flexShrink:0,display:"flex",alignItems:"center",gap:2,paddingRight:4}}>
-              <span draggable={false} style={{fontSize:11,color:T.textLt,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
-              <Ico n={cat.icon||"dots-three"} size={11}/>
-              <span style={{fontSize:9,color:T.text,fontFamily:F,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:52}}>{cat.label}</span>
-            </div>
-            {planMonths.map(m=>{
-              const amt=getPlanAmt(m,cat.label);
-              const editing=planCell&&planCell.month===m&&planCell.cat===cat.label;
-              return editing
-                ? <input key={m} autoFocus type="number" min="0" step="1" value={planVal}
-                    onChange={ev=>setPlanVal(ev.target.value)}
-                    onBlur={()=>{if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}}
-                    onKeyDown={ev=>{if(ev.key==="Enter"){if(planVal!=="")setPlanAmt(m,cat.label,"expense",planVal);setPlanCell(null);}if(ev.key==="Escape")setPlanCell(null);}}
-                    style={{width:50,flexShrink:0,fontSize:10,background:T.inp,border:`1px solid ${alpha(T.pink,.5)}`,borderRadius:0,color:T.text,padding:"2px 3px",fontFamily:F,outline:"none",textAlign:"center"}}/>
-                : <div key={m}
-                    onClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;return;}planClickRef.current=setTimeout(()=>{planClickRef.current=null;if(amt>0){setEnvelopes(p=>p.filter(e=>!(e.month===m&&e.category===cat.label)));}else if(fillAmt!=null){setPlanAmt(m,cat.label,"expense",fillAmt);}},220);}}
-                    onDoubleClick={()=>{if(planClickRef.current){clearTimeout(planClickRef.current);planClickRef.current=null;}setPlanCell({month:m,cat:cat.label});setPlanVal(amt>0?String(amt):"");}}
-                    title={amt>0?`Click: remove · Double-click: edit`:fillAmt?`Click: +€${fillAmt} · Double-click: custom`:"Double-click to enter"}
-                    style={{width:52,flexShrink:0,textAlign:"center",padding:"3px 2px",cursor:"pointer",borderRadius:0,background:amt>0?alpha(T.pink,.1):"transparent",border:`1px solid ${amt>0?alpha(T.pink,.25):"transparent"}`,transition:"background 0.1s"}}>
-                    {amt>0
-                      ? <span style={{fontSize:9,color:T.pink,fontFamily:F,fontWeight:600}}>€{amt}</span>
-                      : <span style={{fontSize:11,color:T.textLt,fontFamily:F,opacity:0.3}}>·</span>}
-                  </div>;
-            })}
-            <div style={{width:50,flexShrink:0,display:"flex",gap:3,justifyContent:"center"}}>
-              <button onClick={()=>{if(fillAmt)fillPlanRow(cat.label,"expense",fillAmt);}} title={fillAmt?`Fill all · €${fillAmt}`:"Double-click a cell to set an amount first"}
-                style={{width:20,height:20,borderRadius:0,border:`1px solid ${alpha(T.pink,.35)}`,background:alpha(T.pink,.12),cursor:fillAmt?"pointer":"default",color:T.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,opacity:fillAmt?1:0.35}}>
-                <Ico n="arrows-clockwise" size={9}/>
-              </button>
-              <button onClick={()=>clearPlanRow(cat.label)} title="Clear all 6 months"
-                style={{width:20,height:20,borderRadius:0,border:`1px solid ${T.border}`,background:T.cardAlt,cursor:"pointer",color:T.textLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:12,lineHeight:1}}>×</button>
-            </div>
-          </div>;
-        })}
 
-        {/* ── Rolling balance rows ── */}
-        <div style={{marginTop:4,borderTop:`1px solid ${T.border}`,paddingTop:5,display:"flex",flexDirection:"column",gap:1}}>
-          {/* Net this month row */}
-          <div style={{display:"flex",alignItems:"center"}}>
-            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Month net</div>
+        {/* ── Footer: net + balance + savings ── */}
+        <div style={{display:"flex",flexDirection:"column",gap:1,borderTop:`1px solid ${T.border}`,paddingTop:6}}>
+          {/* Month net */}
+          <div style={{display:"flex",alignItems:"center",height:20}}>
+            <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:8}}>Month net</div>
             {planTotals.map(({m,inc,exp,net})=>{
               const hasAny=inc>0||exp>0;
-              return <div key={m} style={{width:52,flexShrink:0,textAlign:"center"}}>
+              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
                 {hasAny
-                  ? <span style={{fontSize:8,color:net>=0?T.mint:T.pink,fontFamily:F,fontWeight:700}}>{net>=0?"+":""}€{Math.abs(net).toFixed(0)}</span>
-                  : <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.3}}>—</span>}
+                  ? <span style={{...numF,fontSize:9,color:net>=0?OLIVE:RED,fontWeight:700}}>{net>=0?"+":"−"}€{Math.abs(net).toFixed(0)}</span>
+                  : <span style={{...numF,fontSize:10,color:T.muted,opacity:0.25}}>—</span>}
               </div>;
             })}
-            <div style={{width:50,flexShrink:0}}/>
+            <div style={{width:ACT_W,flexShrink:0}}/>
           </div>
-          {/* Running balance row */}
-          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,borderRadius:0,padding:"3px 0"}}>
-            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",paddingLeft:3}}>
-              Balance
-              <div style={{fontSize:7,color:T.textLt,fontWeight:400,marginTop:1,opacity:0.7}}>carry-over</div>
+          {/* Running balance */}
+          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,minHeight:28,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+            <div style={{width:LBL_W,flexShrink:0,paddingLeft:4,display:"flex",flexDirection:"column",gap:0}}>
+              <span style={{...eye,fontSize:9,color:T.text}}>Balance</span>
+              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75,marginTop:1}}>carry-over</span>
             </div>
-            {planTotals.map(({m,running},i)=>{
-              const prev=i>0?planTotals[i-1].running:0;
+            {planTotals.map(({m,running,inc,exp},i)=>{
               const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0);
-              return <div key={m} style={{width:52,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
+              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
                 {hasData
-                  ? <>
-                      {i>0&&<span style={{fontSize:6,color:T.textLt,fontFamily:F,opacity:0.6,lineHeight:1}}>{prev>=0?"+":""}€{Math.abs(prev).toFixed(0)}</span>}
-                      <span style={{fontSize:10,color:running>=0?T.mint:T.pink,fontFamily:F,fontWeight:800,letterSpacing:"-0.3px"}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
-                    </>
-                  : <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.3}}>—</span>}
+                  ? <span style={{...numF,fontSize:11,color:running>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px"}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
+                  : <span style={{...numF,fontSize:10,color:T.muted,opacity:0.25}}>—</span>}
               </div>;
             })}
-            <div style={{width:50,flexShrink:0}}/>
+            <div style={{width:ACT_W,flexShrink:0}}/>
           </div>
-        </div>
-
-        {/* ── Savings Calculator ── */}
-        <div style={{marginTop:10,borderTop:`1px solid ${T.border}`,paddingTop:8}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-            <span style={{fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>Savings Projection</span>
-            <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <label style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:T.textLt,fontFamily:F}}>
-                <span style={{opacity:0.7}}>Start €</span>
+          {/* Savings projection */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6,marginBottom:3}}>
+            <span style={{...eye,fontSize:9}}>Savings Projection</span>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <label style={{display:"flex",alignItems:"center",gap:5,...eye,fontSize:8,color:T.muted}}>
+                <span>Start €</span>
                 <input type="number" min="0" step="100" value={savingsStart||""}
                   onChange={ev=>{const v=parseFloat(ev.target.value)||0;setSavingsStart(v);ls("plo3_sav_start",String(v));}}
                   placeholder="0"
-                  style={{width:62,fontSize:9,background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"2px 5px",fontFamily:F,outline:"none",textAlign:"right"}}/>
+                  style={{width:64,...numF,fontSize:11,fontWeight:500,background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"3px 6px",outline:"none",textAlign:"right",letterSpacing:"normal",textTransform:"none"}}/>
               </label>
-              <label style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:T.textLt,fontFamily:F}}>
-                <span style={{opacity:0.7}}>Rate %</span>
+              <label style={{display:"flex",alignItems:"center",gap:5,...eye,fontSize:8,color:T.muted}}>
+                <span>Rate %</span>
                 <input type="number" min="0" max="100" step="0.1" value={savingsRate||""}
                   onChange={ev=>{const v=parseFloat(ev.target.value)||0;setSavingsRate(v);ls("plo3_sav_rate",String(v));}}
                   placeholder="0"
-                  style={{width:46,fontSize:9,background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"2px 5px",fontFamily:F,outline:"none",textAlign:"right"}}/>
+                  style={{width:48,...numF,fontSize:11,fontWeight:500,background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"3px 6px",outline:"none",textAlign:"right",letterSpacing:"normal",textTransform:"none"}}/>
               </label>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center"}}>
-            <div style={{width:88,flexShrink:0,fontSize:8,color:T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em",paddingLeft:3}}>
-              Savings
-              {savingsRate>0&&<div style={{fontSize:7,color:T.textLt,fontWeight:400,marginTop:1,opacity:0.7}}>{savingsRate}% p.a.</div>}
+          <div style={{display:"flex",alignItems:"center",height:24}}>
+            <div style={{width:LBL_W,flexShrink:0,paddingLeft:4,display:"flex",alignItems:"baseline",gap:6}}>
+              <span style={{...eye,fontSize:9,color:T.text}}>Savings</span>
+              {savingsRate>0&&<span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75}}>{savingsRate}% p.a.</span>}
             </div>
             {savingsProjection.map(({m,bal},i)=>{
               const prev=i>0?savingsProjection[i-1].bal:(savingsStart||0);
               const delta=bal-prev;
               const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0)||savingsStart>0;
-              return <div key={m} style={{width:52,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
+              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
                 {hasData
                   ? <>
-                      <span style={{fontSize:6,color:delta>=0?T.mint:T.pink,fontFamily:F,opacity:0.65,lineHeight:1}}>{delta>=0?"+":""}€{Math.abs(delta).toFixed(0)}</span>
-                      <span style={{fontSize:10,color:bal>=0?T.mint:T.pink,fontFamily:F,fontWeight:800,letterSpacing:"-0.3px"}}>{bal<0?"−":""}€{Math.abs(bal).toFixed(0)}</span>
+                      <span style={{...numF,fontSize:7,color:delta>=0?OLIVE:RED,opacity:0.7,lineHeight:1}}>{delta>=0?"+":"−"}€{Math.abs(delta).toFixed(0)}</span>
+                      <span style={{...numF,fontSize:10,color:bal>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px"}}>{bal<0?"−":""}€{Math.abs(bal).toFixed(0)}</span>
                     </>
-                  : <span style={{fontSize:9,color:T.textLt,fontFamily:F,opacity:0.3}}>—</span>}
+                  : <span style={{...numF,fontSize:10,color:T.muted,opacity:0.25}}>—</span>}
               </div>;
             })}
-            <div style={{width:50,flexShrink:0}}/>
+            <div style={{width:ACT_W,flexShrink:0}}/>
           </div>
-          {savingsRate>0&&savingsProjection.some(({bal})=>bal>0)&&
-            <div style={{display:"flex",alignItems:"center",marginTop:3}}>
-              <div style={{width:88,flexShrink:0,fontSize:7,color:T.textLt,fontFamily:F,paddingLeft:3,opacity:0.6}}>Interest earned</div>
-              {savingsProjection.map(({m,bal},i)=>{
-                const noCompound=planTotals.slice(0,i+1).reduce((s,{net})=>s+net,0)+(savingsStart||0);
-                const interest=bal-noCompound;
-                return <div key={m} style={{width:52,flexShrink:0,textAlign:"center"}}>
-                  {interest>0.01
-                    ? <span style={{fontSize:7,color:T.mint,fontFamily:F,opacity:0.75}}>+€{interest.toFixed(2)}</span>
-                    : <span style={{fontSize:8,color:T.textLt,fontFamily:F,opacity:0.2}}>·</span>}
-                </div>;
-              })}
-              <div style={{width:50,flexShrink:0}}/>
-            </div>
-          }
         </div>
 
-      </div>
-    </div>}
+      </div>;
+    })()}
 
     {/* ── CATS TAB ── */}
     {tab==="cats"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:pickerFor?160:0}}>
