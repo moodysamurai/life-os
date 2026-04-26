@@ -1991,15 +1991,16 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
     return planMonths.map(m=>{
       const inc=incCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
       const exp=expCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
+      const sav=expCats.filter(c=>/saving/i.test(c.label)).reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
       bal+=inc-exp;
-      return{m,inc,exp,net:inc-exp,running:bal};
+      return{m,inc,exp,sav,net:inc-exp,running:bal};
     });
   },[planMonths,incCats,expCats,envelopes]);
   const savingsProjection=useMemo(()=>{
     let bal=savingsStart||0;
     const mr=(savingsRate||0)/100/12;
-    return planTotals.map(({m,net})=>{
-      bal=bal*(1+mr)+net;
+    return planTotals.map(({m,sav})=>{
+      bal=bal*(1+mr)+(sav||0);
       return{m,bal};
     });
   },[planTotals,savingsStart,savingsRate]);
@@ -2521,7 +2522,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             {savingsProjection.map(({m,bal},i)=>{
               const prev=i>0?savingsProjection[i-1].bal:(savingsStart||0);
               const delta=bal-prev;
-              const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0)||savingsStart>0;
+              const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0||d.sav>0)||savingsStart>0;
               return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
                 {hasData
                   ? <>
