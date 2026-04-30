@@ -1826,7 +1826,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const today=new Date(),todayStr=toStr(today);
   const ym0=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
   const [mon,setMon]=useState(ym0);
-  const [tab,setTab]=useState("plan");
+  const [tab,setTab]=useState("trends");
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({date:todayStr,amount:"",type:"expense",category:"Food",description:""});
   const [editId,setEditId]=useState(null);
@@ -2109,7 +2109,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
     {/* Tab strip — receipt-style, paper editorial */}
     <div style={{display:"flex",gap:0,flexShrink:0,borderBottom:`1px solid ${T.border}`}}>
-      {[["plan","Plan"],["trends","12M Plan"],["cats","Categories"]].map(([id,label])=>{
+      {[["trends","12M Plan"],["plan","Plan"]].map(([id,label])=>{
         const active=tab===id;
         return <button key={id} onClick={()=>{setTab(id);setPickerFor(null);}} style={{flex:1,padding:"8px 0 6px",borderRadius:0,border:"none",borderBottom:active?`2px solid ${T.red||T.mint}`:"2px solid transparent",cursor:"pointer",fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",background:"transparent",color:active?(T.red||T.mint):(T.muted||T.textLt),transition:"all 0.12s",marginBottom:-1}}>{label}</button>;
       })}
@@ -2377,6 +2377,69 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             </div>
           }
         </div>
+
+        {/* ── Manage categories (merged from old Cats tab) ── */}
+        <div style={{...sectionDivider,paddingTop:18,display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+            <span style={eye}>Manage Categories</span>
+            <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:12,color:T.muted,opacity:0.75}}>rename · reorder · set debit day · icon · delete</span>
+          </div>
+          {["expense","income"].map(type=>(
+            <div key={type}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={{fontSize:9,color:T.muted||T.textLt,fontFamily:PP_M,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.2em"}}>{type==="income"?"Income":"Expenses"}</span>
+                <button onClick={()=>{setCatAdd({type,label:"",icon:"dots-three"});setPickerFor(null);}} style={{background:"none",border:"none",cursor:"pointer",color:type==="income"?T.mint:T.pink,fontSize:13,fontFamily:F,lineHeight:1,padding:"0 2px"}}>+</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:0,border:`1px solid ${T.border}`,background:T.cardAlt}}>
+                {budgetCats.filter(c=>c.type===type).map(cat=>(
+                  <div key={cat.id}
+                    draggable
+                    onDragStart={e=>onCatDragStart(e,cat.id)}
+                    onDragOver={e=>onCatDragOver(e,cat.id)}
+                    onDrop={e=>onCatDrop(e,cat.id)}
+                    onDragEnd={onCatDragEnd}
+                    style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:0,background:dragOverCatId===cat.id?alpha(type==="income"?T.mint:T.pink,.08):"transparent",borderBottom:`1px solid ${T.border}`,opacity:dragCatId===cat.id?0.4:1,transition:"background 0.08s"}}>
+                    <span style={{fontSize:13,color:T.textLt,cursor:"grab",userSelect:"none",opacity:0.35,lineHeight:1,flexShrink:0}}>⠿</span>
+                    <button onClick={()=>{setCatAdd(null);setPickerFor(pickerFor===cat.id?null:cat.id);}}
+                      style={{width:26,height:26,borderRadius:0,border:`1px solid ${pickerFor===cat.id?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor===cat.id?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
+                      <Ico n={cat.icon||"dots-three"} size={13}/>
+                    </button>
+                    {catEditId===cat.id
+                      ?<input value={catEditLabel} onChange={ev=>setCatEditLabel(ev.target.value)}
+                          onBlur={saveCatLabel} onKeyDown={ev=>{if(ev.key==="Enter")saveCatLabel();if(ev.key==="Escape")setCatEditId(null);}}
+                          autoFocus style={{...IS,flex:1,padding:"2px 6px",fontSize:11}}/>
+                      :<span onClick={()=>{setCatEditId(cat.id);setCatEditLabel(cat.label);}}
+                          style={{flex:1,fontSize:11,color:T.text,fontFamily:F,cursor:"text",padding:"2px 0"}} title="Click to rename">{cat.label}</span>
+                    }
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} placeholder="–" title="Day of month debited (1–31)"
+                      value={cat.day||""}
+                      onChange={ev=>{const raw=ev.target.value.replace(/[^0-9]/g,"");const v=parseInt(raw);setBudgetCats(p=>p.map(c=>c.id===cat.id?{...c,day:(isNaN(v)||v<1||v>31)?undefined:v}:c));}}
+                      style={{width:36,fontSize:10,fontFamily:PP_M,fontVariantNumeric:"tabular-nums",background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"2px 4px",outline:"none",textAlign:"center",flexShrink:0}}/>
+                    <span style={{fontSize:8,color:T.textLt,fontFamily:F,opacity:.5}}>{type}</span>
+                    <button onClick={()=>deleteCat(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
+                  </div>
+                ))}
+                {catAdd?.type===type&&
+                  <div style={{display:"flex",alignItems:"center",gap:4,padding:"5px 8px",borderRadius:0,background:T.cardAlt,border:`1px dashed ${alpha(T.border,.35)}`}}>
+                    <button onClick={()=>setPickerFor(pickerFor==="new"?null:"new")}
+                      style={{width:26,height:26,borderRadius:0,border:`1px solid ${pickerFor==="new"?alpha(T.mint,.5):alpha(T.border,.3)}`,background:pickerFor==="new"?alpha(T.mint,.12):"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:T.text}}>
+                      <Ico n={catAdd.icon} size={13}/>
+                    </button>
+                    <input value={catAdd.label} onChange={ev=>setCatAdd(p=>({...p,label:ev.target.value}))}
+                      onKeyDown={ev=>{if(ev.key==="Enter")addCat();if(ev.key==="Escape")setCatAdd(null);}}
+                      autoFocus placeholder="Category name"
+                      style={{...IS,flex:1,padding:"2px 6px",fontSize:11}}/>
+                    <Btn small primary onClick={addCat}>Add</Btn>
+                    <button onClick={()=>{setCatAdd(null);setPickerFor(null);}} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:13,lineHeight:1,padding:"0 2px"}}>×</button>
+                  </div>
+                }
+              </div>
+            </div>
+          ))}
+          {budgetCats.length===0&&
+            <Btn small ghost onClick={()=>setBudgetCats(DEFAULT_BUDGET_CATS)}>Restore defaults</Btn>
+          }
+        </div>
       </div>;
     })()}
 
@@ -2465,7 +2528,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
       const dueSoon=computeDueSoon(budgetCats,envelopes,7,today);
 
-      return <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:10,paddingTop:14,paddingBottom:6,overflow:"hidden"}}>
+      return <div style={{display:"flex",flexDirection:"column",gap:10,paddingTop:14,paddingBottom:6}}>
 
         {/* ── Due in next 7 days strip ── */}
         {dueSoon.length>0&&
@@ -2519,7 +2582,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         </div>
 
         {/* ── Scrollable middle: income + expenses ── */}
-        <div style={{flex:1,minHeight:0,overflow:"auto",display:"flex",flexDirection:"column",gap:8}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8,overflowX:"auto"}}>
 
           {/* Income section */}
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -2563,40 +2626,17 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <div style={{width:ACT_W,flexShrink:0}}/>
           </div>
           {/* Running balance */}
-          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,minHeight:38,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,minHeight:28,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
             <div style={{width:LBL_W,flexShrink:0,paddingLeft:4,display:"flex",flexDirection:"column",gap:0}}>
               <span style={{...eye,fontSize:9,color:T.text}}>Balance</span>
-              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75,marginTop:1}}>end · low</span>
+              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75,marginTop:1}}>carry-over</span>
             </div>
             <div style={{width:DAY_W,flexShrink:0}}/>
             {planTotals.map(({m,running,inc,exp},i)=>{
               const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0);
-              const md=monthDaily[i];
-              const showLow=md&&hasData&&md.low<md.end-0.5;
-              const lowNeg=md&&md.low<0;
-              // sparkline
-              const traj=md?md.trajectory:[];
-              const tMin=traj.length?Math.min(...traj,md.startBal):0;
-              const tMax=traj.length?Math.max(...traj,md.startBal):0;
-              const tRange=tMax-tMin||1;
-              const sw=COL_W-6,sh=10;
-              const points=traj.map((v,idx)=>{
-                const x=(idx/(traj.length-1||1))*sw;
-                const y=sh-((v-tMin)/tRange)*sh;
-                return`${x.toFixed(1)},${y.toFixed(1)}`;
-              }).join(" ");
-              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"3px 0"}}>
+              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
                 {hasData
-                  ? <>
-                      <span style={{...numF,fontSize:11,color:running>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px",lineHeight:1}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
-                      {traj.length>1&&<svg width={sw} height={sh} style={{display:"block",opacity:0.55}}>
-                        <polyline fill="none" stroke={lowNeg?RED:OLIVE} strokeWidth="1" points={points}/>
-                        {showLow&&md.lowDay>0&&<circle cx={((md.lowDay-1)/(traj.length-1||1))*sw} cy={sh-((md.low-tMin)/tRange)*sh} r="1.6" fill={lowNeg?RED:T.muted}/>}
-                      </svg>}
-                      {showLow
-                        ? <span title={`Lowest balance reached on day ${md.lowDay}`} style={{...numF,fontSize:7.5,color:lowNeg?RED:T.muted,opacity:0.85,fontWeight:600,letterSpacing:"normal",lineHeight:1}}>↓€{md.low<0?"−":""}{Math.abs(md.low).toFixed(0)}{md.lowDay>0?` ·${md.lowDay}`:""}</span>
-                        : <span style={{...numF,fontSize:7.5,color:T.muted,opacity:0.25,lineHeight:1}}>·</span>}
-                    </>
+                  ? <span style={{...numF,fontSize:11,color:running>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px"}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
                   : <span style={{...numF,fontSize:10,color:T.muted,opacity:0.25}}>—</span>}
               </div>;
             })}
@@ -2645,11 +2685,151 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           </div>
         </div>
 
+        {/* ── CASHFLOW: 12-month money calendar + balance trajectory overlay ── */}
+        {(()=>{
+          // Build full daily series
+          const series=[]; // [{ds, day, mIdx, bal, events:[{cat,amt}]}]
+          monthDaily.forEach((md,mIdx)=>{
+            for(let d=1;d<=md.dim;d++){
+              const ds=`${md.m}-${String(d).padStart(2,"0")}`;
+              const events=(budgetCats||[]).filter(c=>{
+                if(!c||!c.day||c.type==="divider")return false;
+                return Math.min(c.day,md.dim)===d;
+              }).map(c=>({cat:c,amt:envelopes.find(e=>e.month===md.m&&e.category===c.label)?.budgeted||0}));
+              series.push({ds,day:d,mIdx,bal:md.trajectory[d-1],events});
+            }
+          });
+          const total=series.length;
+          if(!total)return null;
+
+          const W=1000,H=240,padL=56,padR=12,padT=14,padB=46;
+          const innerW=W-padL-padR;
+          const cellRowH=22;
+          const innerH=H-padT-padB-cellRowH;
+          const cellTop=padT+innerH+4;
+
+          const balances=series.map(p=>p.bal);
+          const yMin=Math.min(0,...balances);
+          const yMax=Math.max(0,...balances,1);
+          const yRange=yMax-yMin||1;
+          const xOf=i=>padL+(i/(total-1||1))*innerW;
+          const dayW=innerW/total;
+          const yOf=b=>padT+(1-(b-yMin)/yRange)*innerH;
+          const linePts=series.map((p,i)=>`${xOf(i).toFixed(1)},${yOf(p.bal).toFixed(1)}`).join(" ");
+          const zeroY=yOf(0);
+
+          // Month boundaries for dividers + labels
+          const monthMarks=[];
+          let acc=0;
+          monthDaily.forEach(md=>{monthMarks.push({startIdx:acc,m:md.m,dim:md.dim,low:md.low,lowDay:md.lowDay,end:md.end});acc+=md.dim;});
+
+          // Today index (if today falls in series window)
+          const todayMs=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
+          const todayIdx=series.findIndex(p=>p.ds===toStr(today));
+
+          return <div style={{paddingTop:22,marginTop:14,borderTop:`1px solid ${T.border}`}}>
+            <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12,gap:14,flexWrap:"wrap"}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:14}}>
+                <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:26,color:T.text,letterSpacing:"-0.4px",lineHeight:1}}>Cashflow</span>
+                <span style={{...eye,fontSize:9,color:T.muted}}>Daily Trajectory · Money Calendar</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:14,...eye,fontSize:9,color:T.muted}}>
+                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:OLIVE,display:"inline-block"}}/>Income</span>
+                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:RED,display:"inline-block"}}/>Expense</span>
+                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:10,height:2,background:T.text,display:"inline-block"}}/>Balance</span>
+                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,border:`1px solid ${RED}`,borderRadius:"50%",display:"inline-block"}}/>Low</span>
+              </div>
+            </div>
+
+            <div style={{overflowX:"auto"}}>
+              <svg width={W} height={H} style={{display:"block",minWidth:W}}>
+                {/* Y grid: 0 line + max + min */}
+                <line x1={padL} y1={zeroY} x2={W-padR} y2={zeroY} stroke={T.muted} strokeDasharray="2,3" strokeWidth="0.6" opacity="0.55"/>
+                <text x={padL-7} y={padT+5} textAnchor="end" fill={T.muted} style={{...numF,fontSize:9}}>€{yMax.toFixed(0)}</text>
+                <text x={padL-7} y={zeroY+3} textAnchor="end" fill={T.muted} style={{...numF,fontSize:9}}>€0</text>
+                {yMin<-0.5&&<text x={padL-7} y={padT+innerH+3} textAnchor="end" fill={RED} style={{...numF,fontSize:9}}>−€{Math.abs(yMin).toFixed(0)}</text>}
+
+                {/* Negative-balance shaded region */}
+                {yMin<0&&<rect x={padL} y={zeroY} width={innerW} height={(padT+innerH)-zeroY} fill={RED} opacity="0.06"/>}
+
+                {/* Month dividers + labels */}
+                {monthMarks.map((b,idx)=>{
+                  const x=xOf(b.startIdx);
+                  return <g key={b.m}>
+                    <line x1={x} y1={padT} x2={x} y2={cellTop+cellRowH} stroke={T.border} strokeWidth="0.5" opacity="0.5"/>
+                  </g>;
+                })}
+
+                {/* Trajectory area fill */}
+                <polygon
+                  points={`${xOf(0)},${zeroY} ${linePts} ${xOf(total-1)},${zeroY}`}
+                  fill={alpha(OLIVE,0.08)}
+                />
+                {/* Trajectory line */}
+                <polyline points={linePts} fill="none" stroke={T.text} strokeWidth="1.4" strokeLinejoin="round"/>
+
+                {/* Today vertical marker */}
+                {todayIdx>=0&&<g>
+                  <line x1={xOf(todayIdx)} y1={padT} x2={xOf(todayIdx)} y2={cellTop+cellRowH} stroke={T.mint||OLIVE} strokeWidth="1" strokeDasharray="3,2" opacity="0.85"/>
+                  <text x={xOf(todayIdx)} y={padT-3} textAnchor="middle" fill={T.mint||OLIVE} style={{...numF,fontSize:8,fontWeight:700,letterSpacing:"0.1em"}}>TODAY</text>
+                </g>}
+
+                {/* Monthly low-point markers */}
+                {monthMarks.map((b,idx)=>{
+                  if(b.lowDay<=0||b.low>=b.end-0.5)return null;
+                  const i=b.startIdx+b.lowDay-1;
+                  const cx=xOf(i),cy=yOf(b.low);
+                  const isNeg=b.low<0;
+                  return <g key={"low-"+b.m}>
+                    <circle cx={cx} cy={cy} r="3.5" fill={T.bg} stroke={isNeg?RED:T.muted} strokeWidth="1.2"/>
+                    {isNeg&&<text x={cx} y={cy-7} textAnchor="middle" fill={RED} style={{...numF,fontSize:8,fontWeight:700}}>↓€{Math.abs(b.low).toFixed(0)}</text>}
+                  </g>;
+                })}
+
+                {/* Money calendar strip below the chart */}
+                <line x1={padL} y1={cellTop} x2={W-padR} y2={cellTop} stroke={T.border} strokeWidth="0.5"/>
+                <line x1={padL} y1={cellTop+cellRowH} x2={W-padR} y2={cellTop+cellRowH} stroke={T.border} strokeWidth="0.5"/>
+                {series.map((p,i)=>{
+                  if(!p.events.length)return null;
+                  const x=xOf(i)-dayW/2;
+                  const w=Math.max(2,dayW-0.5);
+                  return p.events.map((ev,ei)=>{
+                    const isInc=ev.cat.type==="income";
+                    const color=isInc?OLIVE:RED;
+                    const yTop=cellTop+(isInc?1:cellRowH/2+1);
+                    const h=cellRowH/2-2;
+                    return <rect key={`${i}-${ei}`} x={x} y={yTop} width={w} height={h} fill={color} opacity={ev.amt>0?0.85:0.4}>
+                      <title>{`${ev.cat.label} ${isInc?"+":"−"}€${ev.amt} · ${p.ds}`}</title>
+                    </rect>;
+                  });
+                })}
+
+                {/* Month labels at the very bottom */}
+                {monthMarks.map((b,idx)=>{
+                  const next=monthMarks[idx+1]?monthMarks[idx+1].startIdx:total;
+                  const mid=(b.startIdx+next)/2;
+                  const lbl=MFULL[parseInt(b.m.split("-")[1])-1].slice(0,3);
+                  const yr=b.m.slice(2,4);
+                  const isCur=b.m===todayMs;
+                  return <g key={"lbl-"+b.m}>
+                    <text x={xOf(mid)} y={H-22} textAnchor="middle" fill={isCur?(T.mint||OLIVE):T.text} style={{...numF,fontSize:9,fontWeight:isCur?700:600,letterSpacing:"0.1em",textTransform:"uppercase"}}>{lbl}</text>
+                    <text x={xOf(mid)} y={H-10} textAnchor="middle" fill={T.muted} style={{...numF,fontSize:7,letterSpacing:"0.05em"}}>'{yr}</text>
+                  </g>;
+                })}
+              </svg>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:8,...eye,fontSize:8,color:T.muted}}>
+              <span>{total} days · {monthMarks.length} months</span>
+              <span>Low row · expense (top), income (bottom)</span>
+            </div>
+          </div>;
+        })()}
+
       </div>;
     })()}
 
-    {/* ── CATS TAB ── */}
-    {tab==="cats"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:pickerFor?160:0}}>
+    {/* ── CATS TAB (now merged into Plan tab — kept hidden for any legacy state) ── */}
+    {false&&tab==="cats"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:pickerFor?160:0}}>
       {["expense","income"].map(type=>(
         <div key={type}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -5342,13 +5522,16 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
                 fontWeight:400}}>
                 {String(dn).padStart(2,'0')}
               </div>
-              {evts.length>0&&<div style={{position:'absolute',top:isToday?48:22,left:4,right:4,display:'flex',flexDirection:'column',gap:2}}>
-                {evts.map((ev,ei)=>(
-                  <div key={ei} style={{display:'flex',alignItems:'center',gap:4,minWidth:0}}>
-                    <span style={{width:4,height:4,borderRadius:'50%',background:ev.color,flexShrink:0}}/>
-                    <span style={{fontFamily:PP_M,fontSize:9,color:ev.completed?T.muted:T.text,textDecoration:ev.completed?'line-through':'none',letterSpacing:'0.01em',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0,flex:1}}>{ev.title}</span>
-                  </div>
-                ))}
+              {evts.length>0&&<div style={{position:'absolute',top:isToday?48:22,left:3,right:3,display:'flex',flexDirection:'column',gap:2}}>
+                {evts.map((ev,ei)=>{
+                  const isMoney=ev.kind==='budget';
+                  const prefix=isMoney?'€ ':'';
+                  return (
+                    <div key={ei} title={ev.title} style={{display:'flex',alignItems:'center',gap:4,minWidth:0,background:alpha(ev.color,0.16),borderLeft:`3px solid ${ev.color}`,padding:'2px 5px',borderRadius:2,minHeight:15}}>
+                      <span style={{fontFamily:PP_M,fontSize:10,fontWeight:isMoney?700:500,color:ev.completed?T.muted:T.text,textDecoration:ev.completed?'line-through':'none',letterSpacing:'0.01em',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0,flex:1}}>{prefix}{ev.title}</span>
+                    </div>
+                  );
+                })}
               </div>}
               {isToday&&<div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:T.mint}}/>}
             </div>
@@ -5798,7 +5981,7 @@ function PaperDueStrip({budgetCats,envelopes,onExpand}){
   );
 }
 
-function PaperMoneyTodayCard({envelopes,onExpand}){
+function PaperMoneyTodayCard({envelopes,onExpand,budgetCats=[]}){
   const T=useT();
   const now=new Date();
   const curMon=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
@@ -5814,6 +5997,14 @@ function PaperMoneyTodayCard({envelopes,onExpand}){
   const curLabel=MFULL?MFULL[now.getMonth()]:now.toLocaleDateString('en-GB',{month:'long'});
   const nextLabel=MFULL?MFULL[nextD.getMonth()]:nextD.toLocaleDateString('en-GB',{month:'long'});
   const fmt=v=>`€ ${Number(v||0).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+
+  // 1-week overview pulled from cats with day set
+  const dueWeek=useMemo(()=>computeDueSoon(budgetCats,envelopes,7,now),[budgetCats,envelopes]);
+  const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const RED=T.red||'#c8412e';
+  const OLIVE='#6b7c3a';
+  const weekOut=dueWeek.filter(d=>d.kind==='expense').reduce((s,d)=>s+d.amt,0);
+  const weekIn=dueWeek.filter(d=>d.kind==='income').reduce((s,d)=>s+d.amt,0);
 
   return(
     <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)',display:'flex',flexDirection:'column',minWidth:0}}>
@@ -5847,6 +6038,33 @@ function PaperMoneyTodayCard({envelopes,onExpand}){
             PLANNED INCOME · {curLabel.toUpperCase()}
             <span style={{marginLeft:10,color:T.textLt||T.muted,fontWeight:600}}>→ {nextLabel.slice(0,3).toUpperCase()} {fmt(incNext)}</span>
           </div>
+        </div>
+
+        {/* 1-week overview */}
+        <div style={{marginTop:4,paddingTop:14,borderTop:`1px dashed ${T.lineSoft||T.border}`,display:'flex',flexDirection:'column',gap:9}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
+            <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint}}>DUE · NEXT 7 DAYS</span>
+            <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',color:T.muted,fontVariantNumeric:'tabular-nums'}}>
+              {weekOut>0&&<span style={{color:RED}}>−{fmt(weekOut)}</span>}
+              {weekOut>0&&weekIn>0&&<span style={{opacity:0.4,margin:'0 6px'}}>·</span>}
+              {weekIn>0&&<span style={{color:OLIVE}}>+{fmt(weekIn)}</span>}
+              {weekOut===0&&weekIn===0&&<span style={{color:T.muted,opacity:0.6}}>NOTHING SCHEDULED</span>}
+            </span>
+          </div>
+          {dueWeek.length>0&&<div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {dueWeek.map((d,i)=>{
+              const isToday=d.date.toDateString()===t0.toDateString();
+              const t1=new Date(t0);t1.setDate(t1.getDate()+1);
+              const isTomorrow=d.date.toDateString()===t1.toDateString();
+              const dayLbl=isToday?'TODAY':isTomorrow?'TOMORROW':d.date.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}).toUpperCase().replace(',','');
+              const ACC=d.kind==='income'?OLIVE:RED;
+              return <div key={i} style={{display:'grid',gridTemplateColumns:'88px minmax(0,1fr) auto',gap:10,alignItems:'baseline'}}>
+                <span style={{fontFamily:PP_M,fontSize:10,fontWeight:isToday?700:600,letterSpacing:'0.12em',color:isToday?ACC:T.muted,textTransform:'uppercase',fontVariantNumeric:'tabular-nums'}}>{dayLbl}</span>
+                <span style={{fontFamily:PP_S,fontSize:14,color:T.text,fontWeight:500,letterSpacing:'-0.005em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.cat.label}</span>
+                {d.amt>0&&<span style={{fontFamily:PP_M,fontSize:13,fontWeight:700,color:ACC,fontVariantNumeric:'tabular-nums'}}>{d.kind==='income'?'+':'−'}{fmt(d.amt)}</span>}
+              </div>;
+            })}
+          </div>}
         </div>
 
         {/* Net line */}
@@ -6487,7 +6705,6 @@ function App(){
 
       {page==="today"&&<>
         <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
-        <PaperDueStrip budgetCats={budgetCats} envelopes={envelopes} onExpand={()=>setPage('money')}/>
         <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents}/>
 
         {/* CALENDAR + GOALS — editorial self-contained cards */}
@@ -6499,7 +6716,7 @@ function App(){
         {/* TRIPS + MONEY — inequal columns for editorial asymmetry */}
         <div style={{padding:'16px 2rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
           <PaperTripsTodayCard trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onExpand={()=>setPage('trips')} onAddTrip={()=>setModal({type:'trip'})}/>
-          <PaperMoneyTodayCard envelopes={envelopes} onExpand={()=>setPage('money')}/>
+          <PaperMoneyTodayCard envelopes={envelopes} budgetCats={budgetCats} onExpand={()=>setPage('money')}/>
         </div>
         <PaperFooter/>
       </>}
