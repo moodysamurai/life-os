@@ -2331,7 +2331,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const OLIVE="#6b7c3a";
       const RED=T.red||T.mint;
       const COL_W=54;
-      const LBL_W=220;
+      const LBL_W=204;
+      const DAY_W=38;
       const ACT_W=62;
       const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted};
       const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
@@ -2366,11 +2367,13 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <span draggable={false} style={{fontSize:11,color:T.muted,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
             <span style={{width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",color:ACC,flexShrink:0}}><Ico n={cat.icon||"dots-three"} size={14}/></span>
             <span style={{...numF,fontSize:11,color:T.text,fontWeight:500,whiteSpace:"nowrap"}}>{cat.label}</span>
+          </div>
+          <div style={{width:DAY_W,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <input type="number" min="1" max="31" placeholder="–"
               title={cat.day?`Debited on day ${cat.day} of each month — clear to unset`:"Set day-of-month this category is debited (1–31)"}
               value={cat.day||""}
               onChange={ev=>{const v=parseInt(ev.target.value);setBudgetCats(p=>p.map(c=>c.id===cat.id?{...c,day:(isNaN(v)||v<1||v>31)?undefined:v}:c));}}
-              style={{width:26,...numF,fontSize:9,fontWeight:700,color:cat.day?ACC:T.muted,opacity:cat.day?0.85:0.5,background:cat.day?alpha(ACC,.06):"transparent",border:`1px solid ${cat.day?alpha(ACC,.3):alpha(T.border,.4)}`,borderRadius:0,padding:"1px 2px",outline:"none",textAlign:"center",flexShrink:0,letterSpacing:"normal"}}/>
+              style={{width:30,...numF,fontSize:10,fontWeight:700,color:cat.day?ACC:T.muted,opacity:cat.day?0.9:0.5,background:cat.day?alpha(ACC,.08):"transparent",border:`1px solid ${cat.day?alpha(ACC,.35):alpha(T.border,.4)}`,borderRadius:0,padding:"2px 2px",outline:"none",textAlign:"center",flexShrink:0,letterSpacing:"normal"}}/>
           </div>
           {planMonths.map(m=>{
             const amt=getPlanAmt(m,cat.label);
@@ -2471,6 +2474,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         {/* ── Month column header ── */}
         <div style={{display:"flex",alignItems:"flex-end",paddingBottom:5,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:9}}>Category</div>
+          <div style={{width:DAY_W,flexShrink:0,...eye,fontSize:9,textAlign:"center"}} title="Day of month each category debits / credits">Day</div>
           {planMonths.map(m=>{
             const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
             const isCur=m===ym0;
@@ -2515,6 +2519,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           {/* Month net */}
           <div style={{display:"flex",alignItems:"center",height:20}}>
             <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:8}}>Month net</div>
+            <div style={{width:DAY_W,flexShrink:0}}/>
             {planTotals.map(({m,inc,exp,net})=>{
               const hasAny=inc>0||exp>0;
               return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
@@ -2531,6 +2536,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               <span style={{...eye,fontSize:9,color:T.text}}>Balance</span>
               <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75,marginTop:1}}>carry-over</span>
             </div>
+            <div style={{width:DAY_W,flexShrink:0}}/>
             {planTotals.map(({m,running,inc,exp},i)=>{
               const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0);
               return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
@@ -2566,6 +2572,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               <span style={{...eye,fontSize:9,color:T.text}}>Savings</span>
               {savingsRate>0&&<span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75}}>{savingsRate}% p.a.</span>}
             </div>
+            <div style={{width:DAY_W,flexShrink:0}}/>
             {savingsProjection.map(({m,bal},i)=>{
               const prev=i>0?savingsProjection[i-1].bal:(savingsStart||0);
               const delta=bal-prev;
