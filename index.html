@@ -2366,6 +2366,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <span draggable={false} style={{fontSize:11,color:T.muted,userSelect:"none",cursor:"grab",lineHeight:1,opacity:0.45,flexShrink:0}}>⠿</span>
             <span style={{width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",color:ACC,flexShrink:0}}><Ico n={cat.icon||"dots-three"} size={14}/></span>
             <span style={{...numF,fontSize:11,color:T.text,fontWeight:500,whiteSpace:"nowrap"}}>{cat.label}</span>
+            {cat.day&&<span title={`Debited on the ${cat.day}${(cat.day%10===1&&cat.day!==11)?"st":(cat.day%10===2&&cat.day!==12)?"nd":(cat.day%10===3&&cat.day!==13)?"rd":"th"}`} style={{...numF,fontSize:8,fontWeight:700,color:ACC,opacity:0.7,letterSpacing:"0.05em",border:`1px solid ${alpha(ACC,.3)}`,padding:"1px 4px",lineHeight:1,flexShrink:0}}>{cat.day}</span>}
           </div>
           {planMonths.map(m=>{
             const amt=getPlanAmt(m,cat.label);
@@ -2401,7 +2402,49 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const expTotal=planTotals.reduce((s,{exp})=>s+exp,0);
       const yearNet=incTotal-expTotal;
 
+      // Upcoming debits / credits in next 7 days based on cat.day
+      const dueSoon=(()=>{
+        const out=[];
+        const t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+        const horizon=new Date(t0); horizon.setDate(horizon.getDate()+7);
+        budgetCats.forEach(c=>{
+          if(!c.day||c.type==="divider")return;
+          // try current month then next month, take first within horizon
+          for(let off=0;off<2;off++){
+            const probe=new Date(t0.getFullYear(),t0.getMonth()+off,1);
+            const last=new Date(probe.getFullYear(),probe.getMonth()+1,0).getDate();
+            const d=Math.min(c.day,last);
+            const dt=new Date(probe.getFullYear(),probe.getMonth(),d);
+            if(dt<t0)continue;
+            if(dt>horizon)break;
+            const ym=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`;
+            const amt=envelopes.find(e=>e.month===ym&&e.category===c.label)?.budgeted||0;
+            out.push({cat:c,date:dt,amt,kind:c.type});
+            break;
+          }
+        });
+        return out.sort((a,b)=>a.date-b.date);
+      })();
+
       return <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:10,paddingTop:14,paddingBottom:6,overflow:"hidden"}}>
+
+        {/* ── Due in next 7 days strip ── */}
+        {dueSoon.length>0&&
+          <div style={{display:"flex",alignItems:"center",gap:10,paddingBottom:8,borderBottom:`1px dashed ${T.border}`,flexWrap:"wrap"}}>
+            <span style={{...eye,fontSize:9,color:T.muted,flexShrink:0}}>Due · 7d</span>
+            {dueSoon.map((d,i)=>{
+              const isToday=d.date.toDateString()===today.toDateString();
+              const dayLbl=MFULL[d.date.getMonth()].slice(0,3)+" "+d.date.getDate();
+              const ACC=d.kind==="income"?OLIVE:RED;
+              return <span key={i} style={{display:"inline-flex",alignItems:"baseline",gap:5,fontFamily:PP_M,fontSize:10}}>
+                <span style={{fontVariantNumeric:"tabular-nums",fontWeight:isToday?700:500,color:isToday?ACC:T.muted,letterSpacing:"0.05em",textTransform:"uppercase"}}>{isToday?"Today":dayLbl}</span>
+                <span style={{color:T.text,fontWeight:500}}>{d.cat.label}</span>
+                {d.amt>0&&<span style={{...numF,color:ACC,fontWeight:700}}>{d.kind==="income"?"+":"−"}€{d.amt}</span>}
+                {i<dueSoon.length-1&&<span style={{color:T.muted,opacity:0.4,marginLeft:5}}>·</span>}
+              </span>;
+            })}
+          </div>
+        }
 
         {/* ── Year overview strip ── */}
         <div style={{display:"flex",alignItems:"baseline",gap:24,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
@@ -2568,6 +2611,10 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                   :<span onClick={()=>{setCatEditId(cat.id);setCatEditLabel(cat.label);}}
                       style={{flex:1,fontSize:11,color:T.text,fontFamily:F,cursor:"text",padding:"2px 0"}} title="Click to rename">{cat.label}</span>
                 }
+                <input type="number" min="1" max="31" placeholder="–" title="Day of month debited (1–31)"
+                  value={cat.day||""}
+                  onChange={ev=>{const v=parseInt(ev.target.value);setBudgetCats(p=>p.map(c=>c.id===cat.id?{...c,day:(isNaN(v)||v<1||v>31)?undefined:v}:c));}}
+                  style={{width:34,fontSize:10,fontFamily:PP_M,fontVariantNumeric:"tabular-nums",background:T.inp,border:`1px solid ${T.border}`,borderRadius:0,color:T.text,padding:"2px 4px",outline:"none",textAlign:"center",flexShrink:0}}/>
                 <span style={{fontSize:8,color:T.textLt,fontFamily:F,opacity:.5}}>{type}</span>
                 <button onClick={()=>deleteCat(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:T.textLt,fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
               </div>
