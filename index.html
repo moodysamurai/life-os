@@ -1055,6 +1055,31 @@ function GreetingHeader({tasks,trips,goals,appleEvents=[]}){
 // ── HERO BAR STRIPS ─────────────────────────────────
 
 // Sunrise / sunset (NOAA algorithm, no API needed)
+// Compute upcoming category debits/credits in the next `days` days, ordered ascending.
+// Returns [{cat, date:Date, amt, kind:"income"|"expense"}, ...]
+function computeDueSoon(budgetCats, envelopes, days=7, fromDate=null){
+  const out=[];
+  const now=fromDate||new Date();
+  const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const horizon=new Date(t0); horizon.setDate(horizon.getDate()+days);
+  (budgetCats||[]).forEach(c=>{
+    if(!c||!c.day||c.type==="divider")return;
+    for(let off=0;off<2;off++){
+      const probe=new Date(t0.getFullYear(),t0.getMonth()+off,1);
+      const last=new Date(probe.getFullYear(),probe.getMonth()+1,0).getDate();
+      const d=Math.min(c.day,last);
+      const dt=new Date(probe.getFullYear(),probe.getMonth(),d);
+      if(dt<t0)continue;
+      if(dt>horizon)break;
+      const ym=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`;
+      const amt=(envelopes||[]).find(e=>e.month===ym&&e.category===c.label)?.budgeted||0;
+      out.push({cat:c,date:dt,amt,kind:c.type});
+      break;
+    }
+  });
+  return out.sort((a,b)=>a.date-b.date);
+}
+
 function calcSunTimes(lat,lon,date){
   const rad=Math.PI/180;
   const N=Math.floor((date-new Date(date.getFullYear(),0,0))/86400000);
@@ -2004,6 +2029,35 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       return{m,bal};
     });
   },[planTotals,savingsStart,savingsRate]);
+  // Daily balance trajectory per month — finds low point within the month.
+  // Items without a `day` are lumped at day 1 (conservative). Items with `day` clamp to last day of month.
+  const monthDaily=useMemo(()=>{
+    let bal=0;
+    return planMonths.map(m=>{
+      const [yr,mo]=m.split("-").map(Number);
+      const dim=new Date(yr,mo,0).getDate();
+      const startBal=bal;
+      const byDay={};
+      [...incCats,...expCats].forEach(c=>{
+        if(c.type==="divider")return;
+        const amt=envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0;
+        if(!amt)return;
+        const sign=c.type==="income"?1:-1;
+        const d=c.day?Math.min(c.day,dim):1;
+        byDay[d]=(byDay[d]||0)+sign*amt;
+      });
+      let low=startBal,lowDay=0,cur=startBal;
+      for(let d=1;d<=dim;d++){
+        cur+=byDay[d]||0;
+        if(cur<low){low=cur;lowDay=d;}
+      }
+      const trajectory=[];
+      let t=startBal;
+      for(let d=1;d<=dim;d++){t+=byDay[d]||0;trajectory.push(t);}
+      bal=cur;
+      return{m,startBal,low,lowDay,end:cur,dim,trajectory};
+    });
+  },[planMonths,incCats,expCats,envelopes]);
   function setPlanAmt(m,cat,type,val){
     const amt=parseFloat(val);
     if(isNaN(amt)||amt<0)return;
@@ -2409,29 +2463,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const expTotal=planTotals.reduce((s,{exp})=>s+exp,0);
       const yearNet=incTotal-expTotal;
 
-      // Upcoming debits / credits in next 7 days based on cat.day
-      const dueSoon=(()=>{
-        const out=[];
-        const t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
-        const horizon=new Date(t0); horizon.setDate(horizon.getDate()+7);
-        budgetCats.forEach(c=>{
-          if(!c.day||c.type==="divider")return;
-          // try current month then next month, take first within horizon
-          for(let off=0;off<2;off++){
-            const probe=new Date(t0.getFullYear(),t0.getMonth()+off,1);
-            const last=new Date(probe.getFullYear(),probe.getMonth()+1,0).getDate();
-            const d=Math.min(c.day,last);
-            const dt=new Date(probe.getFullYear(),probe.getMonth(),d);
-            if(dt<t0)continue;
-            if(dt>horizon)break;
-            const ym=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`;
-            const amt=envelopes.find(e=>e.month===ym&&e.category===c.label)?.budgeted||0;
-            out.push({cat:c,date:dt,amt,kind:c.type});
-            break;
-          }
-        });
-        return out.sort((a,b)=>a.date-b.date);
-      })();
+      const dueSoon=computeDueSoon(budgetCats,envelopes,7,today);
 
       return <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",gap:10,paddingTop:14,paddingBottom:6,overflow:"hidden"}}>
 
@@ -2531,17 +2563,40 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <div style={{width:ACT_W,flexShrink:0}}/>
           </div>
           {/* Running balance */}
-          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,minHeight:28,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",alignItems:"center",background:T.cardAlt,minHeight:38,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
             <div style={{width:LBL_W,flexShrink:0,paddingLeft:4,display:"flex",flexDirection:"column",gap:0}}>
               <span style={{...eye,fontSize:9,color:T.text}}>Balance</span>
-              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75,marginTop:1}}>carry-over</span>
+              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:10,color:T.muted,opacity:0.75,marginTop:1}}>end · low</span>
             </div>
             <div style={{width:DAY_W,flexShrink:0}}/>
             {planTotals.map(({m,running,inc,exp},i)=>{
               const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0);
-              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+              const md=monthDaily[i];
+              const showLow=md&&hasData&&md.low<md.end-0.5;
+              const lowNeg=md&&md.low<0;
+              // sparkline
+              const traj=md?md.trajectory:[];
+              const tMin=traj.length?Math.min(...traj,md.startBal):0;
+              const tMax=traj.length?Math.max(...traj,md.startBal):0;
+              const tRange=tMax-tMin||1;
+              const sw=COL_W-6,sh=10;
+              const points=traj.map((v,idx)=>{
+                const x=(idx/(traj.length-1||1))*sw;
+                const y=sh-((v-tMin)/tRange)*sh;
+                return`${x.toFixed(1)},${y.toFixed(1)}`;
+              }).join(" ");
+              return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"3px 0"}}>
                 {hasData
-                  ? <span style={{...numF,fontSize:11,color:running>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px"}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
+                  ? <>
+                      <span style={{...numF,fontSize:11,color:running>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px",lineHeight:1}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
+                      {traj.length>1&&<svg width={sw} height={sh} style={{display:"block",opacity:0.55}}>
+                        <polyline fill="none" stroke={lowNeg?RED:OLIVE} strokeWidth="1" points={points}/>
+                        {showLow&&md.lowDay>0&&<circle cx={((md.lowDay-1)/(traj.length-1||1))*sw} cy={sh-((md.low-tMin)/tRange)*sh} r="1.6" fill={lowNeg?RED:T.muted}/>}
+                      </svg>}
+                      {showLow
+                        ? <span title={`Lowest balance reached on day ${md.lowDay}`} style={{...numF,fontSize:7.5,color:lowNeg?RED:T.muted,opacity:0.85,fontWeight:600,letterSpacing:"normal",lineHeight:1}}>↓€{md.low<0?"−":""}{Math.abs(md.low).toFixed(0)}{md.lowDay>0?` ·${md.lowDay}`:""}</span>
+                        : <span style={{...numF,fontSize:7.5,color:T.muted,opacity:0.25,lineHeight:1}}>·</span>}
+                    </>
                   : <span style={{...numF,fontSize:10,color:T.muted,opacity:0.25}}>—</span>}
               </div>;
             })}
@@ -5165,7 +5220,7 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
 }
 
 // ── Paper Calendar (Today page) ──────────────────────────────────────────
-function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExpand,setModal,expanded=false}){
+function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExpand,setModal,expanded=false,budgetCats=[],envelopes=[]}){
   const T=useT();
   const [cursor,setCursor]=React.useState(()=>{const d=new Date();d.setDate(1);return d;});
   const now=new Date();
@@ -5187,11 +5242,27 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
   const monthStart=`${monthMs}-01`;
   const monthEnd=`${monthMs}-${String(daysInMonth).padStart(2,'0')}`;
 
+  // Phantom budget events for the visible month (each cat with cat.day)
+  const RED=T.red||"#c8412e", OLIVE="#6b7c3a";
+  const lastDayInMonth=daysInMonth;
+  const budgetEventsByDay=useMemo(()=>{
+    const map={};
+    (budgetCats||[]).forEach(c=>{
+      if(!c||!c.day||c.type==="divider")return;
+      const d=Math.min(c.day,lastDayInMonth);
+      const ds=`${monthMs}-${String(d).padStart(2,"0")}`;
+      const amt=(envelopes||[]).find(e=>e.month===monthMs&&e.category===c.label)?.budgeted||0;
+      (map[ds]=map[ds]||[]).push({cat:c,amt,kind:c.type,color:c.type==="income"?OLIVE:RED});
+    });
+    return map;
+  },[budgetCats,envelopes,monthMs,lastDayInMonth]);
+  const monthBudgetCount=Object.values(budgetEventsByDay).reduce((s,a)=>s+a.length,0);
+
   // Count events in month (tasks + apple + trips)
   const monthTaskCount=tasks.filter(t=>t.deadline&&t.deadline>=monthStart&&t.deadline<=monthEnd).length;
   const monthAppleCount=(appleEvents||[]).filter(e=>e.end>=monthStart&&e.start<=monthEnd).length;
   const monthTripCount=trips.filter(t=>(t.startDate<=monthEnd&&t.endDate>=monthStart)).length;
-  const totalEvents=monthTaskCount+monthAppleCount;
+  const totalEvents=monthTaskCount+monthAppleCount+monthBudgetCount;
 
   function dayDots(ds){
     const dots=[];
@@ -5199,11 +5270,12 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
     const dayEvts=(appleEvents||[]).filter(e=>e.start<=ds&&e.end>=ds);
     const dayTrips=trips.filter(t=>ds>=t.startDate&&ds<=t.endDate);
     const dayGoals=goals.filter(g=>g.targetDate===ds);
-    // Prioritize colors: trip > goal > apple > task
+    const dayBudget=budgetEventsByDay[ds]||[];
     if(dayTrips.length)dots.push(T.mint);
     if(dayGoals.length)dots.push('#8338EC');
     dayEvts.slice(0,2).forEach(e=>dots.push(e.calColor||T.mint));
     if(dayTasks.length)dots.push(T.text);
+    if(dayBudget.length)dots.push(dayBudget[0].color);
     return dots.slice(0,3);
   }
 
@@ -5214,6 +5286,7 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
     goals.filter(g=>g.targetDate===ds).forEach(g=>rows.push({title:g.title,color:'#8338EC',kind:'goal'}));
     (appleEvents||[]).filter(e=>e.start<=ds&&e.end>=ds).forEach(e=>rows.push({title:e.summary||'Event',color:e.calColor||T.mint,kind:'event'}));
     tasks.filter(t=>t.deadline===ds).forEach(t=>rows.push({title:t.title,color:t.completed?T.muted:T.text,kind:'task',completed:!!t.completed}));
+    (budgetEventsByDay[ds]||[]).forEach(b=>rows.push({title:b.amt>0?`${b.cat.label} ${b.kind==="income"?"+":"−"}€${b.amt}`:b.cat.label,color:b.color,kind:'budget'}));
     return rows.slice(0,limit);
   }
 
@@ -5292,6 +5365,9 @@ function PaperCalendarTodayCard({tasks,trips,goals,completions,appleEvents,onExp
           <span style={{display:'inline-flex',alignItems:'center',gap:5,fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.mint}}>
             <span style={{width:4,height:4,borderRadius:'50%',background:T.mint,display:'inline-block'}}/>TODAY
           </span>
+          {monthBudgetCount>0&&<span style={{display:'inline-flex',alignItems:'center',gap:5,fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:RED}}>
+            <span style={{width:4,height:4,borderRadius:'50%',background:RED,display:'inline-block'}}/>MONEY
+          </span>}
         </div>
         <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted}}>
           {totalEvents} EVENT{totalEvents!==1?'S':''} · {monthTripCount} TRIP{monthTripCount!==1?'S':''}
@@ -5681,6 +5757,47 @@ function PaperTripsTodayCard({trips,setTrips,photos,setPhotos,onExpand,onAddTrip
 }
 
 // ── Paper Money (Today page) ─────────────────────────────────────────────
+// ── Due in next 7 days, dispatch-style horizontal strip ──────────────────
+function PaperDueStrip({budgetCats,envelopes,onExpand}){
+  const T=useT();
+  const due=useMemo(()=>computeDueSoon(budgetCats,envelopes,7),[budgetCats,envelopes]);
+  if(!due.length)return null;
+  const today=new Date(),t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  const RED=T.red||"#c8412e";
+  const OLIVE="#6b7c3a";
+  const totalOut=due.filter(d=>d.kind==="expense").reduce((s,d)=>s+d.amt,0);
+  const totalIn=due.filter(d=>d.kind==="income").reduce((s,d)=>s+d.amt,0);
+  return (
+    <div style={{padding:'0 2rem',marginTop:18}}>
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'14px 22px',display:'flex',alignItems:'center',gap:18,flexWrap:'wrap',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
+        <div style={{display:'flex',flexDirection:'column',gap:1,flexShrink:0,minWidth:120}}>
+          <span onClick={onExpand} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.mint,cursor:onExpand?'pointer':'default'}}>Due · Next 7 Days</span>
+          <span style={{fontFamily:PP_M,fontSize:8,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted,marginTop:2}}>
+            {totalOut>0&&<span style={{color:RED}}>−€{totalOut}</span>}
+            {totalOut>0&&totalIn>0&&<span style={{opacity:0.4,margin:'0 4px'}}>·</span>}
+            {totalIn>0&&<span style={{color:OLIVE}}>+€{totalIn}</span>}
+          </span>
+        </div>
+        <div style={{flex:1,display:'flex',alignItems:'center',gap:14,flexWrap:'wrap',minWidth:0}}>
+          {due.map((d,i)=>{
+            const isToday=d.date.toDateString()===t0.toDateString();
+            const isTomorrow=(()=>{const t1=new Date(t0);t1.setDate(t1.getDate()+1);return d.date.toDateString()===t1.toDateString();})();
+            const dayLbl=isToday?"Today":isTomorrow?"Tom":(MFULL[d.date.getMonth()].slice(0,3)+" "+d.date.getDate());
+            const ACC=d.kind==="income"?OLIVE:RED;
+            return (
+              <span key={i} style={{display:'inline-flex',alignItems:'baseline',gap:6,fontFamily:PP_M,fontSize:11}}>
+                <span style={{fontVariantNumeric:'tabular-nums',fontSize:9,fontWeight:700,color:isToday?ACC:T.muted,letterSpacing:'0.05em',textTransform:'uppercase',whiteSpace:'nowrap'}}>{dayLbl}</span>
+                <span style={{color:T.text,fontWeight:500,whiteSpace:'nowrap'}}>{d.cat.label}</span>
+                {d.amt>0&&<span style={{fontVariantNumeric:'tabular-nums',color:ACC,fontWeight:700,whiteSpace:'nowrap'}}>{d.kind==="income"?"+":"−"}€{d.amt}</span>}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PaperMoneyTodayCard({envelopes,onExpand}){
   const T=useT();
   const now=new Date();
@@ -5958,7 +6075,7 @@ function PaperPageHdr({title,sub,action}){
 }
 
 // ── Sub-pages ─────────────────────────────────────────────────────────────
-function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trips,appleEvents,setModal,setFocusDay,pushUndo,bingo,setBingo,apiKey}){
+function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trips,appleEvents,setModal,setFocusDay,pushUndo,bingo,setBingo,apiKey,budgetCats=[],envelopes=[]}){
   const T=useT();
   const now=new Date();
   const y=now.getFullYear(),m=now.getMonth();
@@ -5980,7 +6097,7 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
     <div style={{padding:'20px 2rem 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
       {/* Calendar section */}
       <div style={{display:'flex',flexDirection:'column',gap:16,minWidth:0}}>
-        <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} setModal={setModal} expanded={true}/>
+        <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} setModal={setModal} expanded={true} budgetCats={budgetCats} envelopes={envelopes}/>
 
         {/* Tasks + Trips this month — at the bottom of the calendar section */}
         <div style={{...cardStyle,padding:'18px 26px 22px'}}>
@@ -6370,11 +6487,12 @@ function App(){
 
       {page==="today"&&<>
         <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
+        <PaperDueStrip budgetCats={budgetCats} envelopes={envelopes} onExpand={()=>setPage('money')}/>
         <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents}/>
 
         {/* CALENDAR + GOALS — editorial self-contained cards */}
         <div style={{padding:'20px 2rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
-          <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} onExpand={()=>setPage('plan')} setModal={setModal}/>
+          <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} onExpand={()=>setPage('plan')} setModal={setModal} budgetCats={budgetCats} envelopes={envelopes}/>
           <PaperGoalsTodayCard goals={goals} setGoals={setGoals} onExpand={()=>setPage('plan')}/>
         </div>
 
@@ -6386,7 +6504,7 @@ function App(){
         <PaperFooter/>
       </>}
 
-      {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey}/>}
+      {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey} budgetCats={budgetCats} envelopes={envelopes}/>}
       {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal}/>}
       {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats}/>}
       {page==="review"&&<ReviewPage tasks={tasks} setTasks={setTasks} goals={goals} apiKey={apiKey} setModal={setModal} pushUndo={pushUndo}/>}
