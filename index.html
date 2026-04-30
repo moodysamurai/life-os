@@ -2332,7 +2332,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const RED=T.red||T.mint;
       const COL_W=54;
       const LBL_W=204;
-      const DAY_W=38;
+      const DAY_W=46;
       const ACT_W=62;
       const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted};
       const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
@@ -2369,11 +2369,11 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <span style={{...numF,fontSize:11,color:T.text,fontWeight:500,whiteSpace:"nowrap"}}>{cat.label}</span>
           </div>
           <div style={{width:DAY_W,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <input type="number" min="1" max="31" placeholder="–"
+            <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} placeholder="–"
               title={cat.day?`Debited on day ${cat.day} of each month — clear to unset`:"Set day-of-month this category is debited (1–31)"}
               value={cat.day||""}
-              onChange={ev=>{const v=parseInt(ev.target.value);setBudgetCats(p=>p.map(c=>c.id===cat.id?{...c,day:(isNaN(v)||v<1||v>31)?undefined:v}:c));}}
-              style={{width:30,...numF,fontSize:10,fontWeight:700,color:cat.day?ACC:T.muted,opacity:cat.day?0.9:0.5,background:cat.day?alpha(ACC,.08):"transparent",border:`1px solid ${cat.day?alpha(ACC,.35):alpha(T.border,.4)}`,borderRadius:0,padding:"2px 2px",outline:"none",textAlign:"center",flexShrink:0,letterSpacing:"normal"}}/>
+              onChange={ev=>{const raw=ev.target.value.replace(/[^0-9]/g,"");const v=parseInt(raw);setBudgetCats(p=>p.map(c=>c.id===cat.id?{...c,day:(isNaN(v)||v<1||v>31)?undefined:v}:c));}}
+              style={{width:36,...numF,fontSize:11,fontWeight:700,color:cat.day?ACC:T.muted,opacity:cat.day?0.9:0.5,background:cat.day?alpha(ACC,.08):"transparent",border:`1px solid ${cat.day?alpha(ACC,.35):alpha(T.border,.4)}`,borderRadius:0,padding:"2px 4px",outline:"none",textAlign:"center",flexShrink:0,letterSpacing:"normal"}}/>
           </div>
           {planMonths.map(m=>{
             const amt=getPlanAmt(m,cat.label);
