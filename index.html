@@ -2266,7 +2266,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
   const planMonths=useMemo(()=>{
     const ms=[];
-    for(let i=1;i<=12;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
+    for(let i=0;i<12;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
     return ms;
   },[]);
   function getPlanAmt(m,cat){return envelopes.find(e=>e.month===m&&e.category===cat)?.budgeted||0;}
