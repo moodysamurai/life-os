@@ -1821,6 +1821,265 @@ const DEFAULT_BUDGET_CATS=[
 ];
 const CAT_COLS=["#A78BFA","#60A5FA","#34D399","#F87171","#FBBF24","#F472B6","#38BDF8","#A3E635","#FB923C","#818CF8","#2DD4BF","#E879F9"];
 
+// ── CASHFLOW CALENDAR ──────────────────────────────
+// Single-month money calendar. Mirrors PaperCalendarTodayCard layout. Each cell
+// shows: day number, running balance, income/expense pills. Hover any day to see
+// the full breakdown in the detail strip; the sparkline below shows the trajectory
+// across the month with the same hovered day highlighted.
+function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}){
+  const T=useT();
+  const OLIVE="#6b7c3a";
+  const RED=T.red||"#c8412e";
+  const [hoverDay,setHoverDay]=React.useState(null);
+
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:T.muted};
+  const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
+
+  const [yr,mo]=mon.split("-").map(Number);
+  const dim=new Date(yr,mo,0).getDate();
+  const monLabel=MFULL[mo-1]+" "+yr;
+
+  // Compute starting balance: roll forward (or back) from savingsStart, anchored to ym0.
+  const netForMonth=(m)=>{
+    const inc=incCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
+    const exp=expCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
+    return inc-exp;
+  };
+  let startBal=savingsStart||0;
+  const ym0Date=new Date(parseInt(ym0.slice(0,4)),parseInt(ym0.slice(5,7))-1,1);
+  const monDate=new Date(yr,mo-1,1);
+  if(monDate>ym0Date){
+    const c=new Date(ym0Date);
+    while(c<monDate){
+      const ms=`${c.getFullYear()}-${String(c.getMonth()+1).padStart(2,"0")}`;
+      startBal+=netForMonth(ms);
+      c.setMonth(c.getMonth()+1);
+    }
+  } else if(monDate<ym0Date){
+    const c=new Date(ym0Date);
+    while(c>monDate){
+      c.setMonth(c.getMonth()-1);
+      const ms=`${c.getFullYear()}-${String(c.getMonth()+1).padStart(2,"0")}`;
+      startBal-=netForMonth(ms);
+    }
+  }
+
+  // Daily series for the month
+  const eventsByDay={};
+  [...incCats,...expCats].forEach(c=>{
+    if(c.type==="divider")return;
+    const amt=envelopes.find(e=>e.month===mon&&e.category===c.label)?.budgeted||0;
+    if(!amt)return;
+    const d=c.day?Math.min(c.day,dim):1;
+    (eventsByDay[d]=eventsByDay[d]||[]).push({cat:c,amt,type:c.type});
+  });
+  const series=[];
+  let bal=startBal;
+  for(let d=1;d<=dim;d++){
+    const evs=eventsByDay[d]||[];
+    const dayIn=evs.filter(e=>e.type==="income").reduce((s,e)=>s+e.amt,0);
+    const dayOut=evs.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amt,0);
+    const dayNet=dayIn-dayOut;
+    const openBal=bal;
+    bal+=dayNet;
+    series.push({day:d,ds:`${mon}-${String(d).padStart(2,"0")}`,events:evs,dayNet,dayIn,dayOut,openBal,closeBal:bal});
+  }
+  const endBal=bal;
+  const lowPoint=series.reduce((a,b)=>b.closeBal<a.closeBal?b:a,series[0]);
+  const totalIn=series.reduce((s,p)=>s+p.dayIn,0);
+  const totalOut=series.reduce((s,p)=>s+p.dayOut,0);
+  const netMonth=totalIn-totalOut;
+
+  // Calendar grid (Mon-first)
+  const offset=(new Date(yr,mo-1,1).getDay()+6)%7;
+  const weeks=Math.ceil((offset+dim)/7);
+  const isCurMonth=mon===ym0;
+  const todayDay=isCurMonth?today.getDate():null;
+
+  // Default focus: today if cur month, else low day
+  const focusDay=hoverDay??(isCurMonth?todayDay:lowPoint.day);
+  const focusInfo=focusDay?series[focusDay-1]:null;
+
+  const fmtMoney=(n)=>`${n<0?"−":""}€${Math.abs(n).toLocaleString("en-GB",{maximumFractionDigits:0})}`;
+
+  // Sparkline geometry
+  const SPARK_W=1000,SPARK_H=64,sPad=8;
+  const balances=series.map(p=>p.closeBal);
+  const yMin=Math.min(0,...balances);
+  const yMax=Math.max(0,...balances,1);
+  const yRange=yMax-yMin||1;
+  const xOf=(i)=>sPad+(i/(dim-1||1))*(SPARK_W-2*sPad);
+  const yOf=(b)=>sPad+(1-(b-yMin)/yRange)*(SPARK_H-2*sPad);
+  const linePts=series.map((p,i)=>`${xOf(i).toFixed(1)},${yOf(p.closeBal).toFixed(1)}`).join(" ");
+  const zeroY=yOf(0);
+
+  // Cell tint based on balance/flow
+  const cellBg=(p)=>{
+    if(!p)return"transparent";
+    if(p.closeBal<0)return alpha(RED,0.18);
+    if(p.dayNet<0&&p.dayOut>0)return alpha(RED,0.04);
+    if(p.dayNet>0)return alpha(OLIVE,0.06);
+    return"transparent";
+  };
+
+  return <div style={{paddingTop:22,marginTop:14,borderTop:`1px solid ${T.border}`}}>
+    {/* Header */}
+    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:14,gap:14,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"baseline",gap:14}}>
+        <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:26,color:T.text,letterSpacing:"-0.4px",lineHeight:1}}>Cashflow</span>
+        <span style={{...eye,fontSize:9,color:T.muted}}>{monLabel} · Money Calendar</span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:14,...eye,fontSize:9,color:T.muted}}>
+        <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:OLIVE,display:"inline-block"}}/>Income</span>
+        <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:RED,display:"inline-block"}}/>Expense</span>
+      </div>
+    </div>
+
+    {/* Stat strip: OPEN · LOW · NET · CLOSE */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0,border:`1px solid ${T.border}`,marginBottom:12,background:T.cardAlt||T.bg}}>
+      {[
+        {label:"OPENING",v:fmtMoney(startBal),sub:"start of month",color:startBal<0?RED:T.text},
+        {label:"LOW POINT",v:fmtMoney(lowPoint.closeBal),sub:`day ${String(lowPoint.day).padStart(2,"0")}`,color:lowPoint.closeBal<0?RED:T.text},
+        {label:"NET",v:(netMonth>=0?"+":"")+fmtMoney(netMonth).replace("−","−"),sub:`+${fmtMoney(totalIn)} / −${fmtMoney(totalOut)}`,color:netMonth>=0?OLIVE:RED},
+        {label:"CLOSING",v:fmtMoney(endBal),sub:"end of month",color:endBal<0?RED:T.text}
+      ].map((s,i)=>(
+        <div key={i} style={{padding:"10px 14px",borderRight:i<3?`1px solid ${T.border}`:"none"}}>
+          <div style={{...eye,fontSize:8,marginBottom:4}}>{s.label}</div>
+          <div style={{...numF,fontSize:18,fontWeight:600,color:s.color,lineHeight:1}}>{s.v}</div>
+          <div style={{...eye,fontSize:7,marginTop:4,opacity:0.7}}>{s.sub}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Detail strip */}
+    {focusInfo&&
+      <div style={{padding:"10px 14px",border:`1px solid ${T.border}`,background:T.bg,marginBottom:12,display:"flex",alignItems:"baseline",gap:14,flexWrap:"wrap"}}>
+        <div style={{...eye,fontSize:9,color:hoverDay?T.text:T.muted,flexShrink:0}}>{hoverDay?"HOVER":"FOCUS"} · {MFULL[mo-1].slice(0,3)} {String(focusDay).padStart(2,"0")}</div>
+        <div style={{...numF,fontSize:11,color:T.muted,flexShrink:0}}>OPEN {fmtMoney(focusInfo.openBal)}</div>
+        {focusInfo.events.length===0?
+          <div style={{fontFamily:F,fontSize:11,color:T.muted,fontStyle:"italic",flex:1}}>no movements</div>
+          :
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",flex:1}}>
+            {focusInfo.events.map((ev,ei)=>{
+              const isInc=ev.type==="income";
+              const c=isInc?OLIVE:RED;
+              return <span key={ei} style={{...numF,fontSize:11,color:c,fontWeight:600}}>
+                {isInc?"+":"−"}€{ev.amt.toLocaleString("en-GB")} <span style={{color:T.text,fontWeight:400,opacity:0.7}}>{ev.cat.label}</span>
+              </span>;
+            })}
+          </div>
+        }
+        <div style={{...numF,fontSize:12,color:focusInfo.closeBal<0?RED:T.text,fontWeight:700,flexShrink:0}}>CLOSE {fmtMoney(focusInfo.closeBal)}</div>
+      </div>
+    }
+
+    {/* Calendar grid */}
+    <div style={{border:`1px solid ${T.border}`,background:T.card||T.bg}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+        {["MON","TUE","WED","THU","FRI","SAT","SUN"].map((d,i)=>(
+          <div key={d} style={{padding:"8px 0",textAlign:"center",...eye,fontSize:9,color:T.muted,borderRight:i<6?`1px solid ${T.border}`:"none"}}>{d}</div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gridAutoRows:"minmax(94px, 1fr)"}}>
+        {Array.from({length:weeks*7},(_,i)=>{
+          const dayN=i-offset+1;
+          const inMonth=dayN>=1&&dayN<=dim;
+          const p=inMonth?series[dayN-1]:null;
+          const isToday=inMonth&&isCurMonth&&dayN===todayDay;
+          const isLow=inMonth&&p&&lowPoint.day===dayN&&lowPoint.closeBal<0;
+          const isHover=inMonth&&hoverDay===dayN;
+          const colIdx=i%7;
+          const rowIdx=Math.floor(i/7);
+          const evs=inMonth?p.events:[];
+          return <div key={i}
+            onMouseEnter={inMonth?()=>setHoverDay(dayN):undefined}
+            onMouseLeave={inMonth?()=>setHoverDay(null):undefined}
+            style={{
+              position:"relative",padding:"5px 6px",
+              borderRight:colIdx<6?`1px solid ${T.border}`:"none",
+              borderBottom:rowIdx<weeks-1?`1px solid ${T.border}`:"none",
+              background:isHover?alpha(T.text||"#000",0.05):cellBg(p),
+              transition:"background 0.1s",
+              cursor:inMonth?"default":"default",
+              overflow:"hidden",
+              opacity:inMonth?1:0.3
+            }}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+              <span style={{...numF,fontSize:isToday?13:11,fontWeight:isToday?700:500,color:inMonth?T.text:T.muted}}>
+                {inMonth?String(dayN).padStart(2,"0"):""}
+              </span>
+              {inMonth&&
+                <span style={{...numF,fontSize:10,fontWeight:600,color:p.closeBal<0?RED:T.muted}}>
+                  {p.closeBal<0?"−":""}€{Math.abs(Math.round(p.closeBal)).toLocaleString("en-GB")}
+                </span>
+              }
+            </div>
+            {inMonth&&evs.length>0&&
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                {evs.slice(0,3).map((ev,ei)=>{
+                  const isInc=ev.type==="income";
+                  const c=isInc?OLIVE:RED;
+                  return <div key={ei} title={`${ev.cat.label} ${isInc?"+":"−"}€${ev.amt}`}
+                    style={{display:"flex",alignItems:"center",gap:4,background:alpha(c,0.14),borderLeft:`3px solid ${c}`,padding:"2px 5px",borderRadius:2,minHeight:14,overflow:"hidden"}}>
+                    <span style={{...numF,fontSize:9,fontWeight:700,color:c,flexShrink:0}}>
+                      {isInc?"+":"−"}€{ev.amt}
+                    </span>
+                    <span style={{fontSize:9,color:T.text,opacity:0.78,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,fontFamily:F}}>
+                      {ev.cat.label}
+                    </span>
+                  </div>;
+                })}
+                {evs.length>3&&
+                  <span style={{...eye,fontSize:7,color:T.muted,padding:"1px 0"}}>+{evs.length-3} more</span>
+                }
+              </div>
+            }
+            {inMonth&&isLow&&
+              <div style={{position:"absolute",bottom:3,right:5,...eye,fontSize:7,color:RED,fontWeight:700}}>LOW ↓</div>
+            }
+            {isToday&&
+              <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:T.mint||OLIVE}}/>
+            }
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {/* Sparkline */}
+    <div style={{marginTop:14,padding:"10px 12px",border:`1px solid ${T.border}`,background:T.cardAlt||T.bg}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+        <span style={{...eye,fontSize:8}}>BALANCE TRAJECTORY · {dim} DAYS</span>
+        <span style={{...numF,fontSize:9,color:T.muted}}>{fmtMoney(yMin)} → {fmtMoney(yMax)}</span>
+      </div>
+      <div>
+        <svg width="100%" height={SPARK_H} viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none" style={{display:"block"}}>
+          {yMin<0&&<line x1={sPad} y1={zeroY} x2={SPARK_W-sPad} y2={zeroY} stroke={T.muted} strokeDasharray="2,3" strokeWidth="0.6" opacity="0.5"/>}
+          {yMin<0&&<rect x={sPad} y={zeroY} width={SPARK_W-2*sPad} height={SPARK_H-sPad-zeroY} fill={RED} opacity="0.06"/>}
+          <polygon points={`${xOf(0)},${zeroY} ${linePts} ${xOf(dim-1)},${zeroY}`} fill={alpha(OLIVE,0.08)}/>
+          <polyline points={linePts} fill="none" stroke={T.text} strokeWidth="1.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
+          {isCurMonth&&todayDay&&
+            <line x1={xOf(todayDay-1)} y1={sPad} x2={xOf(todayDay-1)} y2={SPARK_H-sPad} stroke={T.mint||OLIVE} strokeWidth="1" strokeDasharray="2,2" opacity="0.7"/>
+          }
+          {hoverDay&&
+            <g>
+              <line x1={xOf(hoverDay-1)} y1={sPad} x2={xOf(hoverDay-1)} y2={SPARK_H-sPad} stroke={T.text} strokeWidth="1" opacity="0.5"/>
+              <circle cx={xOf(hoverDay-1)} cy={yOf(series[hoverDay-1].closeBal)} r="3.5" fill={T.bg} stroke={T.text} strokeWidth="1.4"/>
+            </g>
+          }
+          {lowPoint.closeBal<0&&
+            <circle cx={xOf(lowPoint.day-1)} cy={yOf(lowPoint.closeBal)} r="3" fill={T.bg} stroke={RED} strokeWidth="1.4"/>
+          }
+        </svg>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:4,...eye,fontSize:7,color:T.muted}}>
+        {[1,Math.max(2,Math.floor(dim/4)),Math.floor(dim/2),Math.floor(3*dim/4),dim].map((d,i)=>(
+          <span key={i}>{String(d).padStart(2,"0")}</span>
+        ))}
+      </div>
+    </div>
+  </div>;
+}
+
 function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats,pageMode}){
   const T=useT();
   const today=new Date(),todayStr=toStr(today);
@@ -2685,145 +2944,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           </div>
         </div>
 
-        {/* ── CASHFLOW: 12-month money calendar + balance trajectory overlay ── */}
-        {(()=>{
-          // Build full daily series
-          const series=[]; // [{ds, day, mIdx, bal, events:[{cat,amt}]}]
-          monthDaily.forEach((md,mIdx)=>{
-            for(let d=1;d<=md.dim;d++){
-              const ds=`${md.m}-${String(d).padStart(2,"0")}`;
-              const events=(budgetCats||[]).filter(c=>{
-                if(!c||!c.day||c.type==="divider")return false;
-                return Math.min(c.day,md.dim)===d;
-              }).map(c=>({cat:c,amt:envelopes.find(e=>e.month===md.m&&e.category===c.label)?.budgeted||0}));
-              series.push({ds,day:d,mIdx,bal:md.trajectory[d-1],events});
-            }
-          });
-          const total=series.length;
-          if(!total)return null;
-
-          const W=1000,H=240,padL=56,padR=12,padT=14,padB=46;
-          const innerW=W-padL-padR;
-          const cellRowH=22;
-          const innerH=H-padT-padB-cellRowH;
-          const cellTop=padT+innerH+4;
-
-          const balances=series.map(p=>p.bal);
-          const yMin=Math.min(0,...balances);
-          const yMax=Math.max(0,...balances,1);
-          const yRange=yMax-yMin||1;
-          const xOf=i=>padL+(i/(total-1||1))*innerW;
-          const dayW=innerW/total;
-          const yOf=b=>padT+(1-(b-yMin)/yRange)*innerH;
-          const linePts=series.map((p,i)=>`${xOf(i).toFixed(1)},${yOf(p.bal).toFixed(1)}`).join(" ");
-          const zeroY=yOf(0);
-
-          // Month boundaries for dividers + labels
-          const monthMarks=[];
-          let acc=0;
-          monthDaily.forEach(md=>{monthMarks.push({startIdx:acc,m:md.m,dim:md.dim,low:md.low,lowDay:md.lowDay,end:md.end});acc+=md.dim;});
-
-          // Today index (if today falls in series window)
-          const todayMs=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
-          const todayIdx=series.findIndex(p=>p.ds===toStr(today));
-
-          return <div style={{paddingTop:22,marginTop:14,borderTop:`1px solid ${T.border}`}}>
-            <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12,gap:14,flexWrap:"wrap"}}>
-              <div style={{display:"flex",alignItems:"baseline",gap:14}}>
-                <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:26,color:T.text,letterSpacing:"-0.4px",lineHeight:1}}>Cashflow</span>
-                <span style={{...eye,fontSize:9,color:T.muted}}>Daily Trajectory · Money Calendar</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:14,...eye,fontSize:9,color:T.muted}}>
-                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:OLIVE,display:"inline-block"}}/>Income</span>
-                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:RED,display:"inline-block"}}/>Expense</span>
-                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:10,height:2,background:T.text,display:"inline-block"}}/>Balance</span>
-                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,border:`1px solid ${RED}`,borderRadius:"50%",display:"inline-block"}}/>Low</span>
-              </div>
-            </div>
-
-            <div style={{overflowX:"auto"}}>
-              <svg width={W} height={H} style={{display:"block",minWidth:W}}>
-                {/* Y grid: 0 line + max + min */}
-                <line x1={padL} y1={zeroY} x2={W-padR} y2={zeroY} stroke={T.muted} strokeDasharray="2,3" strokeWidth="0.6" opacity="0.55"/>
-                <text x={padL-7} y={padT+5} textAnchor="end" fill={T.muted} style={{...numF,fontSize:9}}>€{yMax.toFixed(0)}</text>
-                <text x={padL-7} y={zeroY+3} textAnchor="end" fill={T.muted} style={{...numF,fontSize:9}}>€0</text>
-                {yMin<-0.5&&<text x={padL-7} y={padT+innerH+3} textAnchor="end" fill={RED} style={{...numF,fontSize:9}}>−€{Math.abs(yMin).toFixed(0)}</text>}
-
-                {/* Negative-balance shaded region */}
-                {yMin<0&&<rect x={padL} y={zeroY} width={innerW} height={(padT+innerH)-zeroY} fill={RED} opacity="0.06"/>}
-
-                {/* Month dividers + labels */}
-                {monthMarks.map((b,idx)=>{
-                  const x=xOf(b.startIdx);
-                  return <g key={b.m}>
-                    <line x1={x} y1={padT} x2={x} y2={cellTop+cellRowH} stroke={T.border} strokeWidth="0.5" opacity="0.5"/>
-                  </g>;
-                })}
-
-                {/* Trajectory area fill */}
-                <polygon
-                  points={`${xOf(0)},${zeroY} ${linePts} ${xOf(total-1)},${zeroY}`}
-                  fill={alpha(OLIVE,0.08)}
-                />
-                {/* Trajectory line */}
-                <polyline points={linePts} fill="none" stroke={T.text} strokeWidth="1.4" strokeLinejoin="round"/>
-
-                {/* Today vertical marker */}
-                {todayIdx>=0&&<g>
-                  <line x1={xOf(todayIdx)} y1={padT} x2={xOf(todayIdx)} y2={cellTop+cellRowH} stroke={T.mint||OLIVE} strokeWidth="1" strokeDasharray="3,2" opacity="0.85"/>
-                  <text x={xOf(todayIdx)} y={padT-3} textAnchor="middle" fill={T.mint||OLIVE} style={{...numF,fontSize:8,fontWeight:700,letterSpacing:"0.1em"}}>TODAY</text>
-                </g>}
-
-                {/* Monthly low-point markers */}
-                {monthMarks.map((b,idx)=>{
-                  if(b.lowDay<=0||b.low>=b.end-0.5)return null;
-                  const i=b.startIdx+b.lowDay-1;
-                  const cx=xOf(i),cy=yOf(b.low);
-                  const isNeg=b.low<0;
-                  return <g key={"low-"+b.m}>
-                    <circle cx={cx} cy={cy} r="3.5" fill={T.bg} stroke={isNeg?RED:T.muted} strokeWidth="1.2"/>
-                    {isNeg&&<text x={cx} y={cy-7} textAnchor="middle" fill={RED} style={{...numF,fontSize:8,fontWeight:700}}>↓€{Math.abs(b.low).toFixed(0)}</text>}
-                  </g>;
-                })}
-
-                {/* Money calendar strip below the chart */}
-                <line x1={padL} y1={cellTop} x2={W-padR} y2={cellTop} stroke={T.border} strokeWidth="0.5"/>
-                <line x1={padL} y1={cellTop+cellRowH} x2={W-padR} y2={cellTop+cellRowH} stroke={T.border} strokeWidth="0.5"/>
-                {series.map((p,i)=>{
-                  if(!p.events.length)return null;
-                  const x=xOf(i)-dayW/2;
-                  const w=Math.max(2,dayW-0.5);
-                  return p.events.map((ev,ei)=>{
-                    const isInc=ev.cat.type==="income";
-                    const color=isInc?OLIVE:RED;
-                    const yTop=cellTop+(isInc?1:cellRowH/2+1);
-                    const h=cellRowH/2-2;
-                    return <rect key={`${i}-${ei}`} x={x} y={yTop} width={w} height={h} fill={color} opacity={ev.amt>0?0.85:0.4}>
-                      <title>{`${ev.cat.label} ${isInc?"+":"−"}€${ev.amt} · ${p.ds}`}</title>
-                    </rect>;
-                  });
-                })}
-
-                {/* Month labels at the very bottom */}
-                {monthMarks.map((b,idx)=>{
-                  const next=monthMarks[idx+1]?monthMarks[idx+1].startIdx:total;
-                  const mid=(b.startIdx+next)/2;
-                  const lbl=MFULL[parseInt(b.m.split("-")[1])-1].slice(0,3);
-                  const yr=b.m.slice(2,4);
-                  const isCur=b.m===todayMs;
-                  return <g key={"lbl-"+b.m}>
-                    <text x={xOf(mid)} y={H-22} textAnchor="middle" fill={isCur?(T.mint||OLIVE):T.text} style={{...numF,fontSize:9,fontWeight:isCur?700:600,letterSpacing:"0.1em",textTransform:"uppercase"}}>{lbl}</text>
-                    <text x={xOf(mid)} y={H-10} textAnchor="middle" fill={T.muted} style={{...numF,fontSize:7,letterSpacing:"0.05em"}}>'{yr}</text>
-                  </g>;
-                })}
-              </svg>
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between",marginTop:8,...eye,fontSize:8,color:T.muted}}>
-              <span>{total} days · {monthMarks.length} months</span>
-              <span>Low row · expense (top), income (bottom)</span>
-            </div>
-          </div>;
-        })()}
+        {/* ── CASHFLOW: single-month money calendar with hover detail + sparkline ── */}
+        <CashflowCalendar mon={mon} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
 
       </div>;
     })()}
