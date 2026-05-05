@@ -33,8 +33,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .theme-ocean input[type=date]{color-scheme:dark;}
 .theme-midnight input[type=date]{color-scheme:dark;}
 .theme-paper input[type=date]{color-scheme:light;}
+.theme-paper.theme-dark input[type=date]{color-scheme:dark;}
 .theme-paper ::-webkit-scrollbar-thumb{background:rgba(29,26,20,0.2);border-radius:2px;}
 .theme-paper ::-webkit-scrollbar-track{background:transparent;}
+.theme-paper.theme-dark ::-webkit-scrollbar-thumb{background:rgba(241,237,229,0.18);}
 
 /* ── PAPER PANEL ANIMATIONS ──────────────────── */
 @keyframes pp-pop{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
@@ -42,14 +44,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 
 /* ── PAPER PANEL MANIFEST ROW HOVER ───────────── */
 .paper-row:hover{background:rgba(29,26,20,0.035);}
+.theme-dark .paper-row:hover{background:rgba(241,237,229,0.04);}
 .paper-row:hover .row-title{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;}
 .paper-section{position:relative;}
 .paper-section + .paper-section{border-top:1px solid rgba(29,26,20,0.14);}
+.theme-dark .paper-section + .paper-section{border-top-color:rgba(241,237,229,0.12);}
 
 /* Paper grain texture overlay */
 .theme-paper::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   opacity:0.028;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   background-size:200px 200px;}
+.theme-paper.theme-dark::before{opacity:0.05;mix-blend-mode:screen;}
 .wwidget:hover .rhandle{opacity:1!important;}
 .rhandle{opacity:0;transition:opacity .15s;}
 
@@ -220,6 +225,28 @@ function buildPaper(){
     mono:'"JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace',
     faint:'#aaa497',ink:'#1d1a14',inkSoft:'#4d4738',muted:'#7c7568',red:'#c8412e',
     lineSoft:'rgba(29,26,20,0.07)',
+  };
+}
+
+// Midnight edition — same editorial tokens, ink-on-cream inverted.
+// Red lifts to #e85a45 so it stays warm against deep ground.
+function buildPaperDark(){
+  return{
+    bg:'#14110c',bgGradient:'#14110c',
+    card:'#1c1813',cardAlt:'#26211a',
+    cardGlass:'rgba(28,24,19,0.42)',cardAltGlass:'rgba(38,33,26,0.32)',
+    border:'rgba(241,237,229,0.12)',borderSft:'rgba(241,237,229,0.06)',inp:'#1a1611',
+    mint:'#e85a45',mintX:'rgba(232,90,69,0.14)',
+    blue:'#bdb5a3',blueX:'rgba(189,181,163,0.10)',
+    pink:'#e85a45',pinkX:'rgba(232,90,69,0.14)',
+    yellow:'#d4a04a',yellX:'rgba(212,160,74,0.12)',
+    text:'#f1ede5',textMd:'#bdb5a3',textLt:'#7c7568',textHi:'#f8f4ea',
+    overlay:'rgba(0,0,0,0.6)',isDark:true,
+    isPaper:true,
+    serif:'"Fraunces", "Cormorant Garamond", Georgia, serif',
+    mono:'"JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace',
+    faint:'#5a5448',ink:'#f1ede5',inkSoft:'#bdb5a3',muted:'#8a8170',red:'#e85a45',
+    lineSoft:'rgba(241,237,229,0.07)',
   };
 }
 
@@ -5382,7 +5409,7 @@ function PpBtn({children,onClick,accent}){
 }
 
 // ── Dispatch Navbar ───────────────────────────────────────────────────────
-function DispatchNavbar({page,setPage,dayOfYear,isMobile}){
+function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
   const T=useT();
   const NAV=[
     {id:'today',label:'TODAY'},
@@ -5393,6 +5420,7 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile}){
     {id:'wk',label:'WK'},
     {id:'settings',label:'⚙',title:'Settings'},
   ];
+  const isDark=mode==='dark';
   return(
     <header style={{background:T.bg,padding:'0 2rem',position:'sticky',top:0,zIndex:100}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',height:42,borderBottom:`1px solid ${T.text}`}}>
@@ -5404,6 +5432,7 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile}){
           {NAV.map(item=>(
             <button key={item.id} onClick={()=>setPage(item.id)} title={item.title||item.label} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:page===item.id?T.mint:T.muted,padding:0,lineHeight:1,transition:'color 0.12s'}}>{item.label}</button>
           ))}
+          {setMode&&<button onClick={()=>setMode(isDark?'light':'dark')} title={isDark?'Switch to light':'Switch to dark'} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:13,fontWeight:500,color:T.muted,padding:0,lineHeight:1,transition:'color 0.12s',marginLeft:isMobile?-4:-12}}>{isDark?'☼':'☾'}</button>}
         </div>
       </div>
     </header>
@@ -6572,7 +6601,9 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
 
 // ── APP ────────────────────────────────────────────
 function App(){
-  const T=useMemo(()=>buildPaper(),[]);
+  const [mode,setMode]=useState(()=>lg("plo3_mode","light"));
+  useEffect(()=>{ls("plo3_mode",mode);},[mode]);
+  const T=useMemo(()=>mode==='dark'?buildPaperDark():buildPaper(),[mode]);
 
   const [isMobile,setIsMobile]=useState(()=>window.innerWidth<768);
   useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
@@ -6821,8 +6852,8 @@ function App(){
   const maxW={maxWidth:1200,margin:'0 auto',padding:'0 2rem'};
 
   return <TC.Provider value={T}>
-    <div className="theme-paper" style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:PP_M,position:"relative"}}>
-      <DispatchNavbar page={page} setPage={setPage} dayOfYear={dayOfYear} isMobile={isMobile}/>
+    <div className={"theme-paper"+(mode==='dark'?' theme-dark':'')} style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:PP_M,position:"relative"}}>
+      <DispatchNavbar page={page} setPage={setPage} dayOfYear={dayOfYear} isMobile={isMobile} mode={mode} setMode={setMode}/>
       <PaperMetaStrip sun={sun}/>
 
       {page==="today"&&<>
