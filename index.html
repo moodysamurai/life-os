@@ -4936,17 +4936,21 @@ function supaRealtime(url,key,id,onData){
 function applyGistData(data,setters){
   const{setTasks,setTrips,setGoals,setCompletions,setNotes,setScratchpads,setBingo,
         setBudget,setEnvelopes,setBudgetCats,
+        setWardrobeItems,setWardrobeWears,setWardrobeOutfits,
         setLayout,setWidgets,setNavOrder,setMinimised}=setters;
-  if(data.tasks)       setTasks(data.tasks);
-  if(data.trips)       setTrips(data.trips);
-  if(data.goals)       setGoals(data.goals);
-  if(data.completions) setCompletions(data.completions);
-  if(data.notes)       setNotes(data.notes);
-  if(data.scratchpads) setScratchpads(data.scratchpads);
-  if(data.bingo)       setBingo(data.bingo);
-  if(data.budget)      setBudget(data.budget);
-  if(data.envelopes)   setEnvelopes(data.envelopes);
-  if(data.budgetCats)  setBudgetCats(data.budgetCats);
+  if(data.tasks)          setTasks(data.tasks);
+  if(data.trips)          setTrips(data.trips);
+  if(data.goals)          setGoals(data.goals);
+  if(data.completions)    setCompletions(data.completions);
+  if(data.notes)          setNotes(data.notes);
+  if(data.scratchpads)    setScratchpads(data.scratchpads);
+  if(data.bingo)          setBingo(data.bingo);
+  if(data.budget)         setBudget(data.budget);
+  if(data.envelopes)      setEnvelopes(data.envelopes);
+  if(data.budgetCats)     setBudgetCats(data.budgetCats);
+  if(data.wardrobeItems&&setWardrobeItems)   setWardrobeItems(data.wardrobeItems);
+  if(data.wardrobeWears&&setWardrobeWears)   setWardrobeWears(data.wardrobeWears);
+  if(data.wardrobeOutfits&&setWardrobeOutfits) setWardrobeOutfits(data.wardrobeOutfits);
   if(data.layout)      setLayout(data.layout);
   if(data.widgets)     setWidgets(data.widgets);
   if(data.navOrder)    setNavOrder(data.navOrder);
@@ -5418,6 +5422,7 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
     {id:'money',label:'MONEY'},
     {id:'review',label:'REVIEW'},
     {id:'wk',label:'WK'},
+    {id:'wardrobe',label:'WDRB'},
     {id:'settings',label:'⚙',title:'Settings'},
   ];
   const isDark=mode==='dark';
@@ -6599,6 +6604,343 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
   </div>;
 }
 
+// ── WARDROBE ──────────────────────────────────────────────────────────────
+const WRD_CATS=['top','bottom','outerwear','footwear','accessory','other'];
+const WRD_STATUS=['active','do_not_style','archived','sold','donated'];
+const WRD_FORMALITY=['casual','smart_casual','business_casual','formal','black_tie'];
+const WRD_SOURCE=['purchase','gift','self_made','secondhand'];
+const WRD_COLORS=['black','white','grey','navy','brown','beige','green','blue','red','orange','yellow','pink','purple','multi'];
+
+function WrdDonut({value,size,color}){
+  const r=(size-8)/2;const circ=2*Math.PI*r;const fill=(value/100)*circ;
+  return(<svg width={size} height={size} style={{transform:'rotate(-90deg)'}}><circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={5}/><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={5} strokeDasharray={`${fill} ${circ-fill}`} strokeLinecap="round"/></svg>);
+}
+function WrdBars({data,color,showPct=true}){
+  const T=useT();
+  return(<div style={{display:'flex',flexDirection:'column',gap:8}}>{data.map((d,i)=>(<div key={i}><div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontFamily:PP_M,fontSize:9,color:T.text,letterSpacing:'0.1em'}}>{d.label}</span><span style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>{d.value}{showPct&&typeof d.pct==='number'?` (${d.pct}%)`:''}</span></div><div style={{background:'rgba(0,0,0,0.06)',borderRadius:1,height:3}}><div style={{background:color,height:3,borderRadius:1,width:`${d.pct}%`,transition:'width 0.3s'}}/></div></div>))}</div>);
+}
+function WardrobeItemCard({item,wears,onClick}){
+  const T=useT();
+  const cpw=item.price_paid&&wears.length>0?(item.price_paid/wears.length).toFixed(1):null;
+  const statusDot={active:T.mint,do_not_style:T.muted,archived:'#888',sold:'#aaa',donated:'#aaa'};
+  return(
+    <div onClick={onClick} style={{cursor:'pointer',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',transition:'border-color 0.1s'}} onMouseEnter={e=>e.currentTarget.style.borderColor=T.text} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+      <div style={{background:T.cardAlt,aspectRatio:'3/4',display:'flex',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
+        {item.image_url?<img src={item.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>{(item.category||'—').toUpperCase()}</span>}
+        {item.status!=='active'&&<div style={{position:'absolute',top:6,right:6,background:statusDot[item.status]||T.muted,borderRadius:2,padding:'2px 5px',fontFamily:PP_M,fontSize:8,color:'#fff',letterSpacing:'0.1em'}}>{item.status.replace(/_/g,' ').toUpperCase()}</div>}
+      </div>
+      <div style={{padding:'8px 10px'}}>
+        <div style={{fontFamily:PP_M,fontSize:10,color:T.text,letterSpacing:'0.1em',marginBottom:2,textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.subcategory||item.category||'—'}</div>
+        {item.brand&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.08em',marginBottom:3}}>{item.brand}</div>}
+        <div style={{display:'flex',justifyContent:'space-between',fontFamily:PP_M,fontSize:9,color:T.muted}}><span>{wears.length}× worn</span>{cpw&&<span>€{cpw}/wr</span>}</div>
+      </div>
+    </div>
+  );
+}
+function WardrobeGrid({items,wears,filters,setFilters,onSelectItem}){
+  const T=useT();
+  const btnSty=(active)=>({background:'transparent',border:`1px solid ${active?T.text:T.border}`,padding:'3px 10px',fontFamily:PP_M,fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',color:active?T.text:T.muted,borderRadius:2});
+  return(
+    <div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
+        {['','top','bottom','outerwear','footwear','accessory','other'].map(c=><button key={c||'all'} onClick={()=>setFilters(f=>({...f,category:c}))} style={btnSty(filters.category===c)}>{c||'ALL'}</button>)}
+        <div style={{width:1,background:T.border,margin:'0 4px'}}/>
+        {[['','ALL'],['active','ACTIVE'],['do_not_style','DNS'],['archived','ARCH'],['sold','SOLD']].map(([s,l])=><button key={s||'all'} onClick={()=>setFilters(f=>({...f,status:s}))} style={btnSty(filters.status===s)}>{l}</button>)}
+      </div>
+      <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',marginBottom:14}}>{items.length} ITEMS</div>
+      {items.length===0?<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>NO ITEMS · ADD YOUR FIRST GARMENT</div>:(
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:14}}>
+          {items.map(item=><WardrobeItemCard key={item.id} item={item} wears={wears.filter(w=>w.item_id===item.id)} onClick={()=>onSelectItem(item)}/>)}
+        </div>
+      )}
+    </div>
+  );
+}
+function AddItemModal({item:editItem,onClose,onSave,supaUrl,supaKey}){
+  const T=useT();
+  const isEdit=!!editItem;
+  const blank={id:uid(),image_url:'',category:'top',subcategory:'',colors:['black'],formality:'casual',brand:'',price_paid:'',source:'purchase',status:'active',owned_since:'',season:'',notes:'',created_at:new Date().toISOString()};
+  const [form,setForm]=useState(editItem?{...editItem,price_paid:editItem.price_paid??''}:blank);
+  const [uploading,setUploading]=useState(false);
+  const [imgPreview,setImgPreview]=useState(editItem?.image_url||'');
+  const fileRef=React.useRef();
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const toggleColor=c=>setForm(f=>({...f,colors:(f.colors||[]).includes(c)?(f.colors||[]).filter(x=>x!==c):[...(f.colors||[]),c]}));
+  async function handleFile(e){
+    const file=e.target.files?.[0];if(!file)return;
+    setImgPreview(URL.createObjectURL(file));
+    if(!supaUrl||!supaKey)return;
+    setUploading(true);
+    try{
+      const ext=file.name.split('.').pop()||'jpg';
+      const path=`${form.id}.${ext}`;
+      const res=await fetch(`${supaUrl}/storage/v1/object/wardrobe-items/${path}`,{method:'POST',headers:{'Authorization':`Bearer ${supaKey}`,'Content-Type':file.type,'x-upsert':'true'},body:file});
+      if(res.ok)set('image_url',`${supaUrl}/storage/v1/object/public/wardrobe-items/${path}`);
+    }catch(err){console.error('Wardrobe upload error:',err);}
+    setUploading(false);
+  }
+  const inp={fontFamily:PP_M,fontSize:11,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:2,padding:'6px 8px',color:T.text,width:'100%',boxSizing:'border-box',letterSpacing:'0.08em',outline:'none'};
+  const lbl={fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',textTransform:'uppercase',marginBottom:4,display:'block'};
+  const swatches={black:'#111',white:'#f0f0f0',grey:'#888',navy:'#1a2744',brown:'#7a5c3a',beige:'#d4b896',green:'#3d6b4a',blue:'#3a6bc8',red:'#c8412e',orange:'#e07a3a',yellow:'#d4b030',pink:'#e07ab4',purple:'#7a3ab4',multi:'conic-gradient(red,blue,green,red)'};
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:T.bg,border:`1px solid ${T.text}`,borderRadius:4,width:'min(680px,95vw)',maxHeight:'90vh',overflow:'auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 20px',borderBottom:`1px solid ${T.border}`}}>
+          <span style={{fontFamily:PP_M,fontSize:11,color:T.text,letterSpacing:'0.2em'}}>{isEdit?'EDIT ITEM':'ADD ITEM'}</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:14,color:T.muted}}>✕</button>
+        </div>
+        <div style={{padding:20,display:'grid',gridTemplateColumns:'150px 1fr',gap:20}}>
+          <div>
+            <div onClick={()=>fileRef.current?.click()} style={{background:T.cardAlt,aspectRatio:'3/4',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',border:`2px dashed ${T.border}`,borderRadius:4,overflow:'hidden',position:'relative'}}>
+              {imgPreview?<img src={imgPreview} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{textAlign:'center',padding:8}}><div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em',lineHeight:1.8}}>CLICK<br/>TO<br/>UPLOAD</div></div>}
+              {uploading&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:9,color:'#fff',letterSpacing:'0.12em'}}>UPLOADING…</span></div>}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div><label style={lbl}>Category</label><select value={form.category} onChange={e=>set('category',e.target.value)} style={inp}>{WRD_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+              <div><label style={lbl}>Subcategory</label><input value={form.subcategory} onChange={e=>set('subcategory',e.target.value)} placeholder="t-shirt, chinos…" style={inp}/></div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div><label style={lbl}>Brand</label><input value={form.brand} onChange={e=>set('brand',e.target.value)} style={inp}/></div>
+              <div><label style={lbl}>Price Paid (€)</label><input type="number" value={form.price_paid} onChange={e=>set('price_paid',e.target.value)} placeholder="0.00" style={inp}/></div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+              <div><label style={lbl}>Formality</label><select value={form.formality} onChange={e=>set('formality',e.target.value)} style={inp}>{WRD_FORMALITY.map(f=><option key={f} value={f}>{f.replace(/_/g,' ')}</option>)}</select></div>
+              <div><label style={lbl}>Source</label><select value={form.source} onChange={e=>set('source',e.target.value)} style={inp}>{WRD_SOURCE.map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}</select></div>
+              <div><label style={lbl}>Status</label><select value={form.status} onChange={e=>set('status',e.target.value)} style={inp}>{WRD_STATUS.map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}</select></div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div><label style={lbl}>Owned Since</label><input type="date" value={form.owned_since} onChange={e=>set('owned_since',e.target.value)} style={inp}/></div>
+              <div><label style={lbl}>Season</label><input value={form.season} onChange={e=>set('season',e.target.value)} placeholder="SS25, AW24…" style={inp}/></div>
+            </div>
+            <div>
+              <label style={lbl}>Colors</label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {WRD_COLORS.map(c=>{const sel=(form.colors||[]).includes(c);return(<button key={c} onClick={()=>toggleColor(c)} title={c} style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${sel?T.text:T.border}`,background:swatches[c]||'#ccc',cursor:'pointer',padding:0,outline:'none',flexShrink:0}}/>);})}
+              </div>
+            </div>
+            <div><label style={lbl}>Notes</label><textarea value={form.notes} onChange={e=>set('notes',e.target.value)} rows={2} placeholder="Fit notes, care instructions…" style={{...inp,resize:'vertical'}}/></div>
+          </div>
+        </div>
+        <div style={{display:'flex',justifyContent:'flex-end',gap:10,padding:'12px 20px',borderTop:`1px solid ${T.border}`}}>
+          <button onClick={onClose} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:'transparent',border:`1px solid ${T.border}`,padding:'6px 16px',cursor:'pointer',color:T.muted,borderRadius:2}}>CANCEL</button>
+          <button onClick={()=>onSave({...form,price_paid:form.price_paid!==''?parseFloat(form.price_paid):null})} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 16px',cursor:'pointer',color:T.bg,borderRadius:2}}>{isEdit?'SAVE CHANGES':'ADD TO WARDROBE'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function ItemDetailModal({item,wears,setWears,onClose,onEdit,onDelete}){
+  const T=useT();
+  const iw=wears.filter(w=>w.item_id===item.id).sort((a,b)=>b.worn_date.localeCompare(a.worn_date));
+  const cpw=item.price_paid&&iw.length>0?(item.price_paid/iw.length).toFixed(2):null;
+  const last30=iw.filter(w=>(Date.now()-new Date(w.worn_date))/86400000<=30).length;
+  function logWear(){const t=new Date().toISOString().split('T')[0];if(!iw.some(w=>w.worn_date===t))setWears(p=>[...p,{id:uid(),item_id:item.id,worn_date:t}]);}
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:T.bg,border:`1px solid ${T.text}`,borderRadius:4,width:'min(580px,95vw)',maxHeight:'90vh',overflow:'auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 20px',borderBottom:`1px solid ${T.border}`}}>
+          <span style={{fontFamily:PP_M,fontSize:11,color:T.text,letterSpacing:'0.2em'}}>{((item.subcategory||item.category||'ITEM')+(item.brand?` · ${item.brand}`:'')).toUpperCase()}</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:14,color:T.muted}}>✕</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'170px 1fr'}}>
+          <div style={{background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',minHeight:220,overflow:'hidden'}}>
+            {item.image_url?<img src={item.image_url} style={{width:'100%',objectFit:'cover',maxHeight:280}}/>:<span style={{fontFamily:PP_M,fontSize:9,color:T.muted}}>{(item.category||'—').toUpperCase()}</span>}
+          </div>
+          <div style={{padding:'16px 20px'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 16px',marginBottom:14}}>
+              {[['STATUS',(item.status||'—').replace(/_/g,' ').toUpperCase()],['FORMALITY',(item.formality||'—').replace(/_/g,' ').toUpperCase()],['TOTAL WEARS',iw.length],['LAST 30D',last30+' wears'],['PRICE PAID',item.price_paid?`€${item.price_paid}`:'—'],['CPW',cpw?`€${cpw}`:'—'],['OWNED SINCE',item.owned_since||'—'],['SEASON',item.season||'—']].map(([k,v])=>(
+                <div key={k}><div style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.15em',marginBottom:2}}>{k}</div><div style={{fontFamily:PP_M,fontSize:11,color:T.text}}>{v}</div></div>
+              ))}
+            </div>
+            {item.notes&&<div style={{fontFamily:PP_M,fontSize:10,color:T.muted,lineHeight:1.5,marginBottom:12}}>{item.notes}</div>}
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <button onClick={logWear} style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.12em',background:T.mint,border:'none',padding:'5px 12px',cursor:'pointer',color:'#fff',borderRadius:2}}>+ LOG WEAR</button>
+              <button onClick={onEdit} style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.12em',background:'transparent',border:`1px solid ${T.border}`,padding:'5px 12px',cursor:'pointer',color:T.muted,borderRadius:2}}>EDIT</button>
+              <button onClick={()=>{if(confirm('Remove this item?'))onDelete();}} style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.12em',background:'transparent',border:`1px solid ${T.border}`,padding:'5px 12px',cursor:'pointer',color:T.muted,borderRadius:2}}>DELETE</button>
+            </div>
+          </div>
+        </div>
+        {iw.length>0&&(
+          <div style={{padding:'12px 20px',borderTop:`1px solid ${T.border}`}}>
+            <div style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.18em',marginBottom:8}}>WEAR LOG</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+              {iw.slice(0,24).map(w=>(
+                <div key={w.id} style={{display:'flex',alignItems:'center',gap:4,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:2,padding:'2px 7px'}}>
+                  <span style={{fontFamily:PP_M,fontSize:9,color:T.muted}}>{w.worn_date}</span>
+                  <button onClick={()=>setWears(p=>p.filter(x=>x.id!==w.id))} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:9,color:T.muted,padding:0}}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+function WardrobeAnalytics({items,wears,outfits}){
+  const T=useT();
+  const active=items.filter(i=>i.status==='active');
+  const purchased=active.filter(i=>i.source!=='gift'&&i.price_paid);
+  const totalSpend=purchased.reduce((s,i)=>s+(parseFloat(i.price_paid)||0),0);
+  const now=Date.now();
+  const wornLast30=new Set(wears.filter(w=>(now-new Date(w.worn_date))/86400000<=30).map(w=>w.item_id));
+  const wearRate=active.length?Math.round(wornLast30.size/active.length*100):0;
+  const itemsInOutfits=new Set((outfits||[]).flatMap(o=>o.item_ids||[]));
+  const outfitUtil=active.length?Math.round(itemsInOutfits.size/active.length*100):0;
+  const orphanPct=active.length?active.filter(i=>!wears.some(w=>w.item_id===i.id)).length/active.length*100:0;
+  const itemsWithWears=active.filter(i=>i.price_paid&&wears.some(w=>w.item_id===i.id));
+  const avgCpw=itemsWithWears.length?itemsWithWears.reduce((s,i)=>s+parseFloat(i.price_paid)/wears.filter(w=>w.item_id===i.id).length,0)/itemsWithWears.length:0;
+  const cpwScore=Math.max(0,100-Math.min(100,avgCpw*2));
+  const healthScore=Math.round(wearRate*0.4+outfitUtil*0.2+cpwScore*0.2+(100-orphanPct)*0.2);
+  const catData=WRD_CATS.map(c=>({label:c.toUpperCase(),value:active.filter(i=>i.category===c).length,pct:active.length?Math.round(active.filter(i=>i.category===c).length/active.length*100):0})).filter(d=>d.value>0);
+  const costData=WRD_CATS.map(c=>{const v=purchased.filter(i=>i.category===c).reduce((s,i)=>s+(parseFloat(i.price_paid)||0),0);return{label:c.toUpperCase(),value:`€${v.toFixed(0)}`,pct:totalSpend?Math.round(v/totalSpend*100):0};}).filter(d=>d.pct>0);
+  const colorData=WRD_COLORS.map(c=>({label:c.toUpperCase(),value:active.filter(i=>(i.colors||[]).includes(c)).length,pct:active.length?Math.round(active.filter(i=>(i.colors||[]).includes(c)).length/active.length*100):0})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value).slice(0,8);
+  const formalData=WRD_FORMALITY.map(f=>({label:f.replace(/_/g,' ').toUpperCase(),value:active.filter(i=>i.formality===f).length,pct:active.length?Math.round(active.filter(i=>i.formality===f).length/active.length*100):0})).filter(d=>d.value>0);
+  const cpwData=active.filter(i=>i.price_paid&&wears.filter(w=>w.item_id===i.id).length>0).map(i=>{const c=parseFloat(i.price_paid)/wears.filter(w=>w.item_id===i.id).length;return{label:(i.subcategory||i.category||'?').substring(0,12).toUpperCase(),value:`€${c.toFixed(1)}`,cpw:c,pct:Math.max(5,100-Math.min(100,c*2))};}).sort((a,b)=>a.cpw-b.cpw).slice(0,8);
+  const sec={background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'16px 20px'};
+  const sh={fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:12};
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:14}}>
+      <div style={{...sec,gridColumn:'1/-1'}}>
+        <div style={sh}>WARDROBE HEALTH</div>
+        <div style={{display:'flex',alignItems:'center',gap:28,flexWrap:'wrap'}}>
+          <div style={{position:'relative',width:72,height:72,flexShrink:0}}>
+            <WrdDonut value={healthScore} size={72} color={healthScore>70?T.mint:healthScore>40?'#d4a030':'#e07a3a'}/>
+            <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:PP_M,fontSize:18,color:T.text,fontWeight:700}}>{healthScore}</div>
+          </div>
+          {[['WEAR RATE',wearRate+'%'],['OUTFIT UTIL',outfitUtil+'%'],['ACTIVE',active.length],['TOTAL SPEND',totalSpend?'€'+Math.round(totalSpend):'—'],['AVG CPW',avgCpw?'€'+avgCpw.toFixed(1):'—'],['ORPHANS',Math.round(orphanPct)+'%']].map(([k,v])=>(
+            <div key={k}><div style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.15em',marginBottom:3}}>{k}</div><div style={{fontFamily:PP_M,fontSize:15,color:T.text,fontWeight:700}}>{v}</div></div>
+          ))}
+        </div>
+      </div>
+      <div style={sec}><div style={sh}>BY CATEGORY</div><WrdBars data={catData} color={T.mint}/></div>
+      <div style={sec}><div style={sh}>COST ALLOCATION</div>{totalSpend>0?<WrdBars data={costData} color={'#5a7ad4'}/>:<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No purchase data yet.</div>}</div>
+      <div style={sec}><div style={sh}>COLOR PALETTE</div><WrdBars data={colorData} color={T.text}/></div>
+      <div style={sec}><div style={sh}>FORMALITY SPLIT</div><WrdBars data={formalData} color={T.muted}/></div>
+      {cpwData.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>COST PER WEAR — BEST VALUE</div><WrdBars data={cpwData} color={T.mint} showPct={false}/></div>}
+    </div>
+  );
+}
+function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
+  const T=useT();
+  const active=items.filter(i=>i.status==='active');
+  const [building,setBuilding]=useState(false);
+  const [draft,setDraft]=useState({name:'',item_ids:[]});
+  const [editId,setEditId]=useState(null);
+  const toggleItem=id=>setDraft(d=>({...d,item_ids:d.item_ids.includes(id)?d.item_ids.filter(x=>x!==id):[...d.item_ids,id]}));
+  function startEdit(o){setDraft({name:o.name||'',item_ids:o.item_ids||[]});setEditId(o.id);setBuilding(true);}
+  function saveOutfit(){
+    if(!draft.item_ids.length)return;
+    if(editId)setOutfits(p=>p.map(o=>o.id===editId?{...o,name:draft.name,item_ids:draft.item_ids}:o));
+    else setOutfits(p=>[...p,{id:uid(),name:draft.name,item_ids:draft.item_ids,created_at:new Date().toISOString()}]);
+    setBuilding(false);setDraft({name:'',item_ids:[]});setEditId(null);
+  }
+  function logOutfitWear(o){
+    const t=new Date().toISOString().split('T')[0];
+    setWears(p=>[...p,...(o.item_ids||[]).filter(id=>!p.some(w=>w.item_id===id&&w.worn_date===t)).map(id=>({id:uid(),item_id:id,worn_date:t}))]);
+  }
+  const inpSty={fontFamily:PP_M,fontSize:11,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:2,padding:'6px 8px',color:T.text,width:220,letterSpacing:'0.08em',outline:'none'};
+  if(building)return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:18}}>
+        <input value={draft.name} onChange={e=>setDraft(d=>({...d,name:e.target.value}))} placeholder="Outfit name (optional)" style={inpSty}/>
+        <button onClick={saveOutfit} disabled={!draft.item_ids.length} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:draft.item_ids.length?T.text:'transparent',border:`1px solid ${draft.item_ids.length?T.text:T.border}`,padding:'6px 14px',cursor:draft.item_ids.length?'pointer':'default',color:draft.item_ids.length?T.bg:T.muted,borderRadius:2}}>SAVE OUTFIT</button>
+        <button onClick={()=>{setBuilding(false);setEditId(null);}} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:'transparent',border:`1px solid ${T.border}`,padding:'6px 14px',cursor:'pointer',color:T.muted,borderRadius:2}}>CANCEL</button>
+      </div>
+      {draft.item_ids.length>0&&(
+        <div style={{marginBottom:18}}>
+          <div style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.18em',marginBottom:8}}>OUTFIT PREVIEW — {draft.item_ids.length} ITEMS</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {draft.item_ids.map(id=>{const item=items.find(i=>i.id===id);if(!item)return null;return(
+              <div key={id} onClick={()=>toggleItem(id)} style={{width:72,cursor:'pointer',border:`1px solid ${T.mint}`,borderRadius:3,overflow:'hidden'}}>
+                <div style={{height:90,background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+                  {item.image_url?<img src={item.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:7,color:T.muted}}>{(item.category||'?').toUpperCase()}</span>}
+                </div>
+                <div style={{padding:'3px 5px',fontFamily:PP_M,fontSize:7,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.subcategory||item.category||'?').toUpperCase()}</div>
+              </div>
+            );})}
+          </div>
+        </div>
+      )}
+      <div style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.15em',marginBottom:10}}>TAP ITEMS TO ADD / REMOVE</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(96px,1fr))',gap:8}}>
+        {active.map(item=>{const sel=draft.item_ids.includes(item.id);return(
+          <div key={item.id} onClick={()=>toggleItem(item.id)} style={{cursor:'pointer',background:T.card,border:`2px solid ${sel?T.mint:T.border}`,borderRadius:3,overflow:'hidden',opacity:sel?1:0.65,transition:'all 0.1s'}}>
+            <div style={{height:110,background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+              {item.image_url?<img src={item.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:7,color:T.muted}}>{(item.category||'?').toUpperCase()}</span>}
+            </div>
+            <div style={{padding:'4px 6px',fontFamily:PP_M,fontSize:7,color:sel?T.text:T.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.subcategory||item.category||'?').toUpperCase()}</div>
+          </div>
+        );})}
+      </div>
+    </div>
+  );
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:18}}>
+        <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em'}}>{outfits.length} OUTFIT{outfits.length!==1?'S':''}</div>
+        <button onClick={()=>{setDraft({name:'',item_ids:[]});setEditId(null);setBuilding(true);}} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 14px',cursor:'pointer',color:T.bg,borderRadius:2}}>+ NEW OUTFIT</button>
+      </div>
+      {outfits.length===0?<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>NO OUTFITS YET · BUILD YOUR FIRST LOOK</div>:(
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
+          {outfits.map(o=>{const ois=(o.item_ids||[]).map(id=>items.find(i=>i.id===id)).filter(Boolean);return(
+            <div key={o.id} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden'}}>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4,padding:10,background:T.cardAlt,minHeight:90}}>
+                {ois.slice(0,4).map(item=>(
+                  <div key={item.id} style={{width:64,height:82,background:T.bg,borderRadius:2,overflow:'hidden',flexShrink:0}}>
+                    {item.image_url?<img src={item.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:6,color:T.muted}}>{(item.category||'?').slice(0,3).toUpperCase()}</span></div>}
+                  </div>
+                ))}
+                {ois.length>4&&<div style={{width:64,height:82,background:T.bg,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:11,color:T.muted}}>+{ois.length-4}</span></div>}
+              </div>
+              <div style={{padding:'10px 12px'}}>
+                <div style={{fontFamily:PP_M,fontSize:11,color:T.text,letterSpacing:'0.1em',marginBottom:3}}>{o.name||'UNTITLED OUTFIT'}</div>
+                <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,marginBottom:10}}>{ois.length} items · {(o.created_at||'').split('T')[0]}</div>
+                <div style={{display:'flex',gap:7}}>
+                  <button onClick={()=>logOutfitWear(o)} style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em',background:T.mint,border:'none',padding:'4px 10px',cursor:'pointer',color:'#fff',borderRadius:2}}>WORE TODAY</button>
+                  <button onClick={()=>startEdit(o)} style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em',background:'transparent',border:`1px solid ${T.border}`,padding:'4px 10px',cursor:'pointer',color:T.muted,borderRadius:2}}>EDIT</button>
+                  <button onClick={()=>{if(confirm('Delete this outfit?'))setOutfits(p=>p.filter(x=>x.id!==o.id));}} style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em',background:'transparent',border:`1px solid ${T.border}`,padding:'4px 10px',cursor:'pointer',color:T.muted,borderRadius:2}}>DEL</button>
+                </div>
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
+    </div>
+  );
+}
+function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeWears,wardrobeOutfits,setWardrobeOutfits,supaUrl,supaKey,pushUndo}){
+  const T=useT();
+  const [subTab,setSubTab]=useState('grid');
+  const [filters,setFilters]=useState({category:'',status:'active'});
+  const [showAddItem,setShowAddItem]=useState(false);
+  const [selectedItem,setSelectedItem]=useState(null);
+  const [editingItem,setEditingItem]=useState(null);
+  const filteredItems=wardrobeItems.filter(i=>{
+    if(filters.status&&i.status!==filters.status)return false;
+    if(filters.category&&i.category!==filters.category)return false;
+    return true;
+  });
+  const tabBtn=(id,label)=>(<button key={id} onClick={()=>setSubTab(id)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:subTab===id?T.text:T.muted,padding:'0 0 8px',borderBottom:subTab===id?`2px solid ${T.text}`:'2px solid transparent',transition:'color 0.12s',marginRight:24}}>{label}</button>);
+  return(
+    <div style={{maxWidth:1200,margin:'0 auto',padding:'0 2rem 4rem'}}>
+      <div style={{padding:'22px 0 0',borderBottom:`1px solid ${T.border}`,marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+        <div>{tabBtn('grid','WARDROBE')}{tabBtn('analytics','ANALYTICS')}{tabBtn('outfits','OUTFITS')}</div>
+        {subTab==='grid'&&<button onClick={()=>setShowAddItem(true)} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 14px',cursor:'pointer',color:T.bg,borderRadius:2,marginBottom:8}}>+ ADD ITEM</button>}
+      </div>
+      {subTab==='grid'&&<WardrobeGrid items={filteredItems} wears={wardrobeWears} filters={filters} setFilters={setFilters} onSelectItem={setSelectedItem}/>}
+      {subTab==='analytics'&&<WardrobeAnalytics items={wardrobeItems} wears={wardrobeWears} outfits={wardrobeOutfits}/>}
+      {subTab==='outfits'&&<OutfitBuilder items={wardrobeItems} outfits={wardrobeOutfits} setOutfits={setWardrobeOutfits} wears={wardrobeWears} setWears={setWardrobeWears}/>}
+      {showAddItem&&<AddItemModal onClose={()=>setShowAddItem(false)} onSave={item=>{setWardrobeItems(p=>[...p,item]);setShowAddItem(false);}} supaUrl={supaUrl} supaKey={supaKey}/>}
+      {selectedItem&&<ItemDetailModal item={selectedItem} wears={wardrobeWears} setWears={setWardrobeWears} onClose={()=>setSelectedItem(null)} onEdit={()=>{setEditingItem(selectedItem);setSelectedItem(null);}} onDelete={()=>{setWardrobeItems(p=>p.filter(i=>i.id!==selectedItem.id));setWardrobeWears(p=>p.filter(w=>w.item_id!==selectedItem.id));setSelectedItem(null);}}/>}
+      {editingItem&&<AddItemModal item={editingItem} onClose={()=>setEditingItem(null)} onSave={updated=>{setWardrobeItems(p=>p.map(i=>i.id===updated.id?updated:i));setEditingItem(null);}} supaUrl={supaUrl} supaKey={supaKey}/>}
+    </div>
+  );
+}
+
 // ── APP ────────────────────────────────────────────
 function App(){
   const [mode,setMode]=useState(()=>lg("plo3_mode","light"));
@@ -6617,6 +6959,9 @@ function App(){
   const [notes,setNotes]=useState(()=>lg("plo3_notes",[]));
   const [photos,setPhotos]=useState(()=>lg("plo3_photos",{}));
   const [scratchpads,setScratchpads]=useState(()=>lg("plo3_scratchpads",{}));
+  const [wardrobeItems,setWardrobeItems]=useState(()=>lg("plo3_wrd_items",[]));
+  const [wardrobeWears,setWardrobeWears]=useState(()=>lg("plo3_wrd_wears",[]));
+  const [wardrobeOutfits,setWardrobeOutfits]=useState(()=>lg("plo3_wrd_outfits",[]));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
   const [budget,setBudget]=useState(()=>lg("plo3_budget",[]));
   const [envelopes,setEnvelopes]=useState(()=>lg("plo3_envelopes",[]));
@@ -6700,6 +7045,9 @@ function App(){
   useEffect(()=>ls("plo3_notes",notes),[notes]);
   useEffect(()=>ls("plo3_photos",photos),[photos]);
   useEffect(()=>ls("plo3_scratchpads",scratchpads),[scratchpads]);
+  useEffect(()=>ls("plo3_wrd_items",wardrobeItems),[wardrobeItems]);
+  useEffect(()=>ls("plo3_wrd_wears",wardrobeWears),[wardrobeWears]);
+  useEffect(()=>ls("plo3_wrd_outfits",wardrobeOutfits),[wardrobeOutfits]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
   useEffect(()=>ls("plo3_budget",budget),[budget]);
   useEffect(()=>ls("plo3_envelopes",envelopes),[envelopes]);
@@ -6729,6 +7077,7 @@ function App(){
   // Supabase sync helpers
   const supaSetters=React.useMemo(()=>({setTasks,setTrips,setGoals,setCompletions,setNotes,
     setScratchpads,setBingo,setBudget,setEnvelopes,setBudgetCats,
+    setWardrobeItems,setWardrobeWears,setWardrobeOutfits,
     setLayout:()=>{},setWidgets:()=>{},setNavOrder:()=>{},setMinimised:()=>{}}),[]);// eslint-disable-line
 
   function applyRemote(data){
@@ -6765,13 +7114,13 @@ function App(){
     setSyncStatus("loading");
     syncTimerRef.current=setTimeout(()=>{
       if(suppressPushRef.current>0){setSyncStatus("ok");return;}
-      const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats};
+      const payload={tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,wardrobeItems,wardrobeWears,wardrobeOutfits};
       supaPush(supaUrl,supaKey,supaId,payload,new Date().toISOString())
         .then(()=>setSyncStatus("ok"))
         .catch(()=>setSyncStatus("err"));
     },2000);
     return()=>clearTimeout(syncTimerRef.current);
-  },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats]);// eslint-disable-line
+  },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,wardrobeItems,wardrobeWears,wardrobeOutfits]);// eslint-disable-line
 
   // Apple CalDAV auto-fetch
   useEffect(()=>{
@@ -6880,6 +7229,7 @@ function App(){
       {page==="review"&&<ReviewPage tasks={tasks} setTasks={setTasks} goals={goals} apiKey={apiKey} setModal={setModal} pushUndo={pushUndo}/>}
       {page==="wk"&&<WkPage tasks={tasks} completions={completions} setCompletions={setCompletions} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay}/>}
       {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal}/>}
+      {page==="wardrobe"&&<WardrobePage wardrobeItems={wardrobeItems} setWardrobeItems={setWardrobeItems} wardrobeWears={wardrobeWears} setWardrobeWears={setWardrobeWears} wardrobeOutfits={wardrobeOutfits} setWardrobeOutfits={setWardrobeOutfits} supaUrl={supaUrl} supaKey={supaKey} pushUndo={pushUndo}/>}
 
       {/* CAPTURE OVERLAY */}
       {showCapture&&<div onClick={e=>e.target===e.currentTarget&&setShowCapture(false)} className="overlay-in" style={{position:"fixed",inset:0,zIndex:300,backdropFilter:"blur(14px) brightness(0.9)",WebkitBackdropFilter:"blur(14px) brightness(0.9)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"22vh"}}>
