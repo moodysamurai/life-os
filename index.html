@@ -7016,6 +7016,115 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
     </div>
   );
 }
+function PaperOutfitTodayCard({wardrobeItems,setWardrobeOutfits,apiKey,appleEvents=[],tasks=[]}){
+  const T=useT();
+  const todayStr=new Date().toISOString().split('T')[0];
+  const [data,setData]=useState(()=>{const c=lg("plo3_outfit_today",null);return c&&c.date===todayStr?c:null;});
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState('');
+  const [wx,setWx]=useState(null);
+  const active=(wardrobeItems||[]).filter(i=>i.status==='active');
+
+  useEffect(()=>{
+    fetch('https://wttr.in/Leiden?format=j1').then(r=>r.json()).then(d=>{const c=d.current_condition?.[0];if(c)setWx({t:parseInt(c.temp_C),desc:(c.weatherDesc?.[0]?.value||''),wind:parseInt(c.windspeedKmph)});}).catch(()=>{});
+  },[]);
+
+  function inferFormality(){
+    const todayEvents=(appleEvents||[]).filter(e=>{const d=(e.start||e.date||'').slice(0,10);return d===todayStr;});
+    const text=[...todayEvents.map(e=>e.title||e.summary||''),...tasks.filter(t=>t.date===todayStr).map(t=>t.title||'')].join(' ').toLowerCase();
+    if(/interview|meeting with|client|conference|defense|presentation/.test(text))return'business_casual';
+    if(/wedding|gala|ceremony|formal/.test(text))return'formal';
+    if(/gym|run|workout|sport/.test(text))return'casual';
+    return null;
+  }
+
+  async function generate(){
+    if(!apiKey){setErr('Set Claude API key in Settings first.');return;}
+    if(active.length<3){setErr('Add at least 3 active wardrobe items first.');return;}
+    setLoading(true);setErr('');
+    const inferred=inferFormality();
+    const slim=active.map(i=>({id:i.id,name:i.name||'',cat:i.category,sub:i.subcategory||'',formality:i.formality,colors:(i.colors||[]).join('/'),season:i.season||'',brand:i.brand||''}));
+    const dayName=new Date().toLocaleDateString('en-US',{weekday:'long'});
+    const wxLine=wx?`${wx.t}°C, ${wx.desc}, wind ${wx.wind} km/h`:'unknown';
+    const ctxLine=inferred?`Calendar suggests today calls for: ${inferred.replace(/_/g,' ')}.`:'';
+    const prompt=`You are a personal stylist picking an outfit for Pratham in Leiden, Netherlands.
+
+TODAY: ${dayName} ${todayStr}
+WEATHER: ${wxLine}
+${ctxLine}
+
+WARDROBE (only pick from these item IDs):
+${JSON.stringify(slim)}
+
+Pick ONE complete outfit using items from the wardrobe. Include one top, one bottom, footwear, and optionally outerwear + accessories. Match formality to context. Match colors with reasonable taste (neutrals pair freely, avoid clashing saturated colors). Consider weather (layer if cold/wet, lighter fabrics if warm).
+
+Respond with ONLY valid JSON (no markdown), keys exactly:
+{"item_ids":["id1","id2","id3"],"rationale":"one or two sentences explaining the pick — be specific about why these pieces work together today","pinterest_query":"3-6 word search query capturing the look's vibe, e.g. 'navy linen overshirt minimal menswear'"}`;
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})});
+      if(!r.ok)throw new Error(`API ${r.status}`);
+      const j=await r.json();
+      const raw=j.content[0].text.trim().replace(/^```json\n?/,"").replace(/\n?```$/,"");
+      const s=JSON.parse(raw);
+      const valid=(s.item_ids||[]).filter(id=>active.some(i=>i.id===id));
+      if(valid.length<2)throw new Error('Claude picked items not in wardrobe.');
+      const nd={date:todayStr,item_ids:valid,rationale:s.rationale,pinterest_query:s.pinterest_query,generated_at:new Date().toISOString()};
+      setData(nd);ls("plo3_outfit_today",nd);
+    }catch(e){setErr('Could not generate: '+e.message);}
+    finally{setLoading(false);}
+  }
+
+  function saveAsOutfit(){
+    if(!data)return;
+    const outfit={id:uid(),name:`${new Date(data.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})} look`,item_ids:data.item_ids,notes:data.rationale,created_at:new Date().toISOString()};
+    setWardrobeOutfits(p=>[...(p||[]),outfit]);
+    setErr('Saved to outfits ✓');setTimeout(()=>setErr(''),2000);
+  }
+
+  const pinUrl=data?.pinterest_query?`https://www.pinterest.com/search/pins/?q=${encodeURIComponent(data.pinterest_query+' outfit')}`:null;
+  const pickedItems=data?data.item_ids.map(id=>active.find(i=>i.id===id)).filter(Boolean):[];
+  const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:T.muted};
+  const btn={fontFamily:PP_M,fontSize:9,letterSpacing:'0.15em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,borderRadius:2,padding:'5px 11px',cursor:'pointer',color:T.muted};
+
+  return(
+    <div style={{padding:'4px 2rem 28px'}}>
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'18px 22px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14,gap:12,flexWrap:'wrap'}}>
+          <div>
+            <div style={eye}>OUTFIT OF THE DAY</div>
+            <div style={{fontFamily:PP_S,fontSize:28,fontStyle:'italic',color:T.text,marginTop:2,lineHeight:1.1}}>What to wear<span style={{color:T.mint}}>.</span></div>
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {data&&pinUrl&&<a href={pinUrl} target="_blank" rel="noreferrer" style={{...btn,textDecoration:'none',display:'inline-block'}}>PINTEREST ↗</a>}
+            {data&&<button onClick={saveAsOutfit} style={btn}>+ SAVE</button>}
+            <button onClick={generate} disabled={loading} style={{...btn,background:data?'transparent':T.text,color:data?T.muted:T.bg,border:data?`1px solid ${T.border}`:'none',opacity:loading?0.5:1}}>{loading?'…':data?'REGENERATE':'GENERATE'}</button>
+          </div>
+        </div>
+        {!apiKey&&<div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.1em',padding:'18px 0'}}>Set your Claude API key in Settings to generate outfit picks.</div>}
+        {apiKey&&!data&&!loading&&!err&&<div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.1em',padding:'18px 0'}}>Tap GENERATE to pick today's outfit from your wardrobe.</div>}
+        {loading&&<div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.15em',padding:'18px 0'}}>STYLING…</div>}
+        {data&&!loading&&(
+          <div>
+            <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:14}}>
+              {pickedItems.map(i=>(
+                <div key={i.id} style={{width:90,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,overflow:'hidden',flexShrink:0}}>
+                  <div style={{aspectRatio:'3/4',background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+                    {i.image_url?<img src={i.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:8,color:T.muted}}>{(i.category||'—').toUpperCase()}</span>}
+                  </div>
+                  <div style={{padding:'4px 6px',fontFamily:PP_M,fontSize:8,color:T.text,letterSpacing:'0.06em',textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.name||i.subcategory||i.category}</div>
+                </div>
+              ))}
+            </div>
+            {data.rationale&&<div style={{fontFamily:PP_S,fontSize:14,fontStyle:'italic',color:T.text,lineHeight:1.5,marginBottom:2,maxWidth:680}}>"{data.rationale}"</div>}
+            {wx&&<div style={{...eye,fontSize:8,marginTop:10}}>{wx.t}°C · {(wx.desc||'').toUpperCase()} · {pickedItems.length} PIECES</div>}
+          </div>
+        )}
+        {err&&<div style={{fontFamily:PP_M,fontSize:9,color:err.startsWith('Saved')?T.mint:T.red,letterSpacing:'0.1em',marginTop:10,textTransform:'uppercase'}}>{err}</div>}
+      </div>
+    </div>
+  );
+}
+
 function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeWears,wardrobeOutfits,setWardrobeOutfits,imgbbApiKey,removeBgKey,pushUndo}){
   const T=useT();
   const [subTab,setSubTab]=useState('grid');
@@ -7323,10 +7432,11 @@ function App(){
         </div>
 
         {/* TRIPS + MONEY — inequal columns for editorial asymmetry */}
-        <div style={{padding:'16px 2rem 28px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
+        <div style={{padding:'16px 2rem 12px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
           <PaperTripsTodayCard trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onExpand={()=>setPage('trips')} onAddTrip={()=>setModal({type:'trip'})}/>
           <PaperMoneyTodayCard envelopes={envelopes} budgetCats={budgetCats} onExpand={()=>setPage('money')}/>
         </div>
+        <PaperOutfitTodayCard wardrobeItems={wardrobeItems} setWardrobeOutfits={setWardrobeOutfits} apiKey={apiKey} appleEvents={appleEvents} tasks={tasks}/>
         <PaperFooter/>
       </>}
 
