@@ -5422,7 +5422,7 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
     {id:'money',label:'MONEY'},
     {id:'review',label:'REVIEW'},
     {id:'wk',label:'WK'},
-    {id:'wardrobe',label:'WDRB'},
+    {id:'wardrobe',label:'CLOTH'},
     {id:'settings',label:'⚙',title:'Settings'},
   ];
   const isDark=mode==='dark';
@@ -6634,6 +6634,44 @@ const WRD_STATUS=['active','do_not_style','archived','sold','donated'];
 const WRD_FORMALITY=['casual','smart_casual','business_casual','formal','black_tie'];
 const WRD_SOURCE=['purchase','gift','self_made','secondhand'];
 const WRD_COLORS=['black','white','grey','navy','brown','beige','green','blue','red','orange','yellow','pink','purple','multi'];
+const WRD_COLOR_HEX={black:'#111111',white:'#ececec',grey:'#888888',navy:'#1a2744',brown:'#7a5c3a',beige:'#d4b896',green:'#3d6b4a',blue:'#3a6bc8',red:'#c8412e',orange:'#e07a3a',yellow:'#d4b030',pink:'#e07ab4',purple:'#7a3ab4',multi:'#bbbbbb'};
+const WRD_PALETTE=['#c8412e','#5a7ad4','#3d6b4a','#d4a030','#7a3ab4','#e07a3a','#6a8a8a','#a85a90'];
+
+function WrdPie({data,size=140}){
+  const T=useT();
+  const total=data.reduce((s,d)=>s+(d.value||0),0);
+  if(!total)return(<div style={{fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.1em'}}>No data.</div>);
+  const r=size/2-2;const cx=size/2;const cy=size/2;
+  let acc=0;
+  const segs=data.map((d,i)=>{
+    const frac=(d.value||0)/total;
+    if(frac<=0)return null;
+    if(frac>=0.999){
+      return(<circle key={i} cx={cx} cy={cy} r={r} fill={d.color} stroke={T.bg} strokeWidth={1}/>);
+    }
+    const a0=acc*2*Math.PI;const a1=(acc+frac)*2*Math.PI;
+    acc+=frac;
+    const x0=cx+r*Math.sin(a0);const y0=cy-r*Math.cos(a0);
+    const x1=cx+r*Math.sin(a1);const y1=cy-r*Math.cos(a1);
+    const large=frac>0.5?1:0;
+    const path=`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
+    return(<path key={i} d={path} fill={d.color} stroke={T.bg} strokeWidth={1}/>);
+  });
+  return(
+    <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap'}}>
+      <svg width={size} height={size} style={{flexShrink:0}}>{segs}</svg>
+      <div style={{display:'flex',flexDirection:'column',gap:5,flex:1,minWidth:120}}>
+        {data.map((d,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:7,fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em'}}>
+            <span style={{width:10,height:10,background:d.color,borderRadius:1,flexShrink:0,border:`1px solid ${T.border}`}}/>
+            <span style={{color:T.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label}</span>
+            <span style={{color:T.muted,whiteSpace:'nowrap'}}>{d.display||d.value} · {Math.round((d.value||0)/total*100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function WrdDonut({value,size,color}){
   const r=(size-8)/2;const circ=2*Math.PI*r;const fill=(value/100)*circ;
@@ -6884,47 +6922,98 @@ function ItemDetailModal({item,wears,setWears,onClose,onEdit,onDelete}){
     </div>
   );
 }
-function WardrobeAnalytics({items,wears,outfits}){
+function WrdColorBars({data}){
   const T=useT();
-  const active=items.filter(i=>i.status==='active');
-  const purchased=active.filter(i=>i.source!=='gift'&&i.price_paid);
+  return(<div style={{display:'flex',flexDirection:'column',gap:8}}>{data.map((d,i)=>(<div key={i}><div style={{display:'flex',justifyContent:'space-between',marginBottom:3,alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:7,fontFamily:PP_M,fontSize:9,color:T.text,letterSpacing:'0.1em'}}><span style={{width:10,height:10,background:d.color,borderRadius:1,flexShrink:0,border:`1px solid ${T.border}`}}/>{d.label}</span><span style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>{d.value} ({d.pct}%)</span></div><div style={{background:'rgba(0,0,0,0.06)',borderRadius:1,height:4}}><div style={{background:d.color,height:4,borderRadius:1,width:`${d.pct}%`,transition:'width 0.3s'}}/></div></div>))}</div>);
+}
+function WardrobeAnalytics({items}){
+  const T=useT();
+  const all=items||[];
+  const active=all.filter(i=>i.status==='active');
+  const purchased=all.filter(i=>i.source!=='gift'&&i.price_paid!=null&&i.price_paid!=='');
   const totalSpend=purchased.reduce((s,i)=>s+(parseFloat(i.price_paid)||0),0);
-  const now=Date.now();
-  const wornLast30=new Set(wears.filter(w=>(now-new Date(w.worn_date))/86400000<=30).map(w=>w.item_id));
-  const wearRate=active.length?Math.round(wornLast30.size/active.length*100):0;
-  const itemsInOutfits=new Set((outfits||[]).flatMap(o=>o.item_ids||[]));
-  const outfitUtil=active.length?Math.round(itemsInOutfits.size/active.length*100):0;
-  const orphanPct=active.length?active.filter(i=>!wears.some(w=>w.item_id===i.id)).length/active.length*100:0;
-  const itemsWithWears=active.filter(i=>i.price_paid&&wears.some(w=>w.item_id===i.id));
-  const avgCpw=itemsWithWears.length?itemsWithWears.reduce((s,i)=>s+parseFloat(i.price_paid)/wears.filter(w=>w.item_id===i.id).length,0)/itemsWithWears.length:0;
-  const cpwScore=Math.max(0,100-Math.min(100,avgCpw*2));
-  const healthScore=Math.round(wearRate*0.4+outfitUtil*0.2+cpwScore*0.2+(100-orphanPct)*0.2);
-  const catData=WRD_CATS.map(c=>({label:c.toUpperCase(),value:active.filter(i=>i.category===c).length,pct:active.length?Math.round(active.filter(i=>i.category===c).length/active.length*100):0})).filter(d=>d.value>0);
-  const costData=WRD_CATS.map(c=>{const v=purchased.filter(i=>i.category===c).reduce((s,i)=>s+(parseFloat(i.price_paid)||0),0);return{label:c.toUpperCase(),value:`€${v.toFixed(0)}`,pct:totalSpend?Math.round(v/totalSpend*100):0};}).filter(d=>d.pct>0);
-  const colorData=WRD_COLORS.map(c=>({label:c.toUpperCase(),value:active.filter(i=>(i.colors||[]).includes(c)).length,pct:active.length?Math.round(active.filter(i=>(i.colors||[]).includes(c)).length/active.length*100):0})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value).slice(0,8);
-  const formalData=WRD_FORMALITY.map(f=>({label:f.replace(/_/g,' ').toUpperCase(),value:active.filter(i=>i.formality===f).length,pct:active.length?Math.round(active.filter(i=>i.formality===f).length/active.length*100):0})).filter(d=>d.value>0);
-  const cpwData=active.filter(i=>i.price_paid&&wears.filter(w=>w.item_id===i.id).length>0).map(i=>{const c=parseFloat(i.price_paid)/wears.filter(w=>w.item_id===i.id).length;return{label:(i.subcategory||i.category||'?').substring(0,12).toUpperCase(),value:`€${c.toFixed(1)}`,cpw:c,pct:Math.max(5,100-Math.min(100,c*2))};}).sort((a,b)=>a.cpw-b.cpw).slice(0,8);
+  const PAL=WRD_PALETTE;
+
+  // Pies
+  const catPie=WRD_CATS.map((c,i)=>({label:c.toUpperCase(),value:all.filter(it=>it.category===c).length,color:PAL[i%PAL.length]})).filter(d=>d.value>0);
+  const formPie=WRD_FORMALITY.map((f,i)=>({label:f.replace(/_/g,' ').toUpperCase(),value:all.filter(it=>it.formality===f).length,color:PAL[i%PAL.length]})).filter(d=>d.value>0);
+  const srcPie=WRD_SOURCE.map((s,i)=>({label:s.replace(/_/g,' ').toUpperCase(),value:all.filter(it=>it.source===s).length,color:PAL[i%PAL.length]})).filter(d=>d.value>0);
+  const statPie=WRD_STATUS.map((s,i)=>({label:s.replace(/_/g,' ').toUpperCase(),value:all.filter(it=>it.status===s).length,color:PAL[i%PAL.length]})).filter(d=>d.value>0);
+
+  // Colors — with actual hex
+  const colorTotal=all.reduce((s,it)=>s+(it.colors||[]).length,0);
+  const colorData=WRD_COLORS.map(c=>{const cnt=all.filter(it=>(it.colors||[]).includes(c)).length;return{label:c.toUpperCase(),value:cnt,color:WRD_COLOR_HEX[c]||'#888',pct:colorTotal?Math.round(all.filter(it=>(it.colors||[]).includes(c)).length/all.length*100):0};}).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
+
+  // Brand
+  const brandMap={};all.forEach(it=>{const b=(it.brand||'').trim();if(b)brandMap[b]=(brandMap[b]||0)+1;});
+  const brandTotal=Object.values(brandMap).reduce((s,v)=>s+v,0);
+  const brandData=Object.entries(brandMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=>({label:k.toUpperCase(),value:v,pct:brandTotal?Math.round(v/brandTotal*100):0}));
+
+  // Subcategory
+  const subMap={};all.forEach(it=>{const s=(it.subcategory||'').trim();if(s)subMap[s]=(subMap[s]||0)+1;});
+  const subTotal=Object.values(subMap).reduce((s,v)=>s+v,0);
+  const subData=Object.entries(subMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=>({label:k.toUpperCase(),value:v,pct:subTotal?Math.round(v/subTotal*100):0}));
+
+  // Season
+  const seasonMap={};all.forEach(it=>{const s=(it.season||'').trim();if(s)seasonMap[s]=(seasonMap[s]||0)+1;});
+  const seasonTotal=Object.values(seasonMap).reduce((s,v)=>s+v,0);
+  const seasonData=Object.entries(seasonMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k.toUpperCase(),value:v,pct:seasonTotal?Math.round(v/seasonTotal*100):0}));
+
+  // Owned-since by year
+  const yearMap={};all.forEach(it=>{const y=(it.owned_since||'').slice(0,4);if(y&&/^\d{4}$/.test(y))yearMap[y]=(yearMap[y]||0)+1;});
+  const yearTotal=Object.values(yearMap).reduce((s,v)=>s+v,0);
+  const yearData=Object.entries(yearMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k,value:v,pct:yearTotal?Math.round(v/yearTotal*100):0}));
+
+  // Cost by category (pie, € value)
+  const costByCat=WRD_CATS.map((c,i)=>{const v=purchased.filter(it=>it.category===c).reduce((s,it)=>s+(parseFloat(it.price_paid)||0),0);return{label:c.toUpperCase(),value:Math.round(v),display:`€${Math.round(v)}`,color:PAL[i%PAL.length]};}).filter(d=>d.value>0);
+
+  // Cost by brand
+  const costByBrandMap={};purchased.forEach(it=>{const b=(it.brand||'').trim();if(b)costByBrandMap[b]=(costByBrandMap[b]||0)+(parseFloat(it.price_paid)||0);});
+  const costBrandTotal=Object.values(costByBrandMap).reduce((s,v)=>s+v,0);
+  const costByBrand=Object.entries(costByBrandMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k.toUpperCase(),value:`€${Math.round(v)}`,pct:costBrandTotal?Math.round(v/costBrandTotal*100):0}));
+
+  // Price distribution
+  const priceBuckets=[[0,25,'< €25'],[25,50,'€25–50'],[50,100,'€50–100'],[100,200,'€100–200'],[200,500,'€200–500'],[500,Infinity,'> €500']];
+  const priceData=priceBuckets.map(([min,max,lbl])=>{const v=purchased.filter(it=>{const p=parseFloat(it.price_paid)||0;return p>=min&&p<max;}).length;return{label:lbl,value:v,pct:purchased.length?Math.round(v/purchased.length*100):0};}).filter(d=>d.value>0);
+
+  const headline=[
+    ['TOTAL ITEMS',all.length],
+    ['ACTIVE',active.length],
+    ['BRANDS',Object.keys(brandMap).length],
+    ['CATEGORIES',catPie.length],
+    ['TOTAL SPEND',totalSpend?'€'+Math.round(totalSpend):'—'],
+    ['AVG PRICE',purchased.length?'€'+Math.round(totalSpend/purchased.length):'—'],
+    ['GIFTED',all.filter(i=>i.source==='gift').length],
+    ['SECONDHAND',all.filter(i=>i.source==='secondhand').length],
+  ];
+
   const sec={background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'16px 20px'};
   const sh={fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:12};
+
+  if(all.length===0)return(<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>ADD ITEMS TO SEE ANALYTICS</div>);
+
   return(
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:14}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
       <div style={{...sec,gridColumn:'1/-1'}}>
-        <div style={sh}>WARDROBE HEALTH</div>
-        <div style={{display:'flex',alignItems:'center',gap:28,flexWrap:'wrap'}}>
-          <div style={{position:'relative',width:72,height:72,flexShrink:0}}>
-            <WrdDonut value={healthScore} size={72} color={healthScore>70?T.mint:healthScore>40?'#d4a030':'#e07a3a'}/>
-            <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:PP_M,fontSize:18,color:T.text,fontWeight:700}}>{healthScore}</div>
-          </div>
-          {[['WEAR RATE',wearRate+'%'],['OUTFIT UTIL',outfitUtil+'%'],['ACTIVE',active.length],['TOTAL SPEND',totalSpend?'€'+Math.round(totalSpend):'—'],['AVG CPW',avgCpw?'€'+avgCpw.toFixed(1):'—'],['ORPHANS',Math.round(orphanPct)+'%']].map(([k,v])=>(
+        <div style={sh}>CATALOGUE OVERVIEW</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:14}}>
+          {headline.map(([k,v])=>(
             <div key={k}><div style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.15em',marginBottom:3}}>{k}</div><div style={{fontFamily:PP_M,fontSize:15,color:T.text,fontWeight:700}}>{v}</div></div>
           ))}
         </div>
       </div>
-      <div style={sec}><div style={sh}>BY CATEGORY</div><WrdBars data={catData} color={T.mint}/></div>
-      <div style={sec}><div style={sh}>COST ALLOCATION</div>{totalSpend>0?<WrdBars data={costData} color={'#5a7ad4'}/>:<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No purchase data yet.</div>}</div>
-      <div style={sec}><div style={sh}>COLOR PALETTE</div><WrdBars data={colorData} color={T.text}/></div>
-      <div style={sec}><div style={sh}>FORMALITY SPLIT</div><WrdBars data={formalData} color={T.muted}/></div>
-      {cpwData.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>COST PER WEAR — BEST VALUE</div><WrdBars data={cpwData} color={T.mint} showPct={false}/></div>}
+      <div style={sec}><div style={sh}>BY CATEGORY</div><WrdPie data={catPie}/></div>
+      <div style={sec}><div style={sh}>BY FORMALITY</div><WrdPie data={formPie}/></div>
+      <div style={sec}><div style={sh}>BY SOURCE</div><WrdPie data={srcPie}/></div>
+      <div style={sec}><div style={sh}>BY STATUS</div><WrdPie data={statPie}/></div>
+      {colorData.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>COLOR PALETTE</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'center'}}><WrdPie data={colorData} size={160}/><WrdColorBars data={colorData}/></div></div>}
+      {subData.length>0&&<div style={sec}><div style={sh}>BY SUBCATEGORY</div><WrdBars data={subData} color={T.mint}/></div>}
+      {brandData.length>0&&<div style={sec}><div style={sh}>BY BRAND</div><WrdBars data={brandData} color={'#5a7ad4'}/></div>}
+      {seasonData.length>0&&<div style={sec}><div style={sh}>BY SEASON</div><WrdBars data={seasonData} color={'#3d6b4a'}/></div>}
+      {yearData.length>0&&<div style={sec}><div style={sh}>OWNED SINCE · BY YEAR</div><WrdBars data={yearData} color={'#7a3ab4'}/></div>}
+      {priceData.length>0&&<div style={sec}><div style={sh}>PRICE DISTRIBUTION</div><WrdBars data={priceData} color={'#d4a030'}/></div>}
+      {costByCat.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>SPEND BY CATEGORY</div><WrdPie data={costByCat} size={160}/></div>}
+      {costByBrand.length>0&&<div style={sec}><div style={sh}>SPEND BY BRAND</div><WrdBars data={costByBrand} color={'#c8412e'}/></div>}
     </div>
   );
 }
@@ -7141,11 +7230,12 @@ function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeW
   return(
     <div style={{maxWidth:1200,margin:'0 auto',padding:'0 2rem 4rem'}}>
       <div style={{padding:'22px 0 0',borderBottom:`1px solid ${T.border}`,marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
-        <div>{tabBtn('grid','WARDROBE')}{tabBtn('outfits','OUTFITS')}</div>
+        <div>{tabBtn('grid','WARDROBE')}{tabBtn('outfits','OUTFITS')}{tabBtn('analytics','ANALYTICS')}</div>
         {subTab==='grid'&&<button onClick={()=>setShowAddItem(true)} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 14px',cursor:'pointer',color:T.bg,borderRadius:2,marginBottom:8}}>+ ADD ITEM</button>}
       </div>
       {subTab==='grid'&&<WardrobeGrid items={filteredItems} wears={wardrobeWears} filters={filters} setFilters={setFilters} onSelectItem={setSelectedItem}/>}
       {subTab==='outfits'&&<OutfitBuilder items={wardrobeItems} outfits={wardrobeOutfits} setOutfits={setWardrobeOutfits} wears={wardrobeWears} setWears={setWardrobeWears}/>}
+      {subTab==='analytics'&&<WardrobeAnalytics items={wardrobeItems}/>}
       {showAddItem&&<AddItemModal onClose={()=>setShowAddItem(false)} onSave={item=>{setWardrobeItems(p=>[...p,item]);setShowAddItem(false);}} imgbbApiKey={imgbbApiKey} removeBgKey={removeBgKey}/>}
       {selectedItem&&<ItemDetailModal item={selectedItem} wears={wardrobeWears} setWears={setWardrobeWears} onClose={()=>setSelectedItem(null)} onEdit={()=>{setEditingItem(selectedItem);setSelectedItem(null);}} onDelete={()=>{setWardrobeItems(p=>p.filter(i=>i.id!==selectedItem.id));setWardrobeWears(p=>p.filter(w=>w.item_id!==selectedItem.id));setSelectedItem(null);}}/>}
       {editingItem&&<AddItemModal item={editingItem} onClose={()=>setEditingItem(null)} onSave={updated=>{setWardrobeItems(p=>p.map(i=>i.id===updated.id?updated:i));setEditingItem(null);}} imgbbApiKey={imgbbApiKey} removeBgKey={removeBgKey}/>}
