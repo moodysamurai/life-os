@@ -6926,6 +6926,53 @@ function WrdColorBars({data}){
   const T=useT();
   return(<div style={{display:'flex',flexDirection:'column',gap:8}}>{data.map((d,i)=>(<div key={i}><div style={{display:'flex',justifyContent:'space-between',marginBottom:3,alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:7,fontFamily:PP_M,fontSize:9,color:T.text,letterSpacing:'0.1em'}}><span style={{width:10,height:10,background:d.color,borderRadius:1,flexShrink:0,border:`1px solid ${T.border}`}}/>{d.label}</span><span style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>{d.value} ({d.pct}%)</span></div><div style={{background:'rgba(0,0,0,0.06)',borderRadius:1,height:4}}><div style={{background:d.color,height:4,borderRadius:1,width:`${d.pct}%`,transition:'width 0.3s'}}/></div></div>))}</div>);
 }
+function WrdStackBar({segments,height=16}){
+  const T=useT();
+  const total=segments.reduce((s,d)=>s+(d.value||0),0);
+  if(!total)return(<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>—</div>);
+  return(
+    <div>
+      <div style={{display:'flex',height,borderRadius:2,overflow:'hidden',border:`1px solid ${T.border}`}}>
+        {segments.map((d,i)=>{const pct=(d.value||0)/total*100;if(pct<=0)return null;return(<div key={i} title={`${d.label}: ${d.value}`} style={{width:`${pct}%`,background:d.color}}/>);})}
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:'4px 12px',marginTop:6}}>
+        {segments.map((d,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:5,fontFamily:PP_M,fontSize:8,letterSpacing:'0.1em'}}>
+            <span style={{width:8,height:8,background:d.color,borderRadius:1,flexShrink:0,border:`1px solid ${T.border}`}}/>
+            <span style={{color:T.text}}>{d.label}</span>
+            <span style={{color:T.muted}}>{d.value} · {Math.round((d.value||0)/total*100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function WrdBrandRows({data}){
+  const T=useT();
+  if(!data.length)return(<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No brand data yet.</div>);
+  return(
+    <div>
+      <div style={{display:'flex',flexDirection:'column',gap:9}}>
+        {data.map((d,i)=>(
+          <div key={i}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em'}}>
+              <span style={{color:T.text}}>{d.label}</span>
+              <span style={{color:T.muted}}>{d.count} pc{d.count!==1?'s':''}{d.spend>0?` · €${d.spend}`:''}</span>
+            </div>
+            <div style={{display:'flex',gap:4,height:3}}>
+              <div style={{flex:1,background:'rgba(0,0,0,0.06)',borderRadius:1}}><div style={{background:'#5a7ad4',height:3,borderRadius:1,width:`${d.countPct}%`}}/></div>
+              <div style={{flex:1,background:'rgba(0,0,0,0.06)',borderRadius:1}}><div style={{background:'#c8412e',height:3,borderRadius:1,width:`${d.spendPct}%`}}/></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'flex',gap:14,fontFamily:PP_M,fontSize:7,color:T.muted,letterSpacing:'0.15em',marginTop:10}}>
+        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:3,background:'#5a7ad4',borderRadius:1}}/>COUNT</span>
+        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:3,background:'#c8412e',borderRadius:1}}/>SPEND</span>
+      </div>
+    </div>
+  );
+}
 function WardrobeAnalytics({items}){
   const T=useT();
   const all=items||[];
@@ -6944,15 +6991,16 @@ function WardrobeAnalytics({items}){
   const colorTotal=all.reduce((s,it)=>s+(it.colors||[]).length,0);
   const colorData=WRD_COLORS.map(c=>{const cnt=all.filter(it=>(it.colors||[]).includes(c)).length;return{label:c.toUpperCase(),value:cnt,color:WRD_COLOR_HEX[c]||'#888',pct:colorTotal?Math.round(all.filter(it=>(it.colors||[]).includes(c)).length/all.length*100):0};}).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
 
-  // Brand
-  const brandMap={};all.forEach(it=>{const b=(it.brand||'').trim();if(b)brandMap[b]=(brandMap[b]||0)+1;});
-  const brandTotal=Object.values(brandMap).reduce((s,v)=>s+v,0);
-  const brandData=Object.entries(brandMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=>({label:k.toUpperCase(),value:v,pct:brandTotal?Math.round(v/brandTotal*100):0}));
+  // Brand (count + spend together)
+  const brandStats={};all.forEach(it=>{const b=(it.brand||'').trim();if(!b)return;if(!brandStats[b])brandStats[b]={count:0,spend:0};brandStats[b].count++;if(it.source!=='gift'){brandStats[b].spend+=parseFloat(it.price_paid)||0;}});
+  const brandCountMax=Math.max(1,...Object.values(brandStats).map(s=>s.count));
+  const brandSpendMax=Math.max(1,...Object.values(brandStats).map(s=>s.spend));
+  const brandRows=Object.entries(brandStats).sort((a,b)=>b[1].count-a[1].count||b[1].spend-a[1].spend).slice(0,10).map(([k,s])=>({label:k.toUpperCase(),count:s.count,spend:Math.round(s.spend),countPct:Math.round(s.count/brandCountMax*100),spendPct:Math.round(s.spend/brandSpendMax*100)}));
 
   // Subcategory
   const subMap={};all.forEach(it=>{const s=(it.subcategory||'').trim();if(s)subMap[s]=(subMap[s]||0)+1;});
   const subTotal=Object.values(subMap).reduce((s,v)=>s+v,0);
-  const subData=Object.entries(subMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=>({label:k.toUpperCase(),value:v,pct:subTotal?Math.round(v/subTotal*100):0}));
+  const subData=Object.entries(subMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k.toUpperCase(),value:v,pct:subTotal?Math.round(v/subTotal*100):0}));
 
   // Season
   const seasonMap={};all.forEach(it=>{const s=(it.season||'').trim();if(s)seasonMap[s]=(seasonMap[s]||0)+1;});
@@ -6964,13 +7012,8 @@ function WardrobeAnalytics({items}){
   const yearTotal=Object.values(yearMap).reduce((s,v)=>s+v,0);
   const yearData=Object.entries(yearMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k,value:v,pct:yearTotal?Math.round(v/yearTotal*100):0}));
 
-  // Cost by category (pie, € value)
-  const costByCat=WRD_CATS.map((c,i)=>{const v=purchased.filter(it=>it.category===c).reduce((s,it)=>s+(parseFloat(it.price_paid)||0),0);return{label:c.toUpperCase(),value:Math.round(v),display:`€${Math.round(v)}`,color:PAL[i%PAL.length]};}).filter(d=>d.value>0);
-
-  // Cost by brand
-  const costByBrandMap={};purchased.forEach(it=>{const b=(it.brand||'').trim();if(b)costByBrandMap[b]=(costByBrandMap[b]||0)+(parseFloat(it.price_paid)||0);});
-  const costBrandTotal=Object.values(costByBrandMap).reduce((s,v)=>s+v,0);
-  const costByBrand=Object.entries(costByBrandMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k.toUpperCase(),value:`€${Math.round(v)}`,pct:costBrandTotal?Math.round(v/costBrandTotal*100):0}));
+  // Cost by category (legend rows next to category pie)
+  const catSpendMap={};purchased.forEach(it=>{catSpendMap[it.category]=(catSpendMap[it.category]||0)+(parseFloat(it.price_paid)||0);});
 
   // Price distribution
   const priceBuckets=[[0,25,'< €25'],[25,50,'€25–50'],[50,100,'€50–100'],[100,200,'€100–200'],[200,500,'€200–500'],[500,Infinity,'> €500']];
@@ -6979,7 +7022,7 @@ function WardrobeAnalytics({items}){
   const headline=[
     ['TOTAL ITEMS',all.length],
     ['ACTIVE',active.length],
-    ['BRANDS',Object.keys(brandMap).length],
+    ['BRANDS',Object.keys(brandStats).length],
     ['CATEGORIES',catPie.length],
     ['TOTAL SPEND',totalSpend?'€'+Math.round(totalSpend):'—'],
     ['AVG PRICE',purchased.length?'€'+Math.round(totalSpend/purchased.length):'—'],
@@ -6989,11 +7032,26 @@ function WardrobeAnalytics({items}){
 
   const sec={background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'16px 20px'};
   const sh={fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:12};
+  const subh={fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:7};
 
   if(all.length===0)return(<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>ADD ITEMS TO SEE ANALYTICS</div>);
 
+  // Category pie with combined count+spend legend
+  const catTotal=catPie.reduce((s,d)=>s+d.value,0);
+  const catLegend=(
+    <div style={{display:'flex',flexDirection:'column',gap:6,flex:1,minWidth:140}}>
+      {catPie.map((d,i)=>{const sp=Math.round(catSpendMap[d.label.toLowerCase()]||0);return(
+        <div key={i} style={{display:'flex',alignItems:'center',gap:7,fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em'}}>
+          <span style={{width:10,height:10,background:d.color,borderRadius:1,flexShrink:0,border:`1px solid ${T.border}`}}/>
+          <span style={{color:T.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label}</span>
+          <span style={{color:T.muted,whiteSpace:'nowrap'}}>{d.value} · {catTotal?Math.round(d.value/catTotal*100):0}%{sp>0?` · €${sp}`:''}</span>
+        </div>
+      );})}
+    </div>
+  );
+
   return(
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:14}}>
       <div style={{...sec,gridColumn:'1/-1'}}>
         <div style={sh}>CATALOGUE OVERVIEW</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:14}}>
@@ -7002,18 +7060,32 @@ function WardrobeAnalytics({items}){
           ))}
         </div>
       </div>
-      <div style={sec}><div style={sh}>BY CATEGORY</div><WrdPie data={catPie}/></div>
-      <div style={sec}><div style={sh}>BY FORMALITY</div><WrdPie data={formPie}/></div>
-      <div style={sec}><div style={sh}>BY SOURCE</div><WrdPie data={srcPie}/></div>
-      <div style={sec}><div style={sh}>BY STATUS</div><WrdPie data={statPie}/></div>
-      {colorData.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>COLOR PALETTE</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'center'}}><WrdPie data={colorData} size={160}/><WrdColorBars data={colorData}/></div></div>}
-      {subData.length>0&&<div style={sec}><div style={sh}>BY SUBCATEGORY</div><WrdBars data={subData} color={T.mint}/></div>}
-      {brandData.length>0&&<div style={sec}><div style={sh}>BY BRAND</div><WrdBars data={brandData} color={'#5a7ad4'}/></div>}
-      {seasonData.length>0&&<div style={sec}><div style={sh}>BY SEASON</div><WrdBars data={seasonData} color={'#3d6b4a'}/></div>}
-      {yearData.length>0&&<div style={sec}><div style={sh}>OWNED SINCE · BY YEAR</div><WrdBars data={yearData} color={'#7a3ab4'}/></div>}
+      <div style={{...sec,gridColumn:'span 2'}}>
+        <div style={sh}>CATEGORIES</div>
+        <div style={{display:'flex',gap:18,alignItems:'center',flexWrap:'wrap',marginBottom:subData.length>0?16:0}}>
+          {catPie.length>0?<><svg width={150} height={150} style={{flexShrink:0}}>{(()=>{let acc=0;const r=73;const cx=75;const cy=75;return catPie.map((d,i)=>{const frac=d.value/catTotal;if(frac<=0)return null;if(frac>=0.999)return(<circle key={i} cx={cx} cy={cy} r={r} fill={d.color} stroke={T.bg} strokeWidth={1}/>);const a0=acc*2*Math.PI;const a1=(acc+frac)*2*Math.PI;acc+=frac;const x0=cx+r*Math.sin(a0);const y0=cy-r*Math.cos(a0);const x1=cx+r*Math.sin(a1);const y1=cy-r*Math.cos(a1);const large=frac>0.5?1:0;return(<path key={i} d={`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`} fill={d.color} stroke={T.bg} strokeWidth={1}/>);});})()}</svg>{catLegend}</>:<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No data.</div>}
+        </div>
+        {subData.length>0&&<div><div style={subh}>TOP SUBCATEGORIES</div><WrdBars data={subData} color={T.mint}/></div>}
+      </div>
+      {colorData.length>0&&<div style={sec}><div style={sh}>COLOR PALETTE</div><WrdColorBars data={colorData}/></div>}
+      {brandRows.length>0&&<div style={sec}><div style={sh}>BRANDS · COUNT + SPEND</div><WrdBrandRows data={brandRows}/></div>}
+      <div style={sec}>
+        <div style={sh}>INVENTORY MAKEUP</div>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          {[['FORMALITY',formPie],['SOURCE',srcPie],['STATUS',statPie]].filter(([,s])=>s.length>0).map(([title,segs])=>(
+            <div key={title}>
+              <div style={subh}>{title}</div>
+              <WrdStackBar segments={segs}/>
+            </div>
+          ))}
+        </div>
+      </div>
+      {(yearData.length>0||seasonData.length>0)&&<div style={sec}>
+        <div style={sh}>TIMELINE</div>
+        {yearData.length>0&&<div style={{marginBottom:seasonData.length>0?14:0}}><div style={subh}>OWNED SINCE · BY YEAR</div><WrdBars data={yearData} color={'#7a3ab4'}/></div>}
+        {seasonData.length>0&&<div><div style={subh}>BY SEASON TAG</div><WrdBars data={seasonData} color={'#3d6b4a'}/></div>}
+      </div>}
       {priceData.length>0&&<div style={sec}><div style={sh}>PRICE DISTRIBUTION</div><WrdBars data={priceData} color={'#d4a030'}/></div>}
-      {costByCat.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>SPEND BY CATEGORY</div><WrdPie data={costByCat} size={160}/></div>}
-      {costByBrand.length>0&&<div style={sec}><div style={sh}>SPEND BY BRAND</div><WrdBars data={costByBrand} color={'#c8412e'}/></div>}
     </div>
   );
 }
