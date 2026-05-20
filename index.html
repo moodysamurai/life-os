@@ -7012,9 +7012,6 @@ function WardrobeAnalytics({items}){
   const yearTotal=Object.values(yearMap).reduce((s,v)=>s+v,0);
   const yearData=Object.entries(yearMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k,value:v,pct:yearTotal?Math.round(v/yearTotal*100):0}));
 
-  // Cost by category (legend rows next to category pie)
-  const catSpendMap={};purchased.forEach(it=>{catSpendMap[it.category]=(catSpendMap[it.category]||0)+(parseFloat(it.price_paid)||0);});
-
   // Price distribution
   const priceBuckets=[[0,25,'< €25'],[25,50,'€25–50'],[50,100,'€50–100'],[100,200,'€100–200'],[200,500,'€200–500'],[500,Infinity,'> €500']];
   const priceData=priceBuckets.map(([min,max,lbl])=>{const v=purchased.filter(it=>{const p=parseFloat(it.price_paid)||0;return p>=min&&p<max;}).length;return{label:lbl,value:v,pct:purchased.length?Math.round(v/purchased.length*100):0};}).filter(d=>d.value>0);
@@ -7036,20 +7033,6 @@ function WardrobeAnalytics({items}){
 
   if(all.length===0)return(<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>ADD ITEMS TO SEE ANALYTICS</div>);
 
-  // Category pie with combined count+spend legend
-  const catTotal=catPie.reduce((s,d)=>s+d.value,0);
-  const catLegend=(
-    <div style={{display:'flex',flexDirection:'column',gap:6,flex:1,minWidth:140}}>
-      {catPie.map((d,i)=>{const sp=Math.round(catSpendMap[d.label.toLowerCase()]||0);return(
-        <div key={i} style={{display:'flex',alignItems:'center',gap:7,fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em'}}>
-          <span style={{width:10,height:10,background:d.color,borderRadius:1,flexShrink:0,border:`1px solid ${T.border}`}}/>
-          <span style={{color:T.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label}</span>
-          <span style={{color:T.muted,whiteSpace:'nowrap'}}>{d.value} · {catTotal?Math.round(d.value/catTotal*100):0}%{sp>0?` · €${sp}`:''}</span>
-        </div>
-      );})}
-    </div>
-  );
-
   return(
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:14}}>
       <div style={{...sec,gridColumn:'1/-1'}}>
@@ -7060,14 +7043,19 @@ function WardrobeAnalytics({items}){
           ))}
         </div>
       </div>
-      <div style={{...sec,gridColumn:'span 2'}}>
-        <div style={sh}>CATEGORIES</div>
-        <div style={{display:'flex',gap:18,alignItems:'center',flexWrap:'wrap',marginBottom:subData.length>0?16:0}}>
-          {catPie.length>0?<><svg width={150} height={150} style={{flexShrink:0}}>{(()=>{let acc=0;const r=73;const cx=75;const cy=75;return catPie.map((d,i)=>{const frac=d.value/catTotal;if(frac<=0)return null;if(frac>=0.999)return(<circle key={i} cx={cx} cy={cy} r={r} fill={d.color} stroke={T.bg} strokeWidth={1}/>);const a0=acc*2*Math.PI;const a1=(acc+frac)*2*Math.PI;acc+=frac;const x0=cx+r*Math.sin(a0);const y0=cy-r*Math.cos(a0);const x1=cx+r*Math.sin(a1);const y1=cy-r*Math.cos(a1);const large=frac>0.5?1:0;return(<path key={i} d={`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`} fill={d.color} stroke={T.bg} strokeWidth={1}/>);});})()}</svg>{catLegend}</>:<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No data.</div>}
+      {colorData.length>0&&<div style={{...sec,gridColumn:'span 2'}}>
+        <div style={sh}>COLOR PALETTE</div>
+        <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
+          <WrdPie data={colorData} size={170}/>
+          <WrdColorBars data={colorData}/>
         </div>
-        {subData.length>0&&<div><div style={subh}>TOP SUBCATEGORIES</div><WrdBars data={subData} color={T.mint}/></div>}
-      </div>
-      {colorData.length>0&&<div style={sec}><div style={sh}>COLOR PALETTE</div><WrdColorBars data={colorData}/></div>}
+      </div>}
+      {priceData.length>0&&<div style={{...sec,gridColumn:'span 2'}}><div style={sh}>PRICE DISTRIBUTION</div><WrdBars data={priceData} color={'#d4a030'}/></div>}
+      {(yearData.length>0||seasonData.length>0)&&<div style={{...sec,gridColumn:'span 2'}}>
+        <div style={sh}>TIME OWNED</div>
+        {yearData.length>0&&<div style={{marginBottom:seasonData.length>0?14:0}}><div style={subh}>OWNED SINCE · BY YEAR</div><WrdBars data={yearData} color={'#7a3ab4'}/></div>}
+        {seasonData.length>0&&<div><div style={subh}>BY SEASON TAG</div><WrdBars data={seasonData} color={'#3d6b4a'}/></div>}
+      </div>}
       {brandRows.length>0&&<div style={sec}><div style={sh}>BRANDS · COUNT + SPEND</div><WrdBrandRows data={brandRows}/></div>}
       <div style={sec}>
         <div style={sh}>INVENTORY MAKEUP</div>
@@ -7080,12 +7068,11 @@ function WardrobeAnalytics({items}){
           ))}
         </div>
       </div>
-      {(yearData.length>0||seasonData.length>0)&&<div style={sec}>
-        <div style={sh}>TIMELINE</div>
-        {yearData.length>0&&<div style={{marginBottom:seasonData.length>0?14:0}}><div style={subh}>OWNED SINCE · BY YEAR</div><WrdBars data={yearData} color={'#7a3ab4'}/></div>}
-        {seasonData.length>0&&<div><div style={subh}>BY SEASON TAG</div><WrdBars data={seasonData} color={'#3d6b4a'}/></div>}
-      </div>}
-      {priceData.length>0&&<div style={sec}><div style={sh}>PRICE DISTRIBUTION</div><WrdBars data={priceData} color={'#d4a030'}/></div>}
+      <div style={sec}>
+        <div style={sh}>CATEGORIES</div>
+        {catPie.length>0?<div style={{marginBottom:subData.length>0?14:0}}><WrdPie data={catPie} size={130}/></div>:<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No data.</div>}
+        {subData.length>0&&<div><div style={subh}>TOP SUBCATEGORIES</div><WrdBars data={subData} color={T.mint}/></div>}
+      </div>
     </div>
   );
 }
