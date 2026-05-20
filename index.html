@@ -6561,9 +6561,10 @@ function WkPage({tasks,completions,setCompletions,appleEvents,setModal,setFocusD
     <PaperFooter/>
   </div>;
 }
-function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exportJSON,importJSON,exportICS,setModal}){
+function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exportJSON,importJSON,exportICS,setModal,imgurClientId,setImgurClientId}){
   const T=useT();
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
+  const [imgurDraft,setImgurDraft]=useState(imgurClientId);
   return<div>
     <PaperPageHdr title="Settings." sub="SYSTEM · INTEGRATIONS"/>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:'28px 2rem',borderBottom:`1px solid ${T.border}`}}>
@@ -6573,7 +6574,7 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
           {label:'APPLE CALENDAR',status:appleCal.enabled?'CONNECTED':'NOT CONNECTED',ok:appleCal.enabled,action:()=>setShowAppleCal(true),btn:'CONFIGURE'},
           {label:'CLAUDE API KEY',status:apiKey?'CONFIGURED':'NOT SET',ok:!!apiKey,action:()=>setModal({type:'apikey'}),btn:'SET KEY'},
         ].map(({label,status,ok,action,btn},i)=>(
-          <div key={label} style={{marginBottom:i<2?24:0,paddingBottom:i<2?24:0,borderBottom:i<2?`1px dashed ${T.border}`:'none'}}>
+          <div key={label} style={{marginBottom:24,paddingBottom:24,borderBottom:`1px dashed ${T.border}`}}>
             <div style={{...eye,marginBottom:10}}>{label}</div>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <span style={{...eye,fontSize:8,color:ok?T.mint:T.muted}}>{ok?'●':'○'} {status}</span>
@@ -6581,6 +6582,16 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
             </div>
           </div>
         ))}
+        <div>
+          <div style={{...eye,marginBottom:10}}>IMGUR CLIENT ID <span style={{fontWeight:400,opacity:0.6}}>(wardrobe photos)</span></div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{...eye,fontSize:8,color:imgurClientId?T.mint:T.muted}}>{imgurClientId?'●':'○'} {imgurClientId?'CONFIGURED':'NOT SET'}</span>
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            <input value={imgurDraft} onChange={e=>setImgurDraft(e.target.value)} placeholder="Paste Client-ID here" style={{fontFamily:PP_M,fontSize:10,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:2,padding:'5px 8px',color:T.text,flex:1,outline:'none',letterSpacing:'0.05em'}}/>
+            <button onClick={()=>setImgurClientId(imgurDraft.trim())} style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.15em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,borderRadius:3,padding:'4px 10px',cursor:'pointer',color:T.muted}}>SAVE</button>
+          </div>
+        </div>
       </div>
       <div style={{paddingLeft:40}}>
         <div style={{...eye,marginBottom:12}}>DATA</div>
@@ -6656,12 +6667,13 @@ function WardrobeGrid({items,wears,filters,setFilters,onSelectItem}){
     </div>
   );
 }
-function AddItemModal({item:editItem,onClose,onSave,supaUrl,supaKey}){
+function AddItemModal({item:editItem,onClose,onSave,imgurClientId}){
   const T=useT();
   const isEdit=!!editItem;
   const blank={id:uid(),image_url:'',category:'top',subcategory:'',colors:['black'],formality:'casual',brand:'',price_paid:'',source:'purchase',status:'active',owned_since:'',season:'',notes:'',created_at:new Date().toISOString()};
   const [form,setForm]=useState(editItem?{...editItem,price_paid:editItem.price_paid??''}:blank);
   const [uploading,setUploading]=useState(false);
+  const [uploadErr,setUploadErr]=useState('');
   const [imgPreview,setImgPreview]=useState(editItem?.image_url||'');
   const fileRef=React.useRef();
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -6669,14 +6681,17 @@ function AddItemModal({item:editItem,onClose,onSave,supaUrl,supaKey}){
   async function handleFile(e){
     const file=e.target.files?.[0];if(!file)return;
     setImgPreview(URL.createObjectURL(file));
-    if(!supaUrl||!supaKey)return;
+    setUploadErr('');
+    if(!imgurClientId){setUploadErr('Add Imgur Client ID in Settings first.');return;}
     setUploading(true);
     try{
-      const ext=file.name.split('.').pop()||'jpg';
-      const path=`${form.id}.${ext}`;
-      const res=await fetch(`${supaUrl}/storage/v1/object/wardrobe-items/${path}`,{method:'POST',headers:{'Authorization':`Bearer ${supaKey}`,'Content-Type':file.type,'x-upsert':'true'},body:file});
-      if(res.ok)set('image_url',`${supaUrl}/storage/v1/object/public/wardrobe-items/${path}`);
-    }catch(err){console.error('Wardrobe upload error:',err);}
+      const fd=new FormData();
+      fd.append('image',file);
+      const res=await fetch('https://api.imgur.com/3/image',{method:'POST',headers:{'Authorization':`Client-ID ${imgurClientId}`},body:fd});
+      const json=await res.json();
+      if(json.success)set('image_url',json.data.link);
+      else setUploadErr('Imgur upload failed — check your Client ID.');
+    }catch(err){console.error('Imgur upload error:',err);setUploadErr('Upload failed — check console.');}
     setUploading(false);
   }
   const inp={fontFamily:PP_M,fontSize:11,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:2,padding:'6px 8px',color:T.text,width:'100%',boxSizing:'border-box',letterSpacing:'0.08em',outline:'none'};
@@ -6695,6 +6710,7 @@ function AddItemModal({item:editItem,onClose,onSave,supaUrl,supaKey}){
               {imgPreview?<img src={imgPreview} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{textAlign:'center',padding:8}}><div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em',lineHeight:1.8}}>CLICK<br/>TO<br/>UPLOAD</div></div>}
               {uploading&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:9,color:'#fff',letterSpacing:'0.12em'}}>UPLOADING…</span></div>}
             </div>
+            {uploadErr&&<div style={{fontFamily:PP_M,fontSize:8,color:T.mint,letterSpacing:'0.08em',marginTop:6,lineHeight:1.4}}>{uploadErr}</div>}
             <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
@@ -6912,7 +6928,7 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
     </div>
   );
 }
-function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeWears,wardrobeOutfits,setWardrobeOutfits,supaUrl,supaKey,pushUndo}){
+function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeWears,wardrobeOutfits,setWardrobeOutfits,imgurClientId,pushUndo}){
   const T=useT();
   const [subTab,setSubTab]=useState('grid');
   const [filters,setFilters]=useState({category:'',status:'active'});
@@ -6934,9 +6950,9 @@ function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeW
       {subTab==='grid'&&<WardrobeGrid items={filteredItems} wears={wardrobeWears} filters={filters} setFilters={setFilters} onSelectItem={setSelectedItem}/>}
       {subTab==='analytics'&&<WardrobeAnalytics items={wardrobeItems} wears={wardrobeWears} outfits={wardrobeOutfits}/>}
       {subTab==='outfits'&&<OutfitBuilder items={wardrobeItems} outfits={wardrobeOutfits} setOutfits={setWardrobeOutfits} wears={wardrobeWears} setWears={setWardrobeWears}/>}
-      {showAddItem&&<AddItemModal onClose={()=>setShowAddItem(false)} onSave={item=>{setWardrobeItems(p=>[...p,item]);setShowAddItem(false);}} supaUrl={supaUrl} supaKey={supaKey}/>}
+      {showAddItem&&<AddItemModal onClose={()=>setShowAddItem(false)} onSave={item=>{setWardrobeItems(p=>[...p,item]);setShowAddItem(false);}} imgurClientId={imgurClientId}/>}
       {selectedItem&&<ItemDetailModal item={selectedItem} wears={wardrobeWears} setWears={setWardrobeWears} onClose={()=>setSelectedItem(null)} onEdit={()=>{setEditingItem(selectedItem);setSelectedItem(null);}} onDelete={()=>{setWardrobeItems(p=>p.filter(i=>i.id!==selectedItem.id));setWardrobeWears(p=>p.filter(w=>w.item_id!==selectedItem.id));setSelectedItem(null);}}/>}
-      {editingItem&&<AddItemModal item={editingItem} onClose={()=>setEditingItem(null)} onSave={updated=>{setWardrobeItems(p=>p.map(i=>i.id===updated.id?updated:i));setEditingItem(null);}} supaUrl={supaUrl} supaKey={supaKey}/>}
+      {editingItem&&<AddItemModal item={editingItem} onClose={()=>setEditingItem(null)} onSave={updated=>{setWardrobeItems(p=>p.map(i=>i.id===updated.id?updated:i));setEditingItem(null);}} imgurClientId={imgurClientId}/>}
     </div>
   );
 }
@@ -6962,6 +6978,7 @@ function App(){
   const [wardrobeItems,setWardrobeItems]=useState(()=>lg("plo3_wrd_items",[]));
   const [wardrobeWears,setWardrobeWears]=useState(()=>lg("plo3_wrd_wears",[]));
   const [wardrobeOutfits,setWardrobeOutfits]=useState(()=>lg("plo3_wrd_outfits",[]));
+  const [imgurClientId,setImgurClientId]=useState(()=>lg("plo3_imgur_id",""));
   const [apiKey,setApiKey]=useState(()=>lg("plo3_apikey",""));
   const [budget,setBudget]=useState(()=>lg("plo3_budget",[]));
   const [envelopes,setEnvelopes]=useState(()=>lg("plo3_envelopes",[]));
@@ -7048,6 +7065,7 @@ function App(){
   useEffect(()=>ls("plo3_wrd_items",wardrobeItems),[wardrobeItems]);
   useEffect(()=>ls("plo3_wrd_wears",wardrobeWears),[wardrobeWears]);
   useEffect(()=>ls("plo3_wrd_outfits",wardrobeOutfits),[wardrobeOutfits]);
+  useEffect(()=>ls("plo3_imgur_id",imgurClientId),[imgurClientId]);
   useEffect(()=>ls("plo3_apikey",apiKey),[apiKey]);
   useEffect(()=>ls("plo3_budget",budget),[budget]);
   useEffect(()=>ls("plo3_envelopes",envelopes),[envelopes]);
@@ -7228,8 +7246,8 @@ function App(){
       {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats}/>}
       {page==="review"&&<ReviewPage tasks={tasks} setTasks={setTasks} goals={goals} apiKey={apiKey} setModal={setModal} pushUndo={pushUndo}/>}
       {page==="wk"&&<WkPage tasks={tasks} completions={completions} setCompletions={setCompletions} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay}/>}
-      {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal}/>}
-      {page==="wardrobe"&&<WardrobePage wardrobeItems={wardrobeItems} setWardrobeItems={setWardrobeItems} wardrobeWears={wardrobeWears} setWardrobeWears={setWardrobeWears} wardrobeOutfits={wardrobeOutfits} setWardrobeOutfits={setWardrobeOutfits} supaUrl={supaUrl} supaKey={supaKey} pushUndo={pushUndo}/>}
+      {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal} imgurClientId={imgurClientId} setImgurClientId={setImgurClientId}/>}
+      {page==="wardrobe"&&<WardrobePage wardrobeItems={wardrobeItems} setWardrobeItems={setWardrobeItems} wardrobeWears={wardrobeWears} setWardrobeWears={setWardrobeWears} wardrobeOutfits={wardrobeOutfits} setWardrobeOutfits={setWardrobeOutfits} imgurClientId={imgurClientId} pushUndo={pushUndo}/>}
 
       {/* CAPTURE OVERLAY */}
       {showCapture&&<div onClick={e=>e.target===e.currentTarget&&setShowCapture(false)} className="overlay-in" style={{position:"fixed",inset:0,zIndex:300,backdropFilter:"blur(14px) brightness(0.9)",WebkitBackdropFilter:"blur(14px) brightness(0.9)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"22vh"}}>
