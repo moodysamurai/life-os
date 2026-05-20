@@ -6654,8 +6654,9 @@ function WardrobeItemCard({item,wears,onClick}){
         {item.status!=='active'&&<div style={{position:'absolute',top:6,right:6,background:statusDot[item.status]||T.muted,borderRadius:2,padding:'2px 5px',fontFamily:PP_M,fontSize:8,color:'#fff',letterSpacing:'0.1em'}}>{item.status.replace(/_/g,' ').toUpperCase()}</div>}
       </div>
       <div style={{padding:'8px 10px'}}>
-        <div style={{fontFamily:PP_M,fontSize:10,color:T.text,letterSpacing:'0.1em',marginBottom:2,textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.subcategory||item.category||'—'}</div>
-        {item.brand&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.08em',marginBottom:3}}>{item.brand}</div>}
+        <div style={{fontFamily:PP_M,fontSize:10,color:T.text,letterSpacing:'0.1em',marginBottom:2,textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name||item.subcategory||item.category||'—'}</div>
+        {(item.brand||item.subcategory)&&item.name&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.08em',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{[item.subcategory,item.brand].filter(Boolean).join(' · ')}</div>}
+        {!item.name&&item.brand&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.08em',marginBottom:3}}>{item.brand}</div>}
         <div style={{display:'flex',justifyContent:'space-between',fontFamily:PP_M,fontSize:9,color:T.muted}}><span>{wears.length}× worn</span>{cpw&&<span>€{cpw}/wr</span>}</div>
       </div>
     </div>
@@ -6683,7 +6684,7 @@ function WardrobeGrid({items,wears,filters,setFilters,onSelectItem}){
 function AddItemModal({item:editItem,onClose,onSave,imgbbApiKey,removeBgKey}){
   const T=useT();
   const isEdit=!!editItem;
-  const blank={id:uid(),image_url:'',category:'top',subcategory:'',colors:['black'],formality:'casual',brand:'',price_paid:'',source:'purchase',status:'active',owned_since:'',season:'',notes:'',created_at:new Date().toISOString()};
+  const blank={id:uid(),image_url:'',category:'top',name:'',subcategory:'',colors:['black'],formality:'casual',brand:'',price_paid:'',source:'purchase',status:'active',owned_since:'',season:'',notes:'',created_at:new Date().toISOString()};
   const [form,setForm]=useState(editItem?{...editItem,price_paid:editItem.price_paid??''}:blank);
   const [uploading,setUploading]=useState(false);
   const [uploadStage,setUploadStage]=useState('');
@@ -6804,6 +6805,7 @@ function AddItemModal({item:editItem,onClose,onSave,imgbbApiKey,removeBgKey}){
               <div><label style={lbl}>Category</label><select value={form.category} onChange={e=>set('category',e.target.value)} style={inp}>{WRD_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
               <div><label style={lbl}>Subcategory</label><input value={form.subcategory} onChange={e=>set('subcategory',e.target.value)} placeholder="t-shirt, chinos…" style={inp}/></div>
             </div>
+            <div><label style={lbl}>Name</label><input value={form.name||''} onChange={e=>set('name',e.target.value)} placeholder="Navy linen overshirt, Sambas, gym sweats…" style={inp}/></div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div><label style={lbl}>Brand</label><input value={form.brand} onChange={e=>set('brand',e.target.value)} style={inp}/></div>
               <div><label style={lbl}>Price Paid (€)</label><input type="number" value={form.price_paid} onChange={e=>set('price_paid',e.target.value)} placeholder="0.00" style={inp}/></div>
@@ -6844,7 +6846,7 @@ function ItemDetailModal({item,wears,setWears,onClose,onEdit,onDelete}){
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div style={{background:T.bg,border:`1px solid ${T.text}`,borderRadius:4,width:'min(580px,95vw)',maxHeight:'90vh',overflow:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 20px',borderBottom:`1px solid ${T.border}`}}>
-          <span style={{fontFamily:PP_M,fontSize:11,color:T.text,letterSpacing:'0.2em'}}>{((item.subcategory||item.category||'ITEM')+(item.brand?` · ${item.brand}`:'')).toUpperCase()}</span>
+          <span style={{fontFamily:PP_M,fontSize:11,color:T.text,letterSpacing:'0.2em'}}>{((item.name||item.subcategory||item.category||'ITEM')+(item.brand?` · ${item.brand}`:'')).toUpperCase()}</span>
           <button onClick={onClose} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:14,color:T.muted}}>✕</button>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'170px 1fr'}}>
@@ -7030,11 +7032,10 @@ function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeW
   return(
     <div style={{maxWidth:1200,margin:'0 auto',padding:'0 2rem 4rem'}}>
       <div style={{padding:'22px 0 0',borderBottom:`1px solid ${T.border}`,marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
-        <div>{tabBtn('grid','WARDROBE')}{tabBtn('analytics','ANALYTICS')}{tabBtn('outfits','OUTFITS')}</div>
+        <div>{tabBtn('grid','WARDROBE')}{tabBtn('outfits','OUTFITS')}</div>
         {subTab==='grid'&&<button onClick={()=>setShowAddItem(true)} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 14px',cursor:'pointer',color:T.bg,borderRadius:2,marginBottom:8}}>+ ADD ITEM</button>}
       </div>
       {subTab==='grid'&&<WardrobeGrid items={filteredItems} wears={wardrobeWears} filters={filters} setFilters={setFilters} onSelectItem={setSelectedItem}/>}
-      {subTab==='analytics'&&<WardrobeAnalytics items={wardrobeItems} wears={wardrobeWears} outfits={wardrobeOutfits}/>}
       {subTab==='outfits'&&<OutfitBuilder items={wardrobeItems} outfits={wardrobeOutfits} setOutfits={setWardrobeOutfits} wears={wardrobeWears} setWears={setWardrobeWears}/>}
       {showAddItem&&<AddItemModal onClose={()=>setShowAddItem(false)} onSave={item=>{setWardrobeItems(p=>[...p,item]);setShowAddItem(false);}} imgbbApiKey={imgbbApiKey} removeBgKey={removeBgKey}/>}
       {selectedItem&&<ItemDetailModal item={selectedItem} wears={wardrobeWears} setWears={setWardrobeWears} onClose={()=>setSelectedItem(null)} onEdit={()=>{setEditingItem(selectedItem);setSelectedItem(null);}} onDelete={()=>{setWardrobeItems(p=>p.filter(i=>i.id!==selectedItem.id));setWardrobeWears(p=>p.filter(w=>w.item_id!==selectedItem.id));setSelectedItem(null);}}/>}
