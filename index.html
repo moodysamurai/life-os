@@ -6638,6 +6638,36 @@ const WRD_COLORS=['black','white','grey','navy','brown','beige','green','blue','
 const WRD_COLOR_HEX={black:'#111111',white:'#ececec',grey:'#888888',navy:'#1a2744',brown:'#7a5c3a',beige:'#d4b896',green:'#3d6b4a',blue:'#3a6bc8',red:'#c8412e',orange:'#e07a3a',yellow:'#d4b030',pink:'#e07ab4',purple:'#7a3ab4',multi:'#bbbbbb'};
 const WRD_PALETTE=['#c8412e','#5a7ad4','#3d6b4a','#d4a030','#7a3ab4','#e07a3a','#6a8a8a','#a85a90'];
 
+// Image framing — normalize how garments sit in their frame across mixed sources.
+// Category presets give a sensible default; per-item overrides (img_fit / img_scale /
+// img_pos_y) let you nudge an outlier so every top / bottom looks the same size.
+const WRD_CAT_IMGFIT={
+  top:{fit:'cover',scale:1,posY:45},
+  bottom:{fit:'cover',scale:1,posY:50},
+  outerwear:{fit:'cover',scale:1,posY:45},
+  footwear:{fit:'contain',scale:1,posY:50},
+  accessory:{fit:'contain',scale:1,posY:50},
+  other:{fit:'cover',scale:1,posY:50},
+  _default:{fit:'cover',scale:1,posY:50},
+};
+function wrdImgFit(item){
+  const d=(item&&WRD_CAT_IMGFIT[item.category])||WRD_CAT_IMGFIT._default;
+  return {
+    fit:(item&&item.img_fit)||d.fit,
+    scale:(item&&item.img_scale!=null&&item.img_scale!=='')?Number(item.img_scale):d.scale,
+    posY:(item&&item.img_pos_y!=null&&item.img_pos_y!=='')?Number(item.img_pos_y):d.posY,
+  };
+}
+function wrdImgStyle(item,extra){
+  const f=wrdImgFit(item);
+  return Object.assign({
+    width:'100%',height:'100%',objectFit:f.fit,
+    objectPosition:'50% '+f.posY+'%',
+    transform:f.scale!==1?'scale('+f.scale+')':undefined,
+    transformOrigin:'50% '+f.posY+'%',
+  },extra||{});
+}
+
 function WrdPie({data,size=140}){
   const T=useT();
   const total=data.reduce((s,d)=>s+(d.value||0),0);
@@ -6689,7 +6719,7 @@ function WardrobeItemCard({item,wears,onClick}){
   return(
     <div onClick={onClick} style={{cursor:'pointer',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',transition:'border-color 0.1s'}} onMouseEnter={e=>e.currentTarget.style.borderColor=T.text} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
       <div style={{background:T.cardAlt,aspectRatio:'3/4',display:'flex',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
-        {item.image_url?<img src={item.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>{(item.category||'—').toUpperCase()}</span>}
+        {item.image_url?<img src={item.image_url} alt="" style={wrdImgStyle(item)}/>:<span style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em'}}>{(item.category||'—').toUpperCase()}</span>}
         {item.status!=='active'&&<div style={{position:'absolute',top:6,right:6,background:statusDot[item.status]||T.muted,borderRadius:2,padding:'2px 5px',fontFamily:PP_M,fontSize:8,color:'#fff',letterSpacing:'0.1em'}}>{item.status.replace(/_/g,' ').toUpperCase()}</div>}
       </div>
       <div style={{padding:'8px 10px'}}>
@@ -6828,7 +6858,7 @@ function AddItemModal({item:editItem,onClose,onSave,imgbbApiKey,removeBgKey}){
               onDragLeave={()=>setDragOver(false)}
               onDrop={handleDrop}
               style={{background:dragOver?T.cardAlt:T.cardAlt,aspectRatio:'3/4',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',border:`2px dashed ${dragOver?T.mint:T.border}`,borderRadius:4,overflow:'hidden',position:'relative',transition:'border-color 0.1s'}}>
-              {imgPreview?<img src={imgPreview} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{textAlign:'center',padding:8}}><div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em',lineHeight:1.8}}>CLICK<br/>DROP<br/>OR PASTE</div></div>}
+              {imgPreview?<img src={imgPreview} style={wrdImgStyle(form)}/>:<div style={{textAlign:'center',padding:8}}><div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.1em',lineHeight:1.8}}>CLICK<br/>DROP<br/>OR PASTE</div></div>}
               {uploading&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:9,color:'#fff',letterSpacing:'0.15em'}}>{uploadStage||'WORKING…'}</span></div>}
             </div>
             <div style={{marginTop:8,display:'flex',alignItems:'center',gap:6,cursor:removeBgKey?'pointer':'not-allowed',opacity:removeBgKey?1:0.45}} onClick={()=>{if(removeBgKey)setUseRemoveBg(v=>!v);}}>
@@ -6837,6 +6867,26 @@ function AddItemModal({item:editItem,onClose,onSave,imgbbApiKey,removeBgKey}){
             </div>
             {!removeBgKey&&<div style={{fontFamily:PP_M,fontSize:7,color:T.muted,letterSpacing:'0.08em',marginTop:3,lineHeight:1.4,opacity:0.7}}>Add remove.bg key in Settings</div>}
             {uploadErr&&<div style={{fontFamily:PP_M,fontSize:8,color:T.mint,letterSpacing:'0.08em',marginTop:6,lineHeight:1.4}}>{uploadErr}</div>}
+            {imgPreview&&(()=>{
+              const eff=wrdImgFit(form);
+              const sl={width:'100%',accentColor:T.mint,height:14,cursor:'pointer'};
+              const cap={display:'block',fontFamily:PP_M,fontSize:7,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',margin:'6px 0 1px'};
+              return <div style={{marginTop:10,padding:'8px 10px',border:`1px solid ${T.border}`,borderRadius:4}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                  <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.15em',textTransform:'uppercase'}}>Framing</span>
+                  <button onClick={()=>setForm(f=>({...f,img_fit:undefined,img_scale:undefined,img_pos_y:undefined}))} title="Back to category default" style={{fontFamily:PP_M,fontSize:7,letterSpacing:'0.12em',background:'transparent',border:`1px solid ${T.border}`,padding:'2px 7px',cursor:'pointer',color:T.muted,borderRadius:2,textTransform:'uppercase'}}>Reset</button>
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  {[['cover','FILL'],['contain','FIT']].map(([v,l])=>(
+                    <button key={v} onClick={()=>set('img_fit',v)} style={{flex:1,fontFamily:PP_M,fontSize:8,letterSpacing:'0.12em',padding:'4px 0',cursor:'pointer',borderRadius:2,border:`1px solid ${eff.fit===v?T.text:T.border}`,background:eff.fit===v?T.text:'transparent',color:eff.fit===v?T.bg:T.muted}}>{l}</button>
+                  ))}
+                </div>
+                <label style={cap}>Zoom · {eff.scale.toFixed(2)}×</label>
+                <input type="range" min="0.5" max="2" step="0.05" value={eff.scale} onChange={e=>set('img_scale',parseFloat(e.target.value))} style={sl}/>
+                <label style={cap}>Vertical · {Math.round(eff.posY)}%</label>
+                <input type="range" min="0" max="100" step="1" value={eff.posY} onChange={e=>set('img_pos_y',parseInt(e.target.value))} style={sl}/>
+              </div>;
+            })()}
             <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
@@ -6889,8 +6939,8 @@ function ItemDetailModal({item,wears,setWears,onClose,onEdit,onDelete}){
           <button onClick={onClose} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:14,color:T.muted}}>✕</button>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'170px 1fr'}}>
-          <div style={{background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',minHeight:220,overflow:'hidden'}}>
-            {item.image_url?<img src={item.image_url} style={{width:'100%',objectFit:'cover',maxHeight:280}}/>:<span style={{fontFamily:PP_M,fontSize:9,color:T.muted}}>{(item.category||'—').toUpperCase()}</span>}
+          <div style={{background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',aspectRatio:'3/4',minHeight:220,overflow:'hidden'}}>
+            {item.image_url?<img src={item.image_url} style={wrdImgStyle(item)}/>:<span style={{fontFamily:PP_M,fontSize:9,color:T.muted}}>{(item.category||'—').toUpperCase()}</span>}
           </div>
           <div style={{padding:'16px 20px'}}>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 16px',marginBottom:14}}>
@@ -7105,7 +7155,7 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
             {draft.item_ids.map(id=>{const item=items.find(i=>i.id===id);if(!item)return null;return(
               <div key={id} onClick={()=>toggleItem(id)} style={{width:72,cursor:'pointer',border:`1px solid ${T.mint}`,borderRadius:3,overflow:'hidden'}}>
                 <div style={{height:90,background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-                  {item.image_url?<img src={item.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:7,color:T.muted}}>{(item.category||'?').toUpperCase()}</span>}
+                  {item.image_url?<img src={item.image_url} style={wrdImgStyle(item)}/>:<span style={{fontFamily:PP_M,fontSize:7,color:T.muted}}>{(item.category||'?').toUpperCase()}</span>}
                 </div>
                 <div style={{padding:'3px 5px',fontFamily:PP_M,fontSize:7,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.subcategory||item.category||'?').toUpperCase()}</div>
               </div>
@@ -7118,7 +7168,7 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
         {active.map(item=>{const sel=draft.item_ids.includes(item.id);return(
           <div key={item.id} onClick={()=>toggleItem(item.id)} style={{cursor:'pointer',background:T.card,border:`2px solid ${sel?T.mint:T.border}`,borderRadius:3,overflow:'hidden',opacity:sel?1:0.65,transition:'all 0.1s'}}>
             <div style={{height:110,background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-              {item.image_url?<img src={item.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:7,color:T.muted}}>{(item.category||'?').toUpperCase()}</span>}
+              {item.image_url?<img src={item.image_url} style={wrdImgStyle(item)}/>:<span style={{fontFamily:PP_M,fontSize:7,color:T.muted}}>{(item.category||'?').toUpperCase()}</span>}
             </div>
             <div style={{padding:'4px 6px',fontFamily:PP_M,fontSize:7,color:sel?T.text:T.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.subcategory||item.category||'?').toUpperCase()}</div>
           </div>
@@ -7139,7 +7189,7 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
               <div style={{display:'flex',flexWrap:'wrap',gap:4,padding:10,background:T.cardAlt,minHeight:90}}>
                 {ois.slice(0,4).map(item=>(
                   <div key={item.id} style={{width:64,height:82,background:T.bg,borderRadius:2,overflow:'hidden',flexShrink:0}}>
-                    {item.image_url?<img src={item.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:6,color:T.muted}}>{(item.category||'?').slice(0,3).toUpperCase()}</span></div>}
+                    {item.image_url?<img src={item.image_url} style={wrdImgStyle(item)}/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:6,color:T.muted}}>{(item.category||'?').slice(0,3).toUpperCase()}</span></div>}
                   </div>
                 ))}
                 {ois.length>4&&<div style={{width:64,height:82,background:T.bg,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:11,color:T.muted}}>+{ois.length-4}</span></div>}
@@ -7253,7 +7303,7 @@ Respond with ONLY valid JSON (no markdown), keys exactly:
               {pickedItems.map(i=>(
                 <div key={i.id} style={{width:90,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,overflow:'hidden',flexShrink:0}}>
                   <div style={{aspectRatio:'3/4',background:T.cardAlt,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-                    {i.image_url?<img src={i.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontFamily:PP_M,fontSize:8,color:T.muted}}>{(i.category||'—').toUpperCase()}</span>}
+                    {i.image_url?<img src={i.image_url} alt="" style={wrdImgStyle(i)}/>:<span style={{fontFamily:PP_M,fontSize:8,color:T.muted}}>{(i.category||'—').toUpperCase()}</span>}
                   </div>
                   <div style={{padding:'4px 6px',fontFamily:PP_M,fontSize:8,color:T.text,letterSpacing:'0.06em',textTransform:'uppercase',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.name||i.subcategory||i.category}</div>
                 </div>
