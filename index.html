@@ -2026,6 +2026,12 @@ function CashflowCalendar({mon,months,ym0,incCats,expCats,envelopes,savingsStart
           const isHover=inRange&&hoverIdx===dayIndex;
           const isMonthLabel=inRange&&p.isFirstOfMonth;
           const isMonthBreak=isMonthLabel&&dayIndex>0;
+          // Thick "staircase" divider that follows the real month edge (handles mid-row breaks):
+          // a cell on a later month gets a top border when the cell directly above it is a different month.
+          const curMonth=inRange?p.ds.slice(0,7):null;
+          const aboveIdx=dayIndex-7;
+          const monthEdgeTop=inRange&&curMonth!==firstMon&&!(aboveIdx>=0&&series[aboveIdx]&&series[aboveIdx].ds.slice(0,7)===curMonth);
+          const DIV=`3px solid ${T.text}`;
           const colIdx=i%7;
           const rowIdx=Math.floor(i/7);
           const evs=inRange?p.events:[];
@@ -2036,17 +2042,17 @@ function CashflowCalendar({mon,months,ym0,incCats,expCats,envelopes,savingsStart
               position:"relative",padding:"5px 6px",
               borderRight:colIdx<6?`1px solid ${T.border}`:"none",
               borderBottom:rowIdx<weeks-1?`1px solid ${T.border}`:"none",
-              borderTop:isMonthBreak?`2px solid ${alpha(T.text,.45)}`:"none",
-              borderLeft:isMonthBreak?`2px solid ${alpha(T.text,.45)}`:"none",
-              background:isHover?alpha(T.text||"#000",0.05):cellBg(p),
+              borderTop:monthEdgeTop?DIV:"none",
+              borderLeft:isMonthBreak?DIV:"none",
+              background:isHover?alpha(T.text||"#000",0.05):(isMonthLabel?alpha(T.text,.05):cellBg(p)),
               transition:"background 0.1s",
               overflow:"hidden",
               opacity:inRange?1:0.25
             }}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4,gap:4}}>
-              <span style={{...numF,fontSize:isToday?13:11,fontWeight:isToday||isMonthLabel?700:500,color:inRange?(isMonthLabel?(T.red||RED):T.text):T.muted,whiteSpace:"nowrap"}}>
-                {inRange?(isMonthLabel?MFULL[p.date.getMonth()].slice(0,3).toUpperCase()+" "+String(p.day).padStart(2,"0"):String(p.day).padStart(2,"0")):""}
-              </span>
+              {isMonthLabel
+                ? <span style={{...numF,fontSize:10,fontWeight:700,color:T.bg,background:T.text,padding:"2px 6px",borderRadius:2,letterSpacing:"0.06em",whiteSpace:"nowrap"}}>{MFULL[p.date.getMonth()].slice(0,3).toUpperCase()+" "+String(p.day).padStart(2,"0")}</span>
+                : <span style={{...numF,fontSize:isToday?13:11,fontWeight:isToday?700:500,color:inRange?T.text:T.muted,whiteSpace:"nowrap"}}>{inRange?String(p.day).padStart(2,"0"):""}</span>}
               {inRange&&
                 <span style={{...numF,fontSize:10,fontWeight:600,color:p.closeBal<0?RED:T.muted}}>
                   {p.closeBal<0?"−":""}€{Math.abs(Math.round(p.closeBal)).toLocaleString("en-GB")}
