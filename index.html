@@ -2124,6 +2124,18 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const [dragOverCatId,setDragOverCatId]=useState(null);
   const [savingsStart,setSavingsStart]=useState(()=>parseFloat(lg("plo3_sav_start","0"))||0);
   const [savingsRate,setSavingsRate]=useState(()=>parseFloat(lg("plo3_sav_rate","0"))||0);
+  // Category-mix donut (12M Plan tab, right gutter): scope toggle + hover highlight + responsive width.
+  const [pieScope,setPieScope]=useState("expense"); // "expense" | "income"
+  const [pieHover,setPieHover]=useState(null);       // category label being hovered
+  const rootRef=useRef(null);
+  const [rootW,setRootW]=useState(1400);
+  useEffect(()=>{
+    const el=rootRef.current;
+    if(!el||typeof ResizeObserver==="undefined")return;
+    const ro=new ResizeObserver(es=>{for(const e of es)setRootW(e.contentRect.width);});
+    ro.observe(el);
+    return ()=>ro.disconnect();
+  },[]);
 
   const monLabel=useMemo(()=>{const p=mon.split("-");return MFULL[parseInt(p[1])-1]+" "+p[0];},[mon]);
   const prevMon=()=>{const d=new Date(mon+"-01");d.setMonth(d.getMonth()-1);setMon(toStr(d).slice(0,7));};
@@ -2367,7 +2379,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
   const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:0,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
 
-  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:6,position:"relative"}}>
+  return <div ref={rootRef} style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,gap:6,position:"relative"}}>
 
     {/* Nav row — paper editorial */}
     {pageMode&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",flexShrink:0,paddingBottom:6,borderBottom:`1px solid ${T.lineSoft||T.borderSft}`}}>
@@ -2734,6 +2746,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const LBL_W=204;
       const DAY_W=46;
       const ACT_W=62;
+      const TABLE_W=LBL_W+DAY_W+COL_W*12+ACT_W;
+      // Only float the category-mix donut into the right gutter when the table won't be crowded.
+      const wideEnough=rootW>=TABLE_W+360;
       const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted};
       const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
 
@@ -2803,6 +2818,108 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               style={{width:22,height:22,borderRadius:0,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.muted,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,fontSize:13,lineHeight:1}}>×</button>
           </div>
         </div>;
+      };
+
+      // ── CATEGORY-MIX DONUT ──────────────────────────────
+      // One slice per category for the *selected* month (`mon`), tinted by the divider
+      // band the category sits in. Each band gets its own hue; categories inside a band
+      // are shades of that hue, so the dividers visually "control" the colour grouping.
+      const BAND_HUES=[12,78,212,40,285,175,348];
+      const bandColor=(b,j,n)=>{
+        const h=BAND_HUES[b%BAND_HUES.length];
+        const t=n<=1?0.42:j/(n-1);
+        const l=Math.round(45+t*23); // 45%..68% lightness within a band
+        return `hsl(${h}, 53%, ${l}%)`;
+      };
+      // Walk an ordered section list (with dividers); a divider opens a new band.
+      const buildSlices=(list)=>{
+        let cur=0;const items=[];
+        list.forEach(c=>{ if(c.type==="divider"){cur++;return;} items.push({cat:c,band:cur}); });
+        const shown=items.map(it=>({...it,amt:getPlanAmt(mon,it.cat.label)})).filter(it=>it.amt>0);
+        const byBand={};shown.forEach(it=>{(byBand[it.band]=byBand[it.band]||[]).push(it);});
+        Object.values(byBand).forEach(arr=>arr.forEach((it,j)=>{it.color=bandColor(it.band,j,arr.length);}));
+        return shown;
+      };
+      const renderPie=()=>{
+        const isInc=pieScope==="income";
+        const ACC2=isInc?OLIVE:RED;
+        const slices=buildSlices(isInc?incSection:expSectionMain);
+        const total=slices.reduce((s,x)=>s+x.amt,0);
+        const monShort=MFULL[parseInt(mon.split("-")[1])-1].slice(0,3)+" '"+mon.slice(2,4);
+        const header=(
+          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:3}}>
+            <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:19,color:ACC2,letterSpacing:"-0.3px",lineHeight:1}}>{isInc?"Income":"Expenses"} mix</span>
+            <div style={{display:"flex",border:`1px solid ${T.border}`,flexShrink:0}}>
+              {[["expense","EXP"],["income","INC"]].map(([k,lab])=>{
+                const on=pieScope===k,c=k==="income"?OLIVE:RED;
+                return <button key={k} onClick={()=>setPieScope(k)}
+                  style={{...eye,fontSize:8,padding:"4px 9px",border:"none",cursor:"pointer",background:on?alpha(c,.12):"transparent",color:on?c:T.muted}}>{lab}</button>;
+              })}
+            </div>
+          </div>
+        );
+        const sub=<div style={{...eye,fontSize:8,color:T.muted,opacity:0.8,marginBottom:12}}>{monShort} · selected month</div>;
+        const panel=(body)=>(
+          <div style={{border:`1px solid ${T.border}`,background:alpha(ACC2,.03),padding:"15px 17px",maxWidth:430}}>
+            {header}{sub}{body}
+          </div>
+        );
+        if(total<=0){
+          return panel(
+            <div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:14,color:T.muted,opacity:0.8,padding:"14px 0",lineHeight:1.4}}>
+              No {isInc?"income":"expenses"} planned for {monShort}. Fill some cells, or use the ‹ › arrows above to pick another month.
+            </div>
+          );
+        }
+        // Donut geometry
+        const CX=100,CY=100,rO=90,rI=54;
+        let a=-Math.PI/2;
+        const wedges=slices.map(sl=>{const frac=sl.amt/total,a0=a,a1=a+frac*Math.PI*2;a=a1;return{...sl,a0,a1,frac};});
+        const arcPath=(rOO,rII,a0,a1)=>{
+          const P=(r,ang)=>[CX+r*Math.cos(ang),CY+r*Math.sin(ang)];
+          const large=(a1-a0)>Math.PI?1:0;
+          const [x0,y0]=P(rOO,a0),[x1,y1]=P(rOO,a1),[x2,y2]=P(rII,a1),[x3,y3]=P(rII,a0);
+          return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${rOO} ${rOO} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} L${x2.toFixed(2)} ${y2.toFixed(2)} A${rII} ${rII} 0 ${large} 0 ${x3.toFixed(2)} ${y3.toFixed(2)} Z`;
+        };
+        const dim=(lbl)=>pieHover&&pieHover!==lbl?0.28:1;
+        const bands=[];wedges.forEach(w=>{if(!bands.includes(w.band))bands.push(w.band);});
+        return panel(<>
+          <div style={{display:"flex",justifyContent:"center"}}>
+            <svg viewBox="0 0 200 200" width="186" height="186" style={{maxWidth:"100%"}}>
+              {wedges.length===1
+                ? <><circle cx={CX} cy={CY} r={rO} fill={wedges[0].color}/><circle cx={CX} cy={CY} r={rI} fill={T.card}/></>
+                : wedges.map(w=>(
+                    <path key={w.cat.id} d={arcPath(rO,rI,w.a0,w.a1)} fill={w.color}
+                      stroke={T.card} strokeWidth="1.5" opacity={dim(w.cat.label)}
+                      onMouseEnter={()=>setPieHover(w.cat.label)} onMouseLeave={()=>setPieHover(null)}
+                      style={{transition:"opacity .12s",cursor:"default"}}>
+                      <title>{w.cat.label}: €{w.amt} ({(w.frac*100).toFixed(0)}%)</title>
+                    </path>
+                  ))}
+              <text x={CX} y={CY-3} textAnchor="middle" fill={T.text} style={{fontFamily:PP_M,fontSize:21,fontWeight:700}}>€{total.toFixed(0)}</text>
+              <text x={CX} y={CY+13} textAnchor="middle" fill={T.muted} style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.2em"}}>{isInc?"INCOME":"EXPENSES"}</text>
+            </svg>
+          </div>
+          <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:9}}>
+            {bands.map(b=>{
+              const items=wedges.filter(w=>w.band===b);
+              return <div key={b} style={{display:"flex",gap:9}}>
+                <div style={{width:3,alignSelf:"stretch",background:items[0].color,opacity:0.85,flexShrink:0}}/>
+                <div style={{flex:1,display:"flex",flexDirection:"column",gap:4,minWidth:0}}>
+                  {items.map(w=>(
+                    <div key={w.cat.id} onMouseEnter={()=>setPieHover(w.cat.label)} onMouseLeave={()=>setPieHover(null)}
+                      style={{display:"flex",alignItems:"center",gap:7,opacity:dim(w.cat.label),transition:"opacity .12s",cursor:"default"}}>
+                      <span style={{width:9,height:9,background:w.color,flexShrink:0,borderRadius:1}}/>
+                      <span style={{...numF,fontSize:11,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w.cat.label}</span>
+                      <span style={{...numF,fontSize:10,color:T.muted}}>€{w.amt}</span>
+                      <span style={{...numF,fontSize:9,color:ACC2,fontWeight:700,width:34,textAlign:"right"}}>{(w.frac*100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>;
+            })}
+          </div>
+        </>);
       };
 
       // Year overview totals across the 12 planning months.
@@ -2877,46 +2994,53 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           <div style={{width:ACT_W,flexShrink:0}}/>
         </div>
 
-        {/* ── Scrollable middle: income + expenses ── */}
-        <div style={{display:"flex",flexDirection:"column",gap:8,overflowX:"auto"}}>
-
-          {/* Income section */}
-          <div style={{display:"flex",flexDirection:"column",gap:2}}>
-            <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
-              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:OLIVE,letterSpacing:"-0.3px",lineHeight:1}}>Income</span>
-              <span style={{...eye,fontSize:8,color:OLIVE,opacity:0.6}}>{incSection.filter(c=>c.type!=="divider").length} cats · €{incTotal.toFixed(0)}/yr</span>
-              <div style={{flex:1,height:1,background:alpha(OLIVE,.18),alignSelf:"center"}}/>
-              <button onClick={()=>addDivider("income")} title="Add divider"
-                style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(OLIVE,.35)}`,padding:"3px 8px",cursor:"pointer",color:OLIVE,letterSpacing:"0.2em"}}>+ DIVIDER</button>
-            </div>
-            {incSection.map(cat=>renderRow(cat,"income"))}
-          </div>
-
-          {/* Expenses section (savings excluded — shown in its own track below) */}
-          <div style={{display:"flex",flexDirection:"column",gap:2}}>
-            <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
-              <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:RED,letterSpacing:"-0.3px",lineHeight:1}}>Expenses</span>
-              <span style={{...eye,fontSize:8,color:RED,opacity:0.6}}>{expSectionMain.filter(c=>c.type!=="divider").length} cats · €{expTotal.toFixed(0)}/yr</span>
-              <div style={{flex:1,height:1,background:alpha(RED,.18),alignSelf:"center"}}/>
-              <button onClick={()=>addDivider("expense")} title="Add divider"
-                style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(RED,.35)}`,padding:"3px 8px",cursor:"pointer",color:RED,letterSpacing:"0.2em"}}>+ DIVIDER</button>
-            </div>
-            {expSectionMain.map(cat=>renderRow(cat,"expense"))}
-          </div>
-
-          {/* Savings track — deducts the balance but kept out of the Expenses figure */}
-          {savSection.length>0&&
+        {/* ── Scrollable middle: income + expenses · category-mix donut in the right gutter ── */}
+        {(()=>{
+          const middleInner=(<>
+            {/* Income section */}
             <div style={{display:"flex",flexDirection:"column",gap:2}}>
               <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
-                <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:SAV_COL,letterSpacing:"-0.3px",lineHeight:1}}>Savings</span>
-                <span style={{...eye,fontSize:8,color:SAV_COL,opacity:0.7}}>set aside · {savSection.length} cat{savSection.length>1?"s":""} · €{savTotal.toFixed(0)}/yr</span>
-                <div style={{flex:1,height:1,background:alpha(SAV_COL,.18),alignSelf:"center"}}/>
-                <span style={{...eye,fontSize:7,color:T.muted,opacity:0.7,letterSpacing:"0.18em"}}>deducts balance · not in expenses</span>
+                <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:OLIVE,letterSpacing:"-0.3px",lineHeight:1}}>Income</span>
+                <span style={{...eye,fontSize:8,color:OLIVE,opacity:0.6}}>{incSection.filter(c=>c.type!=="divider").length} cats · €{incTotal.toFixed(0)}/yr</span>
+                <div style={{flex:1,height:1,background:alpha(OLIVE,.18),alignSelf:"center"}}/>
+                <button onClick={()=>addDivider("income")} title="Add divider"
+                  style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(OLIVE,.35)}`,padding:"3px 8px",cursor:"pointer",color:OLIVE,letterSpacing:"0.2em"}}>+ DIVIDER</button>
               </div>
-              {savSection.map(cat=>renderRow(cat,"expense",SAV_COL))}
+              {incSection.map(cat=>renderRow(cat,"income"))}
             </div>
-          }
-        </div>
+
+            {/* Expenses section (savings excluded — shown in its own track below) */}
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
+                <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:RED,letterSpacing:"-0.3px",lineHeight:1}}>Expenses</span>
+                <span style={{...eye,fontSize:8,color:RED,opacity:0.6}}>{expSectionMain.filter(c=>c.type!=="divider").length} cats · €{expTotal.toFixed(0)}/yr</span>
+                <div style={{flex:1,height:1,background:alpha(RED,.18),alignSelf:"center"}}/>
+                <button onClick={()=>addDivider("expense")} title="Add divider"
+                  style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(RED,.35)}`,padding:"3px 8px",cursor:"pointer",color:RED,letterSpacing:"0.2em"}}>+ DIVIDER</button>
+              </div>
+              {expSectionMain.map(cat=>renderRow(cat,"expense"))}
+            </div>
+
+            {/* Savings track — deducts the balance but kept out of the Expenses figure */}
+            {savSection.length>0&&
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
+                  <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:SAV_COL,letterSpacing:"-0.3px",lineHeight:1}}>Savings</span>
+                  <span style={{...eye,fontSize:8,color:SAV_COL,opacity:0.7}}>set aside · {savSection.length} cat{savSection.length>1?"s":""} · €{savTotal.toFixed(0)}/yr</span>
+                  <div style={{flex:1,height:1,background:alpha(SAV_COL,.18),alignSelf:"center"}}/>
+                  <span style={{...eye,fontSize:7,color:T.muted,opacity:0.7,letterSpacing:"0.18em"}}>deducts balance · not in expenses</span>
+                </div>
+                {savSection.map(cat=>renderRow(cat,"expense",SAV_COL))}
+              </div>
+            }
+          </>);
+          return wideEnough
+            ? <div style={{display:"flex",gap:24,alignItems:"flex-start"}}>
+                <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0,overflowX:"auto"}}>{middleInner}</div>
+                <div style={{flex:1,minWidth:300,alignSelf:"flex-start",position:"sticky",top:6}}>{renderPie()}</div>
+              </div>
+            : <div style={{display:"flex",flexDirection:"column",gap:8,overflowX:"auto"}}>{middleInner}</div>;
+        })()}
 
         {/* ── Footer: net + balance + savings ── */}
         <div style={{display:"flex",flexDirection:"column",gap:1,borderTop:`1px solid ${T.border}`,paddingTop:6}}>
