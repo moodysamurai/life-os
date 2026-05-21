@@ -7207,16 +7207,15 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
         <button onClick={()=>{setDraft({name:'',item_ids:[]});setEditId(null);setBuilding(true);}} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 14px',cursor:'pointer',color:T.bg,borderRadius:2}}>+ NEW OUTFIT</button>
       </div>
       {outfits.length===0?<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>NO OUTFITS YET · BUILD YOUR FIRST LOOK</div>:(
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:16}}>
           {outfits.map(o=>{const ois=(o.item_ids||[]).map(id=>items.find(i=>i.id===id)).filter(Boolean);return(
             <div key={o.id} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden'}}>
-              <div style={{display:'flex',flexWrap:'wrap',gap:4,padding:10,background:T.cardAlt,minHeight:90}}>
-                {ois.slice(0,4).map(item=>(
-                  <div key={item.id} style={{width:64,height:82,background:T.bg,borderRadius:2,overflow:'hidden',flexShrink:0}}>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6,padding:12,background:T.cardAlt,minHeight:112}}>
+                {ois.map(item=>(
+                  <div key={item.id} style={{width:78,height:98,background:T.bg,borderRadius:2,overflow:'hidden',flexShrink:0}}>
                     {item.image_url?<img src={item.image_url} style={wrdImgStyle(item)}/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:6,color:T.muted}}>{(item.category||'?').slice(0,3).toUpperCase()}</span></div>}
                   </div>
                 ))}
-                {ois.length>4&&<div style={{width:64,height:82,background:T.bg,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontFamily:PP_M,fontSize:11,color:T.muted}}>+{ois.length-4}</span></div>}
               </div>
               <div style={{padding:'10px 12px'}}>
                 <div style={{fontFamily:PP_M,fontSize:11,color:T.text,letterSpacing:'0.1em',marginBottom:3}}>{o.name||'UNTITLED OUTFIT'}</div>
