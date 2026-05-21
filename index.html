@@ -1853,24 +1853,24 @@ const isSavCat=(label)=>/saving/i.test(label||"");
 const SAV_COL="#5a7ad4";
 
 // ── CASHFLOW CALENDAR ──────────────────────────────
-// Single-month money calendar. Mirrors PaperCalendarTodayCard layout. Each cell
-// shows: day number, running balance, income/expense pills. Hover any day to see
-// the full breakdown in the detail strip; the sparkline below shows the trajectory
-// across the month with the same hovered day highlighted.
-function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}){
+// Continuous money calendar spanning one or more contiguous months. Each cell shows
+// day number, running balance, and income/expense pills. The running balance flows
+// without resetting at month boundaries; a heavier border + month tag mark where a new
+// month begins. Pass `months` (ordered, contiguous "YYYY-MM" list) or a single `mon`.
+function CashflowCalendar({mon,months,ym0,incCats,expCats,envelopes,savingsStart,today}){
   const T=useT();
   const OLIVE="#6b7c3a";
   const RED=T.red||"#c8412e";
-  const [hoverDay,setHoverDay]=React.useState(null);
+  const [hoverIdx,setHoverIdx]=React.useState(null);
 
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:T.muted};
   const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
 
-  const [yr,mo]=mon.split("-").map(Number);
-  const dim=new Date(yr,mo,0).getDate();
-  const monLabel=MFULL[mo-1]+" "+yr;
+  const monthList=(months&&months.length?months:[mon]);
+  const firstMon=monthList[0];
+  const lastMon=monthList[monthList.length-1];
 
-  // Compute starting balance: roll forward (or back) from savingsStart, anchored to ym0.
+  // Opening balance: roll forward (or back) from savingsStart, anchored to ym0, to firstMon.
   const netForMonth=(m)=>{
     const inc=incCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
     const exp=expCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
@@ -1878,65 +1878,75 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
   };
   let startBal=savingsStart||0;
   const ym0Date=new Date(parseInt(ym0.slice(0,4)),parseInt(ym0.slice(5,7))-1,1);
-  const monDate=new Date(yr,mo-1,1);
-  if(monDate>ym0Date){
+  const [fyr,fmo]=firstMon.split("-").map(Number);
+  const firstMonDate=new Date(fyr,fmo-1,1);
+  if(firstMonDate>ym0Date){
     const c=new Date(ym0Date);
-    while(c<monDate){
+    while(c<firstMonDate){
       const ms=`${c.getFullYear()}-${String(c.getMonth()+1).padStart(2,"0")}`;
       startBal+=netForMonth(ms);
       c.setMonth(c.getMonth()+1);
     }
-  } else if(monDate<ym0Date){
+  } else if(firstMonDate<ym0Date){
     const c=new Date(ym0Date);
-    while(c>monDate){
+    while(c>firstMonDate){
       c.setMonth(c.getMonth()-1);
       const ms=`${c.getFullYear()}-${String(c.getMonth()+1).padStart(2,"0")}`;
       startBal-=netForMonth(ms);
     }
   }
 
-  // Daily series for the month. Savings still hit the balance but are not shown as
-  // expense pills (tracked separately so they stay out of the spending view).
-  const eventsByDay={};
-  [...incCats,...expCats].forEach(c=>{
-    if(c.type==="divider")return;
-    const amt=envelopes.find(e=>e.month===mon&&e.category===c.label)?.budgeted||0;
-    if(!amt)return;
-    const d=c.day?Math.min(c.day,dim):1;
-    const sav=c.type==="expense"&&isSavCat(c.label);
-    (eventsByDay[d]=eventsByDay[d]||[]).push({cat:c,amt,type:c.type,sav});
-  });
+  // Continuous daily series across every month in the list. Savings still hit the
+  // balance but are not shown as expense pills (tracked separately, out of spending).
   const series=[];
   let bal=startBal;
-  for(let d=1;d<=dim;d++){
-    const allEvs=eventsByDay[d]||[];
-    const evs=allEvs.filter(e=>!e.sav);
-    const dayIn=evs.filter(e=>e.type==="income").reduce((s,e)=>s+e.amt,0);
-    const dayOut=evs.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amt,0);
-    const daySav=allEvs.filter(e=>e.sav).reduce((s,e)=>s+e.amt,0);
-    const dayNet=dayIn-dayOut-daySav;
-    const openBal=bal;
-    bal+=dayNet;
-    series.push({day:d,ds:`${mon}-${String(d).padStart(2,"0")}`,events:evs,dayNet,dayIn,dayOut,daySav,openBal,closeBal:bal});
-  }
+  monthList.forEach((m)=>{
+    const [yy,mm]=m.split("-").map(Number);
+    const dimM=new Date(yy,mm,0).getDate();
+    const eventsByDay={};
+    [...incCats,...expCats].forEach(c=>{
+      if(c.type==="divider")return;
+      const amt=envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0;
+      if(!amt)return;
+      const d=c.day?Math.min(c.day,dimM):1;
+      const sav=c.type==="expense"&&isSavCat(c.label);
+      (eventsByDay[d]=eventsByDay[d]||[]).push({cat:c,amt,type:c.type,sav});
+    });
+    for(let d=1;d<=dimM;d++){
+      const allEvs=eventsByDay[d]||[];
+      const evs=allEvs.filter(e=>!e.sav);
+      const dayIn=evs.filter(e=>e.type==="income").reduce((s,e)=>s+e.amt,0);
+      const dayOut=evs.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amt,0);
+      const daySav=allEvs.filter(e=>e.sav).reduce((s,e)=>s+e.amt,0);
+      const dayNet=dayIn-dayOut-daySav;
+      const openBal=bal;
+      bal+=dayNet;
+      series.push({day:d,date:new Date(yy,mm-1,d),ds:`${m}-${String(d).padStart(2,"0")}`,events:evs,dayNet,dayIn,dayOut,daySav,openBal,closeBal:bal,isFirstOfMonth:d===1});
+    }
+  });
   const endBal=bal;
-  const lowPoint=series.reduce((a,b)=>b.closeBal<a.closeBal?b:a,series[0]);
+  let lowIdx=0;for(let i=1;i<series.length;i++){if(series[i].closeBal<series[lowIdx].closeBal)lowIdx=i;}
+  const lowPoint=series[lowIdx];
   const totalIn=series.reduce((s,p)=>s+p.dayIn,0);
   const totalOut=series.reduce((s,p)=>s+p.dayOut,0);
   const totalSav=series.reduce((s,p)=>s+p.daySav,0);
-  const netMonth=totalIn-totalOut-totalSav;
+  const netRange=totalIn-totalOut-totalSav;
 
-  // Calendar grid (Mon-first)
-  const offset=(new Date(yr,mo-1,1).getDay()+6)%7;
-  const weeks=Math.ceil((offset+dim)/7);
-  const isCurMonth=mon===ym0;
-  const todayDay=isCurMonth?today.getDate():null;
+  // Continuous Mon-first grid across the whole range.
+  const firstDate=series[0].date;
+  const offset=(firstDate.getDay()+6)%7;
+  const totalDays=series.length;
+  const weeks=Math.ceil((offset+totalDays)/7);
 
-  // Default focus: today if cur month, else low day
-  const focusDay=hoverDay??(isCurMonth?todayDay:lowPoint.day);
-  const focusInfo=focusDay?series[focusDay-1]:null;
+  const todayDs=toStr(today);
+  const todayIdx=series.findIndex(p=>p.ds===todayDs);
+  const focusIdx=hoverIdx!=null?hoverIdx:(todayIdx>=0?todayIdx:lowIdx);
+  const focusInfo=series[focusIdx]||null;
 
   const fmtMoney=(n)=>`${n<0?"−":""}€${Math.abs(n).toLocaleString("en-GB",{maximumFractionDigits:0})}`;
+  const dLabel=(p)=>`${MFULL[p.date.getMonth()].slice(0,3)} ${String(p.day).padStart(2,"0")}`;
+  const mLabel=(m)=>{const [y,mm]=m.split("-").map(Number);return MFULL[mm-1]+" "+y;};
+  const rangeLabel=monthList.length===1?mLabel(firstMon):(()=>{const [y1,m1]=firstMon.split("-").map(Number);const [y2,m2]=lastMon.split("-").map(Number);return y1===y2?`${MFULL[m1-1]} – ${MFULL[m2-1]} ${y1}`:`${MFULL[m1-1].slice(0,3)} ${y1} – ${MFULL[m2-1].slice(0,3)} ${y2}`;})();
 
   // Cell tint based on balance/flow
   const cellBg=(p)=>{
@@ -1952,7 +1962,7 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
     <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:14,gap:14,flexWrap:"wrap"}}>
       <div style={{display:"flex",alignItems:"baseline",gap:14}}>
         <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:26,color:T.text,letterSpacing:"-0.4px",lineHeight:1}}>Cashflow</span>
-        <span style={{...eye,fontSize:9,color:T.muted}}>{monLabel} · Money Calendar</span>
+        <span style={{...eye,fontSize:9,color:T.muted}}>{rangeLabel} · Money Calendar</span>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:14,...eye,fontSize:9,color:T.muted}}>
         <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:OLIVE,display:"inline-block"}}/>Income</span>
@@ -1963,10 +1973,10 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
     {/* Stat strip: OPEN · LOW · NET · CLOSE */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0,border:`1px solid ${T.border}`,marginBottom:12,background:T.cardAlt||T.bg}}>
       {[
-        {label:"OPENING",v:fmtMoney(startBal),sub:"start of month",color:startBal<0?RED:T.text},
-        {label:"LOW POINT",v:fmtMoney(lowPoint.closeBal),sub:`day ${String(lowPoint.day).padStart(2,"0")}`,color:lowPoint.closeBal<0?RED:T.text},
-        {label:"NET",v:(netMonth>=0?"+":"")+fmtMoney(netMonth).replace("−","−"),sub:`+${fmtMoney(totalIn)} / −${fmtMoney(totalOut)}${totalSav>0?` / ${fmtMoney(totalSav)} saved`:""}`,color:netMonth>=0?OLIVE:RED},
-        {label:"CLOSING",v:fmtMoney(endBal),sub:"end of month",color:endBal<0?RED:T.text}
+        {label:"OPENING",v:fmtMoney(startBal),sub:"start of range",color:startBal<0?RED:T.text},
+        {label:"LOW POINT",v:fmtMoney(lowPoint.closeBal),sub:dLabel(lowPoint),color:lowPoint.closeBal<0?RED:T.text},
+        {label:"NET",v:(netRange>=0?"+":"")+fmtMoney(netRange),sub:`+${fmtMoney(totalIn)} / −${fmtMoney(totalOut)}${totalSav>0?` / ${fmtMoney(totalSav)} saved`:""}`,color:netRange>=0?OLIVE:RED},
+        {label:"CLOSING",v:fmtMoney(endBal),sub:"end of range",color:endBal<0?RED:T.text}
       ].map((s,i)=>(
         <div key={i} style={{padding:"10px 14px",borderRight:i<3?`1px solid ${T.border}`:"none"}}>
           <div style={{...eye,fontSize:8,marginBottom:4}}>{s.label}</div>
@@ -1979,9 +1989,9 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
     {/* Detail strip */}
     {focusInfo&&
       <div style={{padding:"10px 14px",border:`1px solid ${T.border}`,background:T.bg,marginBottom:12,display:"flex",alignItems:"baseline",gap:14,flexWrap:"wrap"}}>
-        <div style={{...eye,fontSize:9,color:hoverDay?T.text:T.muted,flexShrink:0}}>{hoverDay?"HOVER":"FOCUS"} · {MFULL[mo-1].slice(0,3)} {String(focusDay).padStart(2,"0")}</div>
+        <div style={{...eye,fontSize:9,color:hoverIdx!=null?T.text:T.muted,flexShrink:0}}>{hoverIdx!=null?"HOVER":"FOCUS"} · {dLabel(focusInfo)}</div>
         <div style={{...numF,fontSize:11,color:T.muted,flexShrink:0}}>OPEN {fmtMoney(focusInfo.openBal)}</div>
-        {focusInfo.events.length===0?
+        {focusInfo.events.length===0&&focusInfo.daySav===0?
           <div style={{fontFamily:F,fontSize:11,color:T.muted,fontStyle:"italic",flex:1}}>no movements</div>
           :
           <div style={{display:"flex",gap:10,flexWrap:"wrap",flex:1}}>
@@ -1992,6 +2002,7 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
                 {isInc?"+":"−"}€{ev.amt.toLocaleString("en-GB")} <span style={{color:T.text,fontWeight:400,opacity:0.7}}>{ev.cat.label}</span>
               </span>;
             })}
+            {focusInfo.daySav>0&&<span style={{...numF,fontSize:11,color:SAV_COL,fontWeight:600}}>↓€{focusInfo.daySav.toLocaleString("en-GB")} <span style={{color:T.text,fontWeight:400,opacity:0.7}}>saved</span></span>}
           </div>
         }
         <div style={{...numF,fontSize:12,color:focusInfo.closeBal<0?RED:T.text,fontWeight:700,flexShrink:0}}>CLOSE {fmtMoney(focusInfo.closeBal)}</div>
@@ -2007,39 +2018,42 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gridAutoRows:"minmax(94px, 1fr)"}}>
         {Array.from({length:weeks*7},(_,i)=>{
-          const dayN=i-offset+1;
-          const inMonth=dayN>=1&&dayN<=dim;
-          const p=inMonth?series[dayN-1]:null;
-          const isToday=inMonth&&isCurMonth&&dayN===todayDay;
-          const isLow=inMonth&&p&&lowPoint.day===dayN&&lowPoint.closeBal<0;
-          const isHover=inMonth&&hoverDay===dayN;
+          const dayIndex=i-offset;
+          const inRange=dayIndex>=0&&dayIndex<totalDays;
+          const p=inRange?series[dayIndex]:null;
+          const isToday=inRange&&p.ds===todayDs;
+          const isLow=inRange&&dayIndex===lowIdx&&lowPoint.closeBal<0;
+          const isHover=inRange&&hoverIdx===dayIndex;
+          const isMonthLabel=inRange&&p.isFirstOfMonth;
+          const isMonthBreak=isMonthLabel&&dayIndex>0;
           const colIdx=i%7;
           const rowIdx=Math.floor(i/7);
-          const evs=inMonth?p.events:[];
+          const evs=inRange?p.events:[];
           return <div key={i}
-            onMouseEnter={inMonth?()=>setHoverDay(dayN):undefined}
-            onMouseLeave={inMonth?()=>setHoverDay(null):undefined}
+            onMouseEnter={inRange?()=>setHoverIdx(dayIndex):undefined}
+            onMouseLeave={inRange?()=>setHoverIdx(null):undefined}
             style={{
               position:"relative",padding:"5px 6px",
               borderRight:colIdx<6?`1px solid ${T.border}`:"none",
               borderBottom:rowIdx<weeks-1?`1px solid ${T.border}`:"none",
+              borderTop:isMonthBreak?`2px solid ${alpha(T.text,.45)}`:"none",
+              borderLeft:isMonthBreak?`2px solid ${alpha(T.text,.45)}`:"none",
               background:isHover?alpha(T.text||"#000",0.05):cellBg(p),
               transition:"background 0.1s",
-              cursor:inMonth?"default":"default",
               overflow:"hidden",
-              opacity:inMonth?1:0.3
+              opacity:inRange?1:0.25
             }}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
-              <span style={{...numF,fontSize:isToday?13:11,fontWeight:isToday?700:500,color:inMonth?T.text:T.muted}}>
-                {inMonth?String(dayN).padStart(2,"0"):""}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4,gap:4}}>
+              <span style={{...numF,fontSize:isToday?13:11,fontWeight:isToday||isMonthLabel?700:500,color:inRange?(isMonthLabel?(T.red||RED):T.text):T.muted,whiteSpace:"nowrap"}}>
+                {inRange?(isMonthLabel?MFULL[p.date.getMonth()].slice(0,3).toUpperCase()+" "+String(p.day).padStart(2,"0"):String(p.day).padStart(2,"0")):""}
               </span>
-              {inMonth&&
+              {inRange&&
                 <span style={{...numF,fontSize:10,fontWeight:600,color:p.closeBal<0?RED:T.muted}}>
                   {p.closeBal<0?"−":""}€{Math.abs(Math.round(p.closeBal)).toLocaleString("en-GB")}
                 </span>
               }
             </div>
-            {inMonth&&evs.length>0&&
+            {inRange&&evs.length>0&&
               <div style={{display:"flex",flexDirection:"column",gap:2}}>
                 {evs.slice(0,3).map((ev,ei)=>{
                   const isInc=ev.type==="income";
@@ -2059,13 +2073,13 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
                 }
               </div>
             }
-            {inMonth&&p.daySav>0&&
+            {inRange&&p.daySav>0&&
               <div title={`€${p.daySav} set aside to savings — deducts balance, not counted as spending`}
                 style={{display:"inline-flex",alignItems:"center",gap:3,marginTop:evs.length>0?3:0,border:`1px dashed ${alpha(SAV_COL,.5)}`,borderRadius:2,padding:"1px 5px",alignSelf:"flex-start"}}>
                 <span style={{...numF,fontSize:8,fontWeight:700,color:SAV_COL,letterSpacing:"0.04em"}}>↓€{p.daySav} saved</span>
               </div>
             }
-            {inMonth&&isLow&&
+            {isLow&&
               <div style={{position:"absolute",bottom:3,right:5,...eye,fontSize:7,color:RED,fontWeight:700}}>LOW ↓</div>
             }
             {isToday&&
@@ -2974,9 +2988,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           </div>
         </div>
 
-        {/* ── CASHFLOW: current month + next month, stacked for two-month planning ── */}
-        <CashflowCalendar mon={mon} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
-        <CashflowCalendar mon={nextCalMon} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
+        {/* ── CASHFLOW: one continuous calendar spanning the current + next month ── */}
+        <CashflowCalendar months={[mon,nextCalMon]} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
 
       </div>;
     })()}
