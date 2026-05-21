@@ -1847,6 +1847,10 @@ const DEFAULT_BUDGET_CATS=[
   {id:"c14",label:"Other",type:"income",icon:"dots-three"},
 ];
 const CAT_COLS=["#A78BFA","#60A5FA","#34D399","#F87171","#FBBF24","#F472B6","#38BDF8","#A3E635","#FB923C","#818CF8","#2DD4BF","#E879F9"];
+// Savings categories are treated as a separate track: they deduct the running balance
+// but are excluded from the Expenses view, and they feed the (independent) savings projection.
+const isSavCat=(label)=>/saving/i.test(label||"");
+const SAV_COL="#5a7ad4";
 
 // ── CASHFLOW CALENDAR ──────────────────────────────
 // Single-month money calendar. Mirrors PaperCalendarTodayCard layout. Each cell
@@ -1891,31 +1895,36 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
     }
   }
 
-  // Daily series for the month
+  // Daily series for the month. Savings still hit the balance but are not shown as
+  // expense pills (tracked separately so they stay out of the spending view).
   const eventsByDay={};
   [...incCats,...expCats].forEach(c=>{
     if(c.type==="divider")return;
     const amt=envelopes.find(e=>e.month===mon&&e.category===c.label)?.budgeted||0;
     if(!amt)return;
     const d=c.day?Math.min(c.day,dim):1;
-    (eventsByDay[d]=eventsByDay[d]||[]).push({cat:c,amt,type:c.type});
+    const sav=c.type==="expense"&&isSavCat(c.label);
+    (eventsByDay[d]=eventsByDay[d]||[]).push({cat:c,amt,type:c.type,sav});
   });
   const series=[];
   let bal=startBal;
   for(let d=1;d<=dim;d++){
-    const evs=eventsByDay[d]||[];
+    const allEvs=eventsByDay[d]||[];
+    const evs=allEvs.filter(e=>!e.sav);
     const dayIn=evs.filter(e=>e.type==="income").reduce((s,e)=>s+e.amt,0);
     const dayOut=evs.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amt,0);
-    const dayNet=dayIn-dayOut;
+    const daySav=allEvs.filter(e=>e.sav).reduce((s,e)=>s+e.amt,0);
+    const dayNet=dayIn-dayOut-daySav;
     const openBal=bal;
     bal+=dayNet;
-    series.push({day:d,ds:`${mon}-${String(d).padStart(2,"0")}`,events:evs,dayNet,dayIn,dayOut,openBal,closeBal:bal});
+    series.push({day:d,ds:`${mon}-${String(d).padStart(2,"0")}`,events:evs,dayNet,dayIn,dayOut,daySav,openBal,closeBal:bal});
   }
   const endBal=bal;
   const lowPoint=series.reduce((a,b)=>b.closeBal<a.closeBal?b:a,series[0]);
   const totalIn=series.reduce((s,p)=>s+p.dayIn,0);
   const totalOut=series.reduce((s,p)=>s+p.dayOut,0);
-  const netMonth=totalIn-totalOut;
+  const totalSav=series.reduce((s,p)=>s+p.daySav,0);
+  const netMonth=totalIn-totalOut-totalSav;
 
   // Calendar grid (Mon-first)
   const offset=(new Date(yr,mo-1,1).getDay()+6)%7;
@@ -1928,17 +1937,6 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
   const focusInfo=focusDay?series[focusDay-1]:null;
 
   const fmtMoney=(n)=>`${n<0?"−":""}€${Math.abs(n).toLocaleString("en-GB",{maximumFractionDigits:0})}`;
-
-  // Sparkline geometry
-  const SPARK_W=1000,SPARK_H=64,sPad=8;
-  const balances=series.map(p=>p.closeBal);
-  const yMin=Math.min(0,...balances);
-  const yMax=Math.max(0,...balances,1);
-  const yRange=yMax-yMin||1;
-  const xOf=(i)=>sPad+(i/(dim-1||1))*(SPARK_W-2*sPad);
-  const yOf=(b)=>sPad+(1-(b-yMin)/yRange)*(SPARK_H-2*sPad);
-  const linePts=series.map((p,i)=>`${xOf(i).toFixed(1)},${yOf(p.closeBal).toFixed(1)}`).join(" ");
-  const zeroY=yOf(0);
 
   // Cell tint based on balance/flow
   const cellBg=(p)=>{
@@ -1967,7 +1965,7 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
       {[
         {label:"OPENING",v:fmtMoney(startBal),sub:"start of month",color:startBal<0?RED:T.text},
         {label:"LOW POINT",v:fmtMoney(lowPoint.closeBal),sub:`day ${String(lowPoint.day).padStart(2,"0")}`,color:lowPoint.closeBal<0?RED:T.text},
-        {label:"NET",v:(netMonth>=0?"+":"")+fmtMoney(netMonth).replace("−","−"),sub:`+${fmtMoney(totalIn)} / −${fmtMoney(totalOut)}`,color:netMonth>=0?OLIVE:RED},
+        {label:"NET",v:(netMonth>=0?"+":"")+fmtMoney(netMonth).replace("−","−"),sub:`+${fmtMoney(totalIn)} / −${fmtMoney(totalOut)}${totalSav>0?` / ${fmtMoney(totalSav)} saved`:""}`,color:netMonth>=0?OLIVE:RED},
         {label:"CLOSING",v:fmtMoney(endBal),sub:"end of month",color:endBal<0?RED:T.text}
       ].map((s,i)=>(
         <div key={i} style={{padding:"10px 14px",borderRight:i<3?`1px solid ${T.border}`:"none"}}>
@@ -2061,6 +2059,12 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
                 }
               </div>
             }
+            {inMonth&&p.daySav>0&&
+              <div title={`€${p.daySav} set aside to savings — deducts balance, not counted as spending`}
+                style={{display:"inline-flex",alignItems:"center",gap:3,marginTop:evs.length>0?3:0,border:`1px dashed ${alpha(SAV_COL,.5)}`,borderRadius:2,padding:"1px 5px",alignSelf:"flex-start"}}>
+                <span style={{...numF,fontSize:8,fontWeight:700,color:SAV_COL,letterSpacing:"0.04em"}}>↓€{p.daySav} saved</span>
+              </div>
+            }
             {inMonth&&isLow&&
               <div style={{position:"absolute",bottom:3,right:5,...eye,fontSize:7,color:RED,fontWeight:700}}>LOW ↓</div>
             }
@@ -2069,39 +2073,6 @@ function CashflowCalendar({mon,ym0,incCats,expCats,envelopes,savingsStart,today}
             }
           </div>;
         })}
-      </div>
-    </div>
-
-    {/* Sparkline */}
-    <div style={{marginTop:14,padding:"10px 12px",border:`1px solid ${T.border}`,background:T.cardAlt||T.bg}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
-        <span style={{...eye,fontSize:8}}>BALANCE TRAJECTORY · {dim} DAYS</span>
-        <span style={{...numF,fontSize:9,color:T.muted}}>{fmtMoney(yMin)} → {fmtMoney(yMax)}</span>
-      </div>
-      <div>
-        <svg width="100%" height={SPARK_H} viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none" style={{display:"block"}}>
-          {yMin<0&&<line x1={sPad} y1={zeroY} x2={SPARK_W-sPad} y2={zeroY} stroke={T.muted} strokeDasharray="2,3" strokeWidth="0.6" opacity="0.5"/>}
-          {yMin<0&&<rect x={sPad} y={zeroY} width={SPARK_W-2*sPad} height={SPARK_H-sPad-zeroY} fill={RED} opacity="0.06"/>}
-          <polygon points={`${xOf(0)},${zeroY} ${linePts} ${xOf(dim-1)},${zeroY}`} fill={alpha(OLIVE,0.08)}/>
-          <polyline points={linePts} fill="none" stroke={T.text} strokeWidth="1.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
-          {isCurMonth&&todayDay&&
-            <line x1={xOf(todayDay-1)} y1={sPad} x2={xOf(todayDay-1)} y2={SPARK_H-sPad} stroke={T.mint||OLIVE} strokeWidth="1" strokeDasharray="2,2" opacity="0.7"/>
-          }
-          {hoverDay&&
-            <g>
-              <line x1={xOf(hoverDay-1)} y1={sPad} x2={xOf(hoverDay-1)} y2={SPARK_H-sPad} stroke={T.text} strokeWidth="1" opacity="0.5"/>
-              <circle cx={xOf(hoverDay-1)} cy={yOf(series[hoverDay-1].closeBal)} r="3.5" fill={T.bg} stroke={T.text} strokeWidth="1.4"/>
-            </g>
-          }
-          {lowPoint.closeBal<0&&
-            <circle cx={xOf(lowPoint.day-1)} cy={yOf(lowPoint.closeBal)} r="3" fill={T.bg} stroke={RED} strokeWidth="1.4"/>
-          }
-        </svg>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",marginTop:4,...eye,fontSize:7,color:T.muted}}>
-        {[1,Math.max(2,Math.floor(dim/4)),Math.floor(dim/2),Math.floor(3*dim/4),dim].map((d,i)=>(
-          <span key={i}>{String(d).padStart(2,"0")}</span>
-        ))}
       </div>
     </div>
   </div>;
@@ -2156,6 +2127,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const incCats=useMemo(()=>budgetCats.filter(c=>c.type==="income"),[budgetCats]);
   const incSection=useMemo(()=>budgetCats.filter(c=>c.type==="income"||(c.type==="divider"&&c.section==="income")),[budgetCats]);
   const expSection=useMemo(()=>budgetCats.filter(c=>c.type==="expense"||(c.type==="divider"&&c.section==="expense")),[budgetCats]);
+  // Expenses ledger excludes savings categories (shown in their own track); dividers stay with expenses.
+  const expSectionMain=useMemo(()=>expSection.filter(c=>c.type==="divider"||!isSavCat(c.label)),[expSection]);
+  const savSection=useMemo(()=>expSection.filter(c=>c.type!=="divider"&&isSavCat(c.label)),[expSection]);
   function getCatIcon(label){return(budgetCats.find(c=>c.label===label)||{icon:"dots-three"}).icon;}
   function getCatColor(label){const i=budgetCats.findIndex(c=>c.label===label);return CAT_COLS[i>=0?i%CAT_COLS.length:0];}
 
@@ -2293,18 +2267,22 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
   const planMonths=useMemo(()=>{
     const ms=[];
-    for(let i=0;i<12;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
+    // 12 planning months + 1 trailing "lookahead" month so the next month is visible (also feeds its cashflow calendar)
+    for(let i=0;i<13;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
     return ms;
   },[]);
   function getPlanAmt(m,cat){return envelopes.find(e=>e.month===m&&e.category===cat)?.budgeted||0;}
   const planTotals=useMemo(()=>{
     let bal=0;
+    // Savings categories still deduct the running balance, but are kept out of the
+    // displayed Expenses figure (exp) so they live in their own Savings track.
     return planMonths.map(m=>{
-      const inc=incCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
-      const exp=expCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
-      const sav=expCats.filter(c=>/saving/i.test(c.label)).reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
-      bal+=inc-exp;
-      return{m,inc,exp,sav,net:inc-exp,running:bal};
+      const amtOf=(c)=>envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0;
+      const inc=incCats.reduce((s,c)=>s+amtOf(c),0);
+      const exp=expCats.filter(c=>!isSavCat(c.label)).reduce((s,c)=>s+amtOf(c),0);
+      const sav=expCats.filter(c=>isSavCat(c.label)).reduce((s,c)=>s+amtOf(c),0);
+      bal+=inc-exp-sav;
+      return{m,inc,exp,sav,net:inc-exp-sav,running:bal};
     });
   },[planMonths,incCats,expCats,envelopes]);
   const savingsProjection=useMemo(()=>{
@@ -2740,8 +2718,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted};
       const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
 
-      const renderRow=(cat,kind)=>{
-        const ACC=kind==="income"?OLIVE:RED;
+      const renderRow=(cat,kind,accentOverride)=>{
+        const ACC=accentOverride||(kind==="income"?OLIVE:RED);
         if(cat.type==="divider"){
           return <div key={cat.id}
             draggable
@@ -2808,9 +2786,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         </div>;
       };
 
-      const incTotal=planTotals.reduce((s,{inc})=>s+inc,0);
-      const expTotal=planTotals.reduce((s,{exp})=>s+exp,0);
-      const yearNet=incTotal-expTotal;
+      // Year overview reflects the 12 planning months only; the 13th column is a trailing lookahead.
+      const plan12=planTotals.slice(0,12);
+      const incTotal=plan12.reduce((s,{inc})=>s+inc,0);
+      const expTotal=plan12.reduce((s,{exp})=>s+exp,0);
+      const savTotal=plan12.reduce((s,{sav})=>s+(sav||0),0);
+      const yearNet=incTotal-expTotal-savTotal;
 
       const dueSoon=computeDueSoon(budgetCats,envelopes,7,today);
 
@@ -2844,6 +2825,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <span style={{...eye,fontSize:9,color:RED,opacity:0.85}}>12-Month Expenses</span>
             <span style={{...numF,fontSize:22,color:RED,fontWeight:600,letterSpacing:"-0.5px"}}>€{expTotal.toFixed(0)}</span>
           </div>
+          {savTotal>0&&
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              <span style={{...eye,fontSize:9,color:SAV_COL,opacity:0.85}}>12-Month Savings</span>
+              <span style={{...numF,fontSize:22,color:SAV_COL,fontWeight:600,letterSpacing:"-0.5px"}}>€{savTotal.toFixed(0)}</span>
+            </div>
+          }
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
             <span style={{...eye,fontSize:9,opacity:0.85}}>Net Year</span>
             <span style={{...numF,fontSize:22,color:yearNet>=0?OLIVE:RED,fontWeight:600,letterSpacing:"-0.5px"}}>{yearNet>=0?"+":"−"}€{Math.abs(yearNet).toFixed(0)}</span>
@@ -2856,12 +2843,13 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         <div style={{display:"flex",alignItems:"flex-end",paddingBottom:5,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:9}}>Category</div>
           <div style={{width:DAY_W,flexShrink:0,...eye,fontSize:9,textAlign:"center"}} title="Day of month each category debits / credits">Day</div>
-          {planMonths.map(m=>{
+          {planMonths.map((m,i)=>{
             const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
             const isCur=m===ym0;
-            return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
+            const isAhead=i===planMonths.length-1; // trailing lookahead month
+            return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",borderLeft:isAhead?`1px dashed ${alpha(T.text,.25)}`:"none",opacity:isAhead?0.6:1}}>
               <div style={{...numF,fontSize:10,fontWeight:isCur?700:500,color:isCur?RED:T.text,letterSpacing:"0.05em",textTransform:"uppercase"}}>{lbl}</div>
-              <div style={{...numF,fontSize:8,color:T.muted,opacity:0.7,marginTop:1}}>'{m.slice(2,4)}</div>
+              <div style={{...numF,fontSize:8,color:isAhead?SAV_COL:T.muted,opacity:isAhead?0.9:0.7,marginTop:1}}>{isAhead?"next":"'"+m.slice(2,4)}</div>
             </div>;
           })}
           <div style={{width:ACT_W,flexShrink:0}}/>
@@ -2882,17 +2870,30 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             {incSection.map(cat=>renderRow(cat,"income"))}
           </div>
 
-          {/* Expenses section */}
+          {/* Expenses section (savings excluded — shown in its own track below) */}
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
             <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
               <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:RED,letterSpacing:"-0.3px",lineHeight:1}}>Expenses</span>
-              <span style={{...eye,fontSize:8,color:RED,opacity:0.6}}>{expSection.filter(c=>c.type!=="divider").length} cats · €{expTotal.toFixed(0)}/yr</span>
+              <span style={{...eye,fontSize:8,color:RED,opacity:0.6}}>{expSectionMain.filter(c=>c.type!=="divider").length} cats · €{expTotal.toFixed(0)}/yr</span>
               <div style={{flex:1,height:1,background:alpha(RED,.18),alignSelf:"center"}}/>
               <button onClick={()=>addDivider("expense")} title="Add divider"
                 style={{...eye,fontSize:8,background:"none",border:`1px solid ${alpha(RED,.35)}`,padding:"3px 8px",cursor:"pointer",color:RED,letterSpacing:"0.2em"}}>+ DIVIDER</button>
             </div>
-            {expSection.map(cat=>renderRow(cat,"expense"))}
+            {expSectionMain.map(cat=>renderRow(cat,"expense"))}
           </div>
+
+          {/* Savings track — deducts the balance but kept out of the Expenses figure */}
+          {savSection.length>0&&
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:3}}>
+                <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:20,color:SAV_COL,letterSpacing:"-0.3px",lineHeight:1}}>Savings</span>
+                <span style={{...eye,fontSize:8,color:SAV_COL,opacity:0.7}}>set aside · {savSection.length} cat{savSection.length>1?"s":""} · €{savTotal.toFixed(0)}/yr</span>
+                <div style={{flex:1,height:1,background:alpha(SAV_COL,.18),alignSelf:"center"}}/>
+                <span style={{...eye,fontSize:7,color:T.muted,opacity:0.7,letterSpacing:"0.18em"}}>deducts balance · not in expenses</span>
+              </div>
+              {savSection.map(cat=>renderRow(cat,"expense",SAV_COL))}
+            </div>
+          }
         </div>
 
         {/* ── Footer: net + balance + savings ── */}
@@ -2901,8 +2902,8 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           <div style={{display:"flex",alignItems:"center",height:20}}>
             <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:8}}>Month net</div>
             <div style={{width:DAY_W,flexShrink:0}}/>
-            {planTotals.map(({m,inc,exp,net})=>{
-              const hasAny=inc>0||exp>0;
+            {planTotals.map(({m,inc,exp,sav,net})=>{
+              const hasAny=inc>0||exp>0||sav>0;
               return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
                 {hasAny
                   ? <span style={{...numF,fontSize:9,color:net>=0?OLIVE:RED,fontWeight:700}}>{net>=0?"+":"−"}€{Math.abs(net).toFixed(0)}</span>
@@ -2919,7 +2920,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             </div>
             <div style={{width:DAY_W,flexShrink:0}}/>
             {planTotals.map(({m,running,inc,exp},i)=>{
-              const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0);
+              const hasData=planTotals.slice(0,i+1).some(d=>d.inc>0||d.exp>0||d.sav>0);
               return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
                 {hasData
                   ? <span style={{...numF,fontSize:11,color:running>=0?OLIVE:RED,fontWeight:800,letterSpacing:"-0.3px"}}>{running>=0?"":"−"}€{Math.abs(running).toFixed(0)}</span>
