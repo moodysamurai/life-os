@@ -6631,6 +6631,7 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
 
 // ── WARDROBE ──────────────────────────────────────────────────────────────
 const WRD_CATS=['top','bottom','outerwear','footwear','accessory','other'];
+const CAT_LABELS={top:'TOPS',bottom:'BOTTOMS',outerwear:'OUTERWEAR',footwear:'FOOTWEAR',accessory:'ACCESSORIES',other:'OTHER'};
 const WRD_STATUS=['active','do_not_style','archived','sold','donated'];
 const WRD_FORMALITY=['casual','smart_casual','business_casual','formal','black_tie'];
 const WRD_SOURCE=['purchase','gift','self_made','secondhand'];
@@ -6743,9 +6744,32 @@ function WardrobeGrid({items,wears,filters,setFilters,onSelectItem}){
       </div>
       <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.15em',marginBottom:14}}>{items.length} ITEMS</div>
       {items.length===0?<div style={{textAlign:'center',padding:'60px 0',color:T.muted,fontFamily:PP_M,fontSize:11,letterSpacing:'0.15em'}}>NO ITEMS · ADD YOUR FIRST GARMENT</div>:(
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:14}}>
-          {items.map(item=><WardrobeItemCard key={item.id} item={item} wears={wears.filter(w=>w.item_id===item.id)} onClick={()=>onSelectItem(item)}/>)}
-        </div>
+        filters.category
+          ? (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:14}}>
+              {items.map(item=><WardrobeItemCard key={item.id} item={item} wears={wears.filter(w=>w.item_id===item.id)} onClick={()=>onSelectItem(item)}/>)}
+            </div>
+          )
+          : (
+            <div style={{display:'flex',flexDirection:'column',gap:30}}>
+              {WRD_CATS.map(cat=>{
+                const catItems=items.filter(i=>i.category===cat);
+                if(!catItems.length)return null;
+                return(
+                  <div key={cat}>
+                    <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:14}}>
+                      <span style={{fontFamily:PP_S,fontStyle:'italic',fontSize:21,color:T.text,letterSpacing:'-0.3px',lineHeight:1}}>{CAT_LABELS[cat]||cat.toUpperCase()}</span>
+                      <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:'0.2em'}}>{catItems.length} ITEM{catItems.length>1?'S':''}</span>
+                      <div style={{flex:1,height:1,background:T.border,alignSelf:'center'}}/>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:14}}>
+                      {catItems.map(item=><WardrobeItemCard key={item.id} item={item} wears={wears.filter(w=>w.item_id===item.id)} onClick={()=>onSelectItem(item)}/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
       )}
     </div>
   );
