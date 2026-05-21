@@ -2267,8 +2267,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
   const planMonths=useMemo(()=>{
     const ms=[];
-    // 12 planning months + 1 trailing "lookahead" month so the next month is visible (also feeds its cashflow calendar)
-    for(let i=0;i<13;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
+    for(let i=0;i<12;i++){const d=new Date(today.getFullYear(),today.getMonth()+i,1);ms.push(toStr(d).slice(0,7));}
     return ms;
   },[]);
   function getPlanAmt(m,cat){return envelopes.find(e=>e.month===m&&e.category===cat)?.budgeted||0;}
@@ -2786,14 +2785,18 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         </div>;
       };
 
-      // Year overview reflects the 12 planning months only; the 13th column is a trailing lookahead.
-      const plan12=planTotals.slice(0,12);
+      // Year overview totals across the 12 planning months.
+      const plan12=planTotals;
       const incTotal=plan12.reduce((s,{inc})=>s+inc,0);
       const expTotal=plan12.reduce((s,{exp})=>s+exp,0);
       const savTotal=plan12.reduce((s,{sav})=>s+(sav||0),0);
       const yearNet=incTotal-expTotal-savTotal;
 
       const dueSoon=computeDueSoon(budgetCats,envelopes,7,today);
+
+      // Second cashflow calendar = the month after the currently-selected one (two months for planning).
+      const nextCalDate=new Date(parseInt(mon.slice(0,4)),parseInt(mon.slice(5,7)),1);
+      const nextCalMon=`${nextCalDate.getFullYear()}-${String(nextCalDate.getMonth()+1).padStart(2,"0")}`;
 
       return <div style={{display:"flex",flexDirection:"column",gap:10,paddingTop:14,paddingBottom:6}}>
 
@@ -2843,13 +2846,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         <div style={{display:"flex",alignItems:"flex-end",paddingBottom:5,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:9}}>Category</div>
           <div style={{width:DAY_W,flexShrink:0,...eye,fontSize:9,textAlign:"center"}} title="Day of month each category debits / credits">Day</div>
-          {planMonths.map((m,i)=>{
+          {planMonths.map(m=>{
             const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
             const isCur=m===ym0;
-            const isAhead=i===planMonths.length-1; // trailing lookahead month
-            return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center",borderLeft:isAhead?`1px dashed ${alpha(T.text,.25)}`:"none",opacity:isAhead?0.6:1}}>
+            return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
               <div style={{...numF,fontSize:10,fontWeight:isCur?700:500,color:isCur?RED:T.text,letterSpacing:"0.05em",textTransform:"uppercase"}}>{lbl}</div>
-              <div style={{...numF,fontSize:8,color:isAhead?SAV_COL:T.muted,opacity:isAhead?0.9:0.7,marginTop:1}}>{isAhead?"next":"'"+m.slice(2,4)}</div>
+              <div style={{...numF,fontSize:8,color:T.muted,opacity:0.7,marginTop:1}}>'{m.slice(2,4)}</div>
             </div>;
           })}
           <div style={{width:ACT_W,flexShrink:0}}/>
@@ -2972,8 +2974,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           </div>
         </div>
 
-        {/* ── CASHFLOW: single-month money calendar with hover detail + sparkline ── */}
+        {/* ── CASHFLOW: current month + next month, stacked for two-month planning ── */}
         <CashflowCalendar mon={mon} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
+        <CashflowCalendar mon={nextCalMon} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
 
       </div>;
     })()}
