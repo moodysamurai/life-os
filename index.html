@@ -7020,8 +7020,8 @@ function WardrobeAnalytics({items}){
   const headline=[
     ['TOTAL ITEMS',all.length],
     ['ACTIVE',active.length],
+    ['COLOURS',colorData.length],
     ['BRANDS',Object.keys(brandStats).length],
-    ['CATEGORIES',catPie.length],
     ['TOTAL SPEND',totalSpend?'€'+Math.round(totalSpend):'—'],
     ['AVG PRICE',purchased.length?'€'+Math.round(totalSpend/purchased.length):'—'],
     ['GIFTED',all.filter(i=>i.source==='gift').length],
@@ -7044,10 +7044,10 @@ function WardrobeAnalytics({items}){
           ))}
         </div>
       </div>
-      {colorData.length>0&&<div style={{...sec,gridColumn:'span 2'}}>
-        <div style={sh}>COLOR PALETTE</div>
-        <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
-          <WrdPie data={colorData} size={170}/>
+      {colorData.length>0&&<div style={{...sec,gridColumn:'1/-1'}}>
+        <div style={sh}>COLOUR PALETTE · {colorData.length} TONES</div>
+        <div style={{display:'grid',gridTemplateColumns:'minmax(220px,auto) 1fr',gap:32,alignItems:'center'}}>
+          <WrdPie data={colorData} size={220}/>
           <WrdColorBars data={colorData}/>
         </div>
       </div>}
@@ -7068,11 +7068,6 @@ function WardrobeAnalytics({items}){
             </div>
           ))}
         </div>
-      </div>
-      <div style={sec}>
-        <div style={sh}>CATEGORIES</div>
-        {catPie.length>0?<div style={{marginBottom:subData.length>0?14:0}}><WrdPie data={catPie} size={130}/></div>:<div style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>No data.</div>}
-        {subData.length>0&&<div><div style={subh}>TOP SUBCATEGORIES</div><WrdBars data={subData} color={T.mint}/></div>}
       </div>
     </div>
   );
