@@ -1875,13 +1875,15 @@ function CashflowCalendar({mon,months,ym0,incCats,expCats,envelopes,savingsStart
   const firstMon=monthList[0];
   const lastMon=monthList[monthList.length-1];
 
-  // Opening balance: roll forward (or back) from savingsStart, anchored to ym0, to firstMon.
+  // Opening balance starts from ZERO spendable cash (savings is set aside and deliberately
+  // kept out of the running balance — it's deducted as it's contributed, never counted as
+  // money on hand). Roll the net forward/back from ym0 to firstMon so navigation stays consistent.
   const netForMonth=(m)=>{
     const inc=incCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
     const exp=expCats.reduce((s,c)=>s+(envelopes.find(e=>e.month===m&&e.category===c.label)?.budgeted||0),0);
     return inc-exp;
   };
-  let startBal=savingsStart||0;
+  let startBal=0;
   const ym0Date=new Date(parseInt(ym0.slice(0,4)),parseInt(ym0.slice(5,7))-1,1);
   const [fyr,fmo]=firstMon.split("-").map(Number);
   const firstMonDate=new Date(fyr,fmo-1,1);
@@ -2844,6 +2846,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         const l=Math.round(45+t*23); // 45%..68% lightness within a band
         return `hsl(${h}, 53%, ${l}%)`;
       };
+      // Shared "wants" yellow — expense slices tagged as wants are coloured with this (shaded per item).
+      const WANT_COL="#d8a52b";
+      const wantColor=(j,n)=>{const t=n<=1?0.4:j/(n-1);return `hsl(43, 64%, ${Math.round(46+t*16)}%)`;};
       // Walk an ordered section list (with dividers); a divider opens a new band.
       const buildSlices=(list)=>{
         let cur=0;const items=[];
@@ -2962,7 +2967,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               Add income for {monShort} to see the 50/30/20 split. Use the ‹ › arrows above to pick another month.
             </div>);
           }
-          const C_NEED=RED,C_WANT="#c98a2e",C_SAV=SAV_COL,C_SURP=T.muted;
+          const C_NEED=RED,C_WANT=WANT_COL,C_SAV=SAV_COL,C_SURP=T.muted;
           const nf=needsAmt/monInc,wf=wantsAmt/monInc,sf=monSav/monInc;
           const used=nf+wf+sf,deficit=used>1,norm=deficit?used:1;
           const surplusAmt=Math.max(0,monInc-needsAmt-wantsAmt-monSav);
@@ -3025,6 +3030,11 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
 
         // ───────────── CATEGORY MODE (expense / income) ─────────────
         const slices=isInc?buildSlices(incSection):expSlicesAll;
+        // Expenses: paint "wants" yellow (needs keep their divider-band tint).
+        if(!isInc){
+          const ws=slices.filter(s=>bucketOf(s.cat.label)==="want");
+          ws.forEach((s,j)=>{s.color=wantColor(j,ws.length);});
+        }
         const total=slices.reduce((s,x)=>s+x.amt,0);
         if(total<=0){
           return panel(<div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:14,color:T.muted,opacity:0.8,padding:"14px 0",lineHeight:1.4}}>
