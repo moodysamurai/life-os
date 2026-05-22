@@ -1851,6 +1851,11 @@ const CAT_COLS=["#A78BFA","#60A5FA","#34D399","#F87171","#FBBF24","#F472B6","#38
 // but are excluded from the Expenses view, and they feed the (independent) savings projection.
 const isSavCat=(label)=>/saving/i.test(label||"");
 const SAV_COL="#5a7ad4";
+// 50/30/20 needs-vs-wants heuristic: keyword match on the category label. Anything that
+// doesn't look like an essential is treated as a "want" by default; users can flip any
+// category in the donut's 50·30·20 mode (override persisted to plo3_budget_buckets).
+const NEED_RX=/(rent|mortgage|housing|utilit|electric|water|\bgas\b|heating|grocer|food|transport|transit|train|\bns\b|\bbus\b|metro|tram|fuel|petrol|insur|health|medical|pharmac|dental|tuition|school|educa|phone|mobile|\bsim\b|simyo|internet|wifi|broadband|childcare|\btax\b|loan|\bdebt\b|repay|minimum)/i;
+const defaultBucket=(label)=>NEED_RX.test(label||"")?"need":"want";
 
 // ── CASHFLOW CALENDAR ──────────────────────────────
 // Continuous money calendar spanning one or more contiguous months. Each cell shows
@@ -2124,9 +2129,17 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   const [dragOverCatId,setDragOverCatId]=useState(null);
   const [savingsStart,setSavingsStart]=useState(()=>parseFloat(lg("plo3_sav_start","0"))||0);
   const [savingsRate,setSavingsRate]=useState(()=>parseFloat(lg("plo3_sav_rate","0"))||0);
-  // Category-mix donut (12M Plan tab, right gutter): scope toggle + hover highlight + responsive width.
-  const [pieScope,setPieScope]=useState("expense"); // "expense" | "income"
+  // Category-mix donut (12M Plan tab, right gutter): mode toggle + hover highlight + responsive width.
+  const [pieScope,setPieScope]=useState("expense"); // "expense" | "income" | "503020"
   const [pieHover,setPieHover]=useState(null);       // category label being hovered
+  // Needs/Wants overrides for the 50·30·20 mode, keyed by category label.
+  const [bucketOverrides,setBucketOverrides]=useState(()=>{try{return JSON.parse(lg("plo3_budget_buckets","{}"))||{};}catch(e){return{};}});
+  const bucketOf=(label)=>bucketOverrides[label]||defaultBucket(label);
+  const flipBucket=(label)=>setBucketOverrides(prev=>{
+    const next={...prev,[label]:(prev[label]||defaultBucket(label))==="need"?"want":"need"};
+    ls("plo3_budget_buckets",JSON.stringify(next));
+    return next;
+  });
   const rootRef=useRef(null);
   const [rootW,setRootW]=useState(1400);
   useEffect(()=>{
@@ -2842,39 +2855,32 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       };
       const renderPie=()=>{
         const isInc=pieScope==="income";
-        const ACC2=isInc?OLIVE:RED;
-        const slices=buildSlices(isInc?incSection:expSectionMain);
-        const total=slices.reduce((s,x)=>s+x.amt,0);
+        const is503020=pieScope==="503020";
+        const ACC2=isInc?OLIVE:(is503020?T.text:RED);
         const monShort=MFULL[parseInt(mon.split("-")[1])-1].slice(0,3)+" '"+mon.slice(2,4);
-        const header=(
-          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:3}}>
-            <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:19,color:ACC2,letterSpacing:"-0.3px",lineHeight:1}}>{isInc?"Income":"Expenses"} mix</span>
-            <div style={{display:"flex",border:`1px solid ${T.border}`,flexShrink:0}}>
-              {[["expense","EXP"],["income","INC"]].map(([k,lab])=>{
-                const on=pieScope===k,c=k==="income"?OLIVE:RED;
-                return <button key={k} onClick={()=>setPieScope(k)}
-                  style={{...eye,fontSize:8,padding:"4px 9px",border:"none",cursor:"pointer",background:on?alpha(c,.12):"transparent",color:on?c:T.muted}}>{lab}</button>;
-              })}
-            </div>
-          </div>
-        );
-        const sub=<div style={{...eye,fontSize:8,color:T.muted,opacity:0.8,marginBottom:12}}>{monShort} · selected month</div>;
-        const panel=(body)=>(
-          <div style={{border:`1px solid ${T.border}`,background:alpha(ACC2,.03),padding:"15px 17px",maxWidth:430}}>
-            {header}{sub}{body}
-          </div>
-        );
-        if(total<=0){
-          return panel(
-            <div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:14,color:T.muted,opacity:0.8,padding:"14px 0",lineHeight:1.4}}>
-              No {isInc?"income":"expenses"} planned for {monShort}. Fill some cells, or use the ‹ › arrows above to pick another month.
-            </div>
-          );
-        }
-        // Donut geometry
-        const CX=100,CY=100,rO=90,rI=54;
-        let a=-Math.PI/2;
-        const wedges=slices.map(sl=>{const frac=sl.amt/total,a0=a,a1=a+frac*Math.PI*2;a=a1;return{...sl,a0,a1,frac};});
+
+        // ── selected-month figures ──
+        const ptMon=planTotals.find(p=>p.m===mon);
+        const expSlicesAll=buildSlices(expSectionMain);
+        const monExp=expSlicesAll.reduce((s,x)=>s+x.amt,0);
+        const monInc=ptMon?ptMon.inc:incSection.filter(c=>c.type!=="divider").reduce((s,c)=>s+getPlanAmt(mon,c.label),0);
+        const monSav=ptMon?(ptMon.sav||0):savSection.reduce((s,c)=>s+getPlanAmt(mon,c.label),0);
+        const needsAmt=expSlicesAll.filter(s=>bucketOf(s.cat.label)==="need").reduce((a,s)=>a+s.amt,0);
+        const wantsAmt=monExp-needsAmt;
+
+        // ── runway: how many months the projected savings last with no income ──
+        const projAt=savingsProjection.find(p=>p.m===mon);
+        const savingsOnHand=projAt?projAt.bal:(savingsStart||0);
+        const expMonths=planTotals.filter(p=>p.exp>0);
+        const avgExp=expMonths.length?expMonths.reduce((s,p)=>s+p.exp,0)/expMonths.length:0;
+        const burn=monExp>0?monExp:avgExp;            // full-spend burn rate
+        const leanBurn=needsAmt>0?needsAmt:burn;       // needs-only burn rate
+        const runwayFull=burn>0?savingsOnHand/burn:0;
+        const runwayLean=leanBurn>0?savingsOnHand/leanBurn:0;
+        const fmtMo=(m)=>(!isFinite(m)||m<=0)?"—":(m>=99?"99+":(m>=10?String(Math.round(m)):m.toFixed(1)));
+
+        // ── geometry ──
+        const CX=100,CY=100;
         const arcPath=(rOO,rII,a0,a1)=>{
           const P=(r,ang)=>[CX+r*Math.cos(ang),CY+r*Math.sin(ang)];
           const large=(a1-a0)>Math.PI?1:0;
@@ -2882,6 +2888,144 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${rOO} ${rOO} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} L${x2.toFixed(2)} ${y2.toFixed(2)} A${rII} ${rII} 0 ${large} 0 ${x3.toFixed(2)} ${y3.toFixed(2)} Z`;
         };
         const dim=(lbl)=>pieHover&&pieHover!==lbl?0.28:1;
+        // Render a ring of segments [{frac,color,label?}] starting at 12 o'clock.
+        const renderRing=(segs,rOO,rII,baseOp,interactive,kp)=>{
+          const vis=segs.filter(s=>s.frac>0.0005);
+          const out=[];let a=-Math.PI/2;
+          if(vis.length===1){
+            const half=a+Math.PI;
+            out.push(<path key={kp+"a"} d={arcPath(rOO,rII,a,half)} fill={vis[0].color} opacity={baseOp} stroke={T.card} strokeWidth="1"/>);
+            out.push(<path key={kp+"b"} d={arcPath(rOO,rII,half,a+2*Math.PI)} fill={vis[0].color} opacity={baseOp} stroke={T.card} strokeWidth="1"/>);
+            return out;
+          }
+          vis.forEach((s,i)=>{
+            const a0=a,a1=a+s.frac*2*Math.PI;a=a1;
+            const op=baseOp*(interactive&&pieHover&&pieHover!==s.label?0.4:1);
+            out.push(<path key={kp+i} d={arcPath(rOO,rII,a0,a1)} fill={s.color} opacity={op} stroke={T.card} strokeWidth="1.25"
+              onMouseEnter={interactive?()=>setPieHover(s.label):undefined} onMouseLeave={interactive?()=>setPieHover(null):undefined}
+              style={interactive?{transition:"opacity .12s",cursor:"default"}:undefined}>
+              {s.label&&<title>{s.label}: €{(s.amt||0).toFixed(0)} ({(s.frac*100).toFixed(0)}%)</title>}
+            </path>);
+          });
+          return out;
+        };
+
+        // ── header: 3-way mode toggle ──
+        const title=is503020?"50 / 30 / 20":(isInc?"Income mix":"Expenses mix");
+        const header=(
+          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:3}}>
+            <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:19,color:ACC2,letterSpacing:"-0.3px",lineHeight:1}}>{title}</span>
+            <div style={{display:"flex",border:`1px solid ${T.border}`,flexShrink:0}}>
+              {[["expense","EXP",RED],["income","INC",OLIVE],["503020","50·30·20",T.text]].map(([k,lab,c])=>{
+                const on=pieScope===k;
+                return <button key={k} onClick={()=>setPieScope(k)}
+                  style={{...eye,fontSize:8,padding:"4px 8px",border:"none",cursor:"pointer",background:on?alpha(c,.12):"transparent",color:on?c:T.muted,whiteSpace:"nowrap"}}>{lab}</button>;
+              })}
+            </div>
+          </div>
+        );
+        const subText=is503020?`${monShort} · % of €${monInc.toFixed(0)} income`:(isInc?`${monShort} · selected month`:`${monShort} · €${monExp.toFixed(0)} out`);
+        const sub=<div style={{...eye,fontSize:8,color:T.muted,opacity:0.8,marginBottom:12}}>{subText}</div>;
+        const panel=(body)=>(
+          <div style={{border:`1px solid ${T.border}`,background:alpha(ACC2,.03),padding:"15px 17px",maxWidth:430}}>
+            {header}{sub}{body}
+          </div>
+        );
+
+        // ── center readouts ──
+        const centerRunway=(<>
+          <text x={CX} y={CY-9} textAnchor="middle" fill={savingsOnHand>0?T.text:RED} style={{fontFamily:PP_M,fontSize:23,fontWeight:800,letterSpacing:"-0.5px"}}>{fmtMo(runwayFull)}</text>
+          <text x={CX} y={CY+5} textAnchor="middle" fill={T.muted} style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.22em"}}>MONTHS</text>
+          <text x={CX} y={CY+16} textAnchor="middle" fill={T.muted} style={{fontFamily:PP_M,fontSize:6.5,letterSpacing:"0.18em",opacity:0.8}}>NO INCOME</text>
+        </>);
+        const centerIncome=(<>
+          <text x={CX} y={CY-3} textAnchor="middle" fill={T.text} style={{fontFamily:PP_M,fontSize:21,fontWeight:700}}>€{monInc.toFixed(0)}</text>
+          <text x={CX} y={CY+13} textAnchor="middle" fill={T.muted} style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.2em"}}>INCOME</text>
+        </>);
+        const runwayCaption=burn>0?(
+          <div style={{marginTop:11,paddingTop:9,borderTop:`1px dashed ${T.border}`,fontFamily:PP_S,fontStyle:"italic",fontSize:11.5,color:T.muted,lineHeight:1.45}}>
+            €{savingsOnHand.toFixed(0)} projected savings ÷ €{Math.round(burn)}/mo burn{needsAmt>0?<> · <span style={{color:OLIVE}}>{fmtMo(runwayLean)} mo</span> on needs only</>:null}
+          </div>
+        ):null;
+
+        // ───────────── 50·30·20 MODE ─────────────
+        if(is503020){
+          if(monInc<=0){
+            return panel(<div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:14,color:T.muted,opacity:0.8,padding:"14px 0",lineHeight:1.4}}>
+              Add income for {monShort} to see the 50/30/20 split. Use the ‹ › arrows above to pick another month.
+            </div>);
+          }
+          const C_NEED=RED,C_WANT="#c98a2e",C_SAV=SAV_COL,C_SURP=T.muted;
+          const nf=needsAmt/monInc,wf=wantsAmt/monInc,sf=monSav/monInc;
+          const used=nf+wf+sf,deficit=used>1,norm=deficit?used:1;
+          const surplusAmt=Math.max(0,monInc-needsAmt-wantsAmt-monSav);
+          const outer=[
+            {label:"Needs",amt:needsAmt,frac:nf/norm,color:C_NEED},
+            {label:"Wants",amt:wantsAmt,frac:wf/norm,color:C_WANT},
+            {label:"Savings",amt:monSav,frac:sf/norm,color:C_SAV},
+          ];
+          if(!deficit&&surplusAmt>0.5)outer.push({label:"Unallocated",amt:surplusAmt,frac:Math.max(0,1-used),color:C_SURP});
+          const target=[{frac:0.5,color:C_NEED},{frac:0.3,color:C_WANT},{frac:0.2,color:C_SAV}];
+          const rows=[
+            {label:"Needs",amt:needsAmt,target:0.5,want:"under",color:C_NEED},
+            {label:"Wants",amt:wantsAmt,target:0.3,want:"under",color:C_WANT},
+            {label:"Savings",amt:monSav,target:0.2,want:"over",color:C_SAV},
+          ];
+          return panel(<>
+            <div style={{display:"flex",justifyContent:"center"}}>
+              <svg viewBox="0 0 200 200" width="186" height="186" style={{maxWidth:"100%"}}>
+                {renderRing(outer,90,71,1,true,"o")}
+                {renderRing(target,67,54,0.45,false,"t")}
+                {centerRunway}
+              </svg>
+            </div>
+            <div style={{display:"flex",justifyContent:"center",gap:14,marginTop:6,...eye,fontSize:7,color:T.muted,opacity:0.85}}>
+              <span>outer · your split</span><span>inner · 50/30/20 target</span>
+            </div>
+            <div style={{marginTop:11,display:"flex",flexDirection:"column",gap:6}}>
+              {rows.map(r=>{
+                const pct=r.amt/monInc,delta=pct-r.target;
+                const onTrack=r.want==="under"?delta<=0.01:delta>=-0.01;
+                const dColor=onTrack?OLIVE:RED;
+                return <div key={r.label} style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{width:10,height:10,background:r.color,flexShrink:0,borderRadius:1}}/>
+                  <span style={{...numF,fontSize:11,color:T.text,width:58,flexShrink:0}}>{r.label}</span>
+                  <span style={{...numF,fontSize:10,color:T.muted,flex:1}}>€{r.amt.toFixed(0)}</span>
+                  <span style={{...numF,fontSize:12,color:T.text,fontWeight:700,width:38,textAlign:"right"}}>{(pct*100).toFixed(0)}%</span>
+                  <span style={{...numF,fontSize:9,color:T.muted,width:34,textAlign:"right"}}>/{(r.target*100).toFixed(0)}%</span>
+                  <span style={{...numF,fontSize:9,color:dColor,fontWeight:700,width:34,textAlign:"right"}}>{delta>=0?"+":"−"}{Math.abs(delta*100).toFixed(0)}</span>
+                </div>;
+              })}
+              {deficit
+                ? <div style={{...numF,fontSize:10,color:RED,marginTop:2}}>Spending exceeds income by €{(needsAmt+wantsAmt+monSav-monInc).toFixed(0)}.</div>
+                : surplusAmt>0.5&&<div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:11,color:T.muted,marginTop:2}}>€{surplusAmt.toFixed(0)} unallocated ({((surplusAmt/monInc)*100).toFixed(0)}%) — could be moved into savings.</div>}
+            </div>
+            {/* tap-to-reclassify chips */}
+            {expSlicesAll.length>0&&<div style={{marginTop:11,paddingTop:9,borderTop:`1px dashed ${T.border}`}}>
+              <div style={{...eye,fontSize:7,color:T.muted,opacity:0.75,marginBottom:6}}>Tap to flip needs ↔ wants</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {expSlicesAll.map(s=>{const need=bucketOf(s.cat.label)==="need";return(
+                  <button key={s.cat.id} onClick={()=>flipBucket(s.cat.label)} title="Click to reclassify"
+                    style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 7px",border:`1px solid ${alpha(need?C_NEED:C_WANT,.4)}`,background:alpha(need?C_NEED:C_WANT,.07),cursor:"pointer",borderRadius:0,fontFamily:PP_M,fontSize:9.5,color:T.text}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:need?C_NEED:C_WANT,flexShrink:0}}/>{s.cat.label}
+                  </button>);})}
+              </div>
+            </div>}
+            {runwayCaption}
+          </>);
+        }
+
+        // ───────────── CATEGORY MODE (expense / income) ─────────────
+        const slices=isInc?buildSlices(incSection):expSlicesAll;
+        const total=slices.reduce((s,x)=>s+x.amt,0);
+        if(total<=0){
+          return panel(<div style={{fontFamily:PP_S,fontStyle:"italic",fontSize:14,color:T.muted,opacity:0.8,padding:"14px 0",lineHeight:1.4}}>
+            No {isInc?"income":"expenses"} planned for {monShort}. Fill some cells, or use the ‹ › arrows above to pick another month.
+          </div>);
+        }
+        const rO=90,rI=54;
+        let a=-Math.PI/2;
+        const wedges=slices.map(sl=>{const frac=sl.amt/total,a0=a,a1=a+frac*Math.PI*2;a=a1;return{...sl,a0,a1,frac};});
         const bands=[];wedges.forEach(w=>{if(!bands.includes(w.band))bands.push(w.band);});
         return panel(<>
           <div style={{display:"flex",justifyContent:"center"}}>
@@ -2896,8 +3040,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
                       <title>{w.cat.label}: €{w.amt} ({(w.frac*100).toFixed(0)}%)</title>
                     </path>
                   ))}
-              <text x={CX} y={CY-3} textAnchor="middle" fill={T.text} style={{fontFamily:PP_M,fontSize:21,fontWeight:700}}>€{total.toFixed(0)}</text>
-              <text x={CX} y={CY+13} textAnchor="middle" fill={T.muted} style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.2em"}}>{isInc?"INCOME":"EXPENSES"}</text>
+              {isInc?centerIncome:centerRunway}
             </svg>
           </div>
           <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:9}}>
@@ -2919,6 +3062,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
               </div>;
             })}
           </div>
+          {!isInc&&runwayCaption}
         </>);
       };
 
