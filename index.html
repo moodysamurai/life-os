@@ -2768,7 +2768,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
 
       const renderRow=(cat,kind,accentOverride)=>{
-        const ACC=accentOverride||(kind==="income"?OLIVE:RED);
+        // Expense rows tagged as "wants" tint yellow; needs stay red. Dividers keep the section accent.
+        const isWantRow=cat.type!=="divider"&&kind==="expense"&&!accentOverride&&bucketOf(cat.label)==="want";
+        const ACC=accentOverride||(kind==="income"?OLIVE:(isWantRow?WANT_COL:RED));
         if(cat.type==="divider"){
           return <div key={cat.id}
             draggable
@@ -5729,8 +5731,7 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
     {id:'plan',label:'PLAN'},
     {id:'trips',label:'TRIPS'},
     {id:'money',label:'MONEY'},
-    {id:'review',label:'REVIEW'},
-    {id:'wk',label:'WK'},
+    {id:'praline',label:'PRALINE'},
     {id:'wardrobe',label:'CLOTH'},
     {id:'settings',label:'⚙',title:'Settings'},
   ];
@@ -6852,20 +6853,313 @@ function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudget
     <PaperFooter/>
   </div>;
 }
-function ReviewPage({tasks,setTasks,goals,apiKey,setModal,pushUndo}){
-  return<div>
-    <PaperPageHdr title="Review." sub="WAKULI · WEEKLY DIGEST"/>
-    <div style={{padding:'24px 2rem'}}>
-      <WakuliWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
+// ── PRALINE CORNER (Pratham + Elina) ──────────────────────────────────────
+const PRALINE_QUESTIONS=[
+  "What made you smile today?",
+  "What's one tiny thing you wish I'd been there for?",
+  "What did you eat today that I'd have stolen a bite of?",
+  "What song fit your mood today?",
+  "What's something you're looking forward to this week?",
+  "If I were there right now, what would we be doing?",
+  "What's one thing you're proud of yourself for today?",
+  "What did you see today that you wanted to show me?",
+  "What's a small comfort that got you through today?",
+  "What made you laugh out loud recently?",
+  "What's something new you learned today?",
+  "What part of your day felt like home?",
+  "What's one worry I can help carry today?",
+  "What would you cook for us on our first night back together?",
+  "What's a memory of us that popped up today?",
+  "What's the best text/voice note you got today?",
+  "What did the weather feel like where you are?",
+  "What's one thing you want to do together when we reunite?",
+  "What's something kind someone did for you today?",
+  "What's a place you walked past and thought of me?",
+  "What's been on your mind that you haven't said yet?",
+  "What's your tiny win of the day?",
+  "What's something that smelled or sounded good today?",
+  "If today were a colour, what would it be?",
+  "What's one thing you need more of this week?",
+  "What made the distance feel smaller today?",
+  "What's a photo you wish you'd taken today?",
+  "What's something you're grateful for right now?",
+  "What did you do today that was just for you?",
+  "What's the first thing you'll say when you see me?"
+];
+const DEFAULT_PRALINE={
+  reunionDate:"",
+  names:{a:"Pratham",b:"Elina"},
+  places:{a:{label:"Leiden",tz:"Europe/Amsterdam"},b:{label:"Delhi",tz:"Asia/Kolkata"}},
+  entries:{}
+};
+const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
+function blankEnt(){return{good:["","",""],note:"",q:""};}
+function PralineClock({label,name,tz,accent}){
+  const T=useT();
+  const[now,setNow]=useState(new Date());
+  useEffect(()=>{const id=setInterval(()=>setNow(new Date()),1000);return()=>clearInterval(id);},[]);
+  let time="—:—",day="";
+  try{
+    time=new Intl.DateTimeFormat("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:tz}).format(now);
+    day=new Intl.DateTimeFormat("en-GB",{weekday:"short",hour12:false,timeZone:tz}).format(now).toUpperCase();
+  }catch(e){}
+  return(
+    <div style={{flex:1,padding:"14px 18px",textAlign:"center"}}>
+      <div style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.2em",color:accent||T.muted,textTransform:"uppercase",marginBottom:6}}>{name}</div>
+      <div style={{fontFamily:PP_S,fontSize:34,fontWeight:400,color:T.text,lineHeight:1,letterSpacing:"-0.02em"}}>{time}</div>
+      <div style={{fontFamily:PP_M,fontSize:8.5,letterSpacing:"0.16em",color:T.muted,marginTop:6,textTransform:"uppercase"}}>{day} · {label||tz}</div>
     </div>
-    <PaperFooter/>
-  </div>;
+  );
 }
-function WkPage({tasks,completions,setCompletions,appleEvents,setModal,setFocusDay}){
+function PralinePage({supaUrl,supaKey}){
+  const T=useT();
+  const today=new Date();
+  const todayStr=toStr(today);
+  const dayIdx=Math.floor((today-new Date(today.getFullYear(),0,1))/86400000);
+  const [code,setCode]=useState(()=>lg("plo3_praline_code",""));
+  const [me,setMe]=useState(()=>lg("plo3_praline_me","a"));
+  const [doc,setDoc]=useState(()=>{const d=lg("plo3_praline_doc",null);return d&&d.entries?{...DEFAULT_PRALINE,...d}:{...DEFAULT_PRALINE};});
+  const [status,setStatus]=useState("idle");
+  const [showSetup,setShowSetup]=useState(false);
+  const docRef=useRef(doc);
+  const typingRef=useRef(0);
+  const pushTimerRef=useRef(null);
+  useEffect(()=>{docRef.current=doc;},[doc]);
+  useEffect(()=>ls("plo3_praline_code",code),[code]);
+  useEffect(()=>ls("plo3_praline_me",me),[me]);
+  useEffect(()=>ls("plo3_praline_doc",doc),[doc]);
+
+  const rowId=code.trim()?`praline_${code.trim().toLowerCase()}`:"";
+  const connected=!!(supaUrl&&supaKey&&rowId);
+  const other=me==="a"?"b":"a";
+
+  function mergeIncoming(remote){
+    if(!remote||typeof remote!=="object"||Object.keys(remote).length===0)return;
+    setDoc(prev=>{
+      const entries={...prev.entries};
+      const rE=remote.entries||{};
+      for(const d in rE){entries[d]={...(entries[d]||{}),...(rE[d]||{})};}
+      if(Date.now()-typingRef.current<6000&&prev.entries?.[todayStr]?.[me]){
+        entries[todayStr]={...(entries[todayStr]||{}),[me]:prev.entries[todayStr][me]};
+      }
+      return{
+        reunionDate:remote.reunionDate!==undefined?remote.reunionDate:prev.reunionDate,
+        names:{...prev.names,...(remote.names||{})},
+        places:{a:{...prev.places.a,...(remote.places?.a||{})},b:{...prev.places.b,...(remote.places?.b||{})}},
+        entries
+      };
+    });
+  }
+  function schedulePush(){
+    if(!connected)return;
+    setStatus("loading");
+    clearTimeout(pushTimerRef.current);
+    pushTimerRef.current=setTimeout(()=>{
+      supaPush(supaUrl,supaKey,rowId,docRef.current,new Date().toISOString())
+        .then(()=>setStatus("ok")).catch(()=>setStatus("err"));
+    },1200);
+  }
+  useEffect(()=>{
+    if(!connected){setStatus("idle");return;}
+    let rt=null;
+    setStatus("loading");
+    supaFetch(supaUrl,supaKey,rowId)
+      .then(d=>{mergeIncoming(d);setStatus("ok");})
+      .catch(()=>setStatus("err"));
+    rt=supaRealtime(supaUrl,supaKey,rowId,(d)=>mergeIncoming(d));
+    return()=>{if(rt)rt.close();};
+  },[supaUrl,supaKey,rowId]);// eslint-disable-line
+
+  function editMine(producer){
+    setDoc(prev=>{
+      const day={...(prev.entries[todayStr]||{})};
+      const mine={...blankEnt(),...(day[me]||{})};
+      mine.good=[...(mine.good||["","",""])];
+      producer(mine);
+      day[me]=mine;
+      return{...prev,entries:{...prev.entries,[todayStr]:day}};
+    });
+    typingRef.current=Date.now();
+    schedulePush();
+  }
+  function setTop(patch){
+    setDoc(prev=>({...prev,...patch}));
+    typingRef.current=Date.now();
+    schedulePush();
+  }
+  function setPlace(slot,patch){
+    setDoc(prev=>({...prev,places:{...prev.places,[slot]:{...prev.places[slot],...patch}}}));
+    typingRef.current=Date.now();
+    schedulePush();
+  }
+  function setName(slot,val){
+    setDoc(prev=>({...prev,names:{...prev.names,[slot]:val}}));
+    typingRef.current=Date.now();
+    schedulePush();
+  }
+
+  const myName=doc.names[me]||(me==="a"?"Pratham":"Elina");
+  const theirName=doc.names[other]||(other==="a"?"Pratham":"Elina");
+  const myEnt={...blankEnt(),...((doc.entries[todayStr]||{})[me]||{})};
+  myEnt.good=[...(myEnt.good||["","",""])];while(myEnt.good.length<3)myEnt.good.push("");
+  const theirEnt={...blankEnt(),...((doc.entries[todayStr]||{})[other]||{})};
+  theirEnt.good=[...(theirEnt.good||["","",""])];while(theirEnt.good.length<3)theirEnt.good.push("");
+  const question=PRALINE_QUESTIONS[dayIdx%PRALINE_QUESTIONS.length];
+
+  // reunion countdown
+  let daysLeft=null;
+  if(doc.reunionDate){
+    const t0=new Date(todayStr+"T00:00:00");const t1=new Date(doc.reunionDate+"T00:00:00");
+    daysLeft=Math.round((t1-t0)/86400000);
+  }
+
+  // archive: past days (not today) that have any content, newest first
+  const archive=Object.keys(doc.entries||{}).filter(d=>d!==todayStr).filter(d=>{
+    const e=doc.entries[d];if(!e)return false;
+    return["a","b"].some(s=>e[s]&&((e[s].good||[]).some(g=>g&&g.trim())||(e[s].note||"").trim()||(e[s].q||"").trim()));
+  }).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+
+  const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
+  const inp={width:"100%",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,color:T.text,fontFamily:PP_S,fontSize:15,padding:"5px 0",outline:"none"};
+  const statusTxt=!connected?"LOCAL ONLY":status==="ok"?"● SYNCED":status==="loading"?"◐ SYNCING":status==="err"?"○ OFFLINE":"○ —";
+  const statusCol=!connected?T.muted:status==="ok"?T.mint:status==="err"?T.red:T.muted;
+  const fmtArchDate=d=>{try{return new Intl.DateTimeFormat("en-GB",{weekday:"short",day:"numeric",month:"short"}).format(new Date(d+"T12:00:00")).toUpperCase();}catch(e){return d;}};
+
   return<div>
-    <PaperPageHdr title="Week." sub="KANBAN · WEEK VIEW"/>
-    <div style={{padding:'24px 2rem'}}>
-      <KanbanWidget tasks={tasks} completions={completions} setCompletions={setCompletions} onAddTask={(ds,time)=>setModal({type:"task",data:{deadline:ds||null,timeBlock:time||null}})} onFocusDay={setFocusDay} pageMode={true} appleEvents={appleEvents}/>
+    <PaperPageHdr title="Praline Corner." sub="PRATHAM + ELINA · THREE GOOD THINGS"
+      action={<div style={{display:"flex",alignItems:"center",gap:14}}>
+        <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:statusCol}}>{statusTxt}</span>
+        <button onClick={()=>setShowSetup(s=>!s)} title="Setup" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:T.muted,padding:"5px 10px"}}>⚙ SETUP</button>
+      </div>}/>
+
+    <div style={{padding:"24px 2rem",maxWidth:1040,margin:"0 auto"}}>
+
+      {/* setup panel */}
+      {showSetup&&<div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 20px",marginBottom:22}}>
+        <div style={{...eye,marginBottom:14}}>CONNECTION & DETAILS</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 24px"}}>
+          <div>
+            <div style={{...eye,marginBottom:6}}>Praline code (share with Elina)</div>
+            <input value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. praline-23" style={{...inp,fontFamily:PP_M,fontSize:13}}/>
+            <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginTop:6,lineHeight:1.5}}>{supaUrl&&supaKey?"Both enter the SAME code to share this page. Uses your existing sync — your tasks/money stay private.":"Set up Supabase sync in ⚙ Settings first, then add a code here to share with Elina."}</div>
+          </div>
+          <div>
+            <div style={{...eye,marginBottom:6}}>I am</div>
+            <div style={{display:"flex",gap:8}}>
+              {["a","b"].map(s=><button key={s} onClick={()=>setMe(s)} style={{flex:1,background:me===s?T.mint:"transparent",border:`1px solid ${me===s?T.mint:T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:me===s?T.card:T.text,padding:"8px 0"}}>{doc.names[s]||(s==="a"?"Pratham":"Elina")}</button>)}
+            </div>
+          </div>
+          <div>
+            <div style={{...eye,marginBottom:6}}>Pratham — name / place / timezone</div>
+            <input value={doc.names.a} onChange={e=>setName("a",e.target.value)} style={{...inp,marginBottom:8}}/>
+            <input value={doc.places.a.label} onChange={e=>setPlace("a",{label:e.target.value})} placeholder="City" style={{...inp,marginBottom:8}}/>
+            <input list="praline-tzs" value={doc.places.a.tz} onChange={e=>setPlace("a",{tz:e.target.value})} placeholder="Timezone" style={{...inp,fontFamily:PP_M,fontSize:12}}/>
+          </div>
+          <div>
+            <div style={{...eye,marginBottom:6}}>Elina — name / place / timezone</div>
+            <input value={doc.names.b} onChange={e=>setName("b",e.target.value)} style={{...inp,marginBottom:8}}/>
+            <input value={doc.places.b.label} onChange={e=>setPlace("b",{label:e.target.value})} placeholder="City" style={{...inp,marginBottom:8}}/>
+            <input list="praline-tzs" value={doc.places.b.tz} onChange={e=>setPlace("b",{tz:e.target.value})} placeholder="Timezone" style={{...inp,fontFamily:PP_M,fontSize:12}}/>
+          </div>
+          <div>
+            <div style={{...eye,marginBottom:6}}>Reunion date</div>
+            <input type="date" value={doc.reunionDate} onChange={e=>setTop({reunionDate:e.target.value})} style={{...inp,fontFamily:PP_M,fontSize:13}}/>
+          </div>
+        </div>
+        <datalist id="praline-tzs">{PRALINE_TZS.map(z=><option key={z} value={z}/>)}</datalist>
+      </div>}
+
+      {/* reunion countdown + clocks */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1.4fr",gap:16,marginBottom:22}}>
+        <div style={{background:T.ink||T.text,border:`1px solid ${T.text}`,borderRadius:4,padding:"18px 20px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+          <div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",color:T.bg,opacity:0.7,textTransform:"uppercase"}}>DAYS UNTIL WE'RE TOGETHER</div>
+          {daysLeft!==null?
+            <div style={{display:"flex",alignItems:"baseline",gap:10,marginTop:4}}>
+              <span style={{fontFamily:PP_S,fontSize:56,fontWeight:400,color:T.bg,lineHeight:0.9,letterSpacing:"-0.03em"}}>{daysLeft>0?daysLeft:daysLeft===0?"♥":"+"+Math.abs(daysLeft)}</span>
+              <span style={{fontFamily:PP_M,fontSize:9,letterSpacing:"0.16em",color:T.bg,opacity:0.65,textTransform:"uppercase"}}>{daysLeft>0?"DAYS TO GO":daysLeft===0?"TODAY!":"DAYS SINCE"}</span>
+            </div>
+            :<button onClick={()=>setShowSetup(true)} style={{marginTop:8,background:"transparent",border:`1px solid ${T.bg}55`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.bg,padding:"7px 12px",alignSelf:"flex-start"}}>SET REUNION DATE →</button>}
+        </div>
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,display:"flex",alignItems:"center"}}>
+          <PralineClock name={doc.names.a} label={doc.places.a.label} tz={doc.places.a.tz} accent={T.red}/>
+          <div style={{width:1,alignSelf:"stretch",background:T.border,margin:"14px 0"}}/>
+          <PralineClock name={doc.names.b} label={doc.places.b.label} tz={doc.places.b.tz} accent={T.mint}/>
+        </div>
+      </div>
+
+      {/* question of the day */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginBottom:22}}>
+        <div style={{...eye,marginBottom:8,color:T.red}}>QUESTION OF THE DAY · NO. {String(dayIdx%PRALINE_QUESTIONS.length+1).padStart(2,"0")}</div>
+        <div style={{fontFamily:PP_S,fontSize:22,fontWeight:400,color:T.text,fontStyle:"italic",letterSpacing:"-0.01em",marginBottom:14}}>{question}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+          <div>
+            <div style={{...eye,marginBottom:6,color:T.muted}}>{myName} (you)</div>
+            <input value={myEnt.q} onChange={e=>editMine(m=>{m.q=e.target.value;})} placeholder="your answer…" style={inp}/>
+          </div>
+          <div>
+            <div style={{...eye,marginBottom:6,color:T.muted}}>{theirName}</div>
+            <div style={{fontFamily:PP_S,fontSize:15,color:theirEnt.q?T.text:T.muted,fontStyle:theirEnt.q?"normal":"italic",padding:"5px 0",borderBottom:`1px solid ${T.border}`,minHeight:28}}>{theirEnt.q||"— not yet —"}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* three good things — two cards */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        {/* mine */}
+        <div style={{background:T.card,border:`1px solid ${T.red}`,borderRadius:4,padding:"20px 22px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
+            <div style={{fontFamily:PP_S,fontSize:20,fontWeight:400,color:T.text}}>{myName} <span style={{fontSize:11,fontFamily:PP_M,color:T.red,letterSpacing:"0.1em"}}>· YOU</span></div>
+            <div style={eye}>{todayStr}</div>
+          </div>
+          <div style={{...eye,marginBottom:12}}>THREE GOOD THINGS TODAY</div>
+          {[0,1,2].map(i=><div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+            <span style={{fontFamily:PP_S,fontSize:24,color:T.red,fontStyle:"italic",width:26,flexShrink:0}}>{i+1}</span>
+            <input value={myEnt.good[i]} onChange={e=>editMine(m=>{m.good[i]=e.target.value;})} placeholder="…" style={inp}/>
+          </div>)}
+          <div style={{...eye,margin:"18px 0 8px"}}>A NOTE TO {theirName.toUpperCase()}</div>
+          <textarea value={myEnt.note} onChange={e=>editMine(m=>{m.note=e.target.value;})} placeholder="write something for them…" rows={3} style={{...inp,borderBottom:"none",border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",resize:"vertical",fontSize:14,lineHeight:1.5}}/>
+        </div>
+        {/* theirs */}
+        <div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:4,padding:"20px 22px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
+            <div style={{fontFamily:PP_S,fontSize:20,fontWeight:400,color:T.text}}>{theirName}</div>
+            <div style={eye}>{connected?"LIVE":"—"}</div>
+          </div>
+          <div style={{...eye,marginBottom:12}}>THREE GOOD THINGS TODAY</div>
+          {[0,1,2].map(i=><div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+            <span style={{fontFamily:PP_S,fontSize:24,color:T.mint,fontStyle:"italic",width:26,flexShrink:0}}>{i+1}</span>
+            <div style={{flex:1,fontFamily:PP_S,fontSize:15,color:theirEnt.good[i]?T.text:T.muted,fontStyle:theirEnt.good[i]?"normal":"italic",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>{theirEnt.good[i]||"—"}</div>
+          </div>)}
+          <div style={{...eye,margin:"18px 0 8px"}}>A NOTE TO {myName.toUpperCase()}</div>
+          <div style={{border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",minHeight:62,fontFamily:PP_S,fontSize:14,lineHeight:1.5,color:theirEnt.note?T.text:T.muted,fontStyle:theirEnt.note?"normal":"italic"}}>{theirEnt.note||"— nothing yet —"}</div>
+        </div>
+      </div>
+
+      {/* archive */}
+      {archive.length>0&&<div style={{marginTop:30}}>
+        <div style={{...eye,marginBottom:14,borderTop:`1px solid ${T.text}`,paddingTop:14}}>EARLIER ENTRIES</div>
+        {archive.map(d=>{
+          const ea={...blankEnt(),...((doc.entries[d]||{}).a||{})};
+          const eb={...blankEnt(),...((doc.entries[d]||{}).b||{})};
+          const col=(e,nm,acc)=>{
+            const goods=(e.good||[]).filter(g=>g&&g.trim());
+            if(!goods.length&&!(e.note||"").trim())return null;
+            return<div style={{flex:1}}>
+              <div style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.16em",color:acc,marginBottom:6}}>{nm.toUpperCase()}</div>
+              {goods.map((g,i)=><div key={i} style={{fontFamily:PP_S,fontSize:13,color:T.text,marginBottom:3,lineHeight:1.4}}><span style={{color:acc}}>·</span> {g}</div>)}
+              {(e.note||"").trim()&&<div style={{fontFamily:PP_S,fontSize:12.5,fontStyle:"italic",color:T.muted,marginTop:6,lineHeight:1.4}}>“{e.note}”</div>}
+            </div>;
+          };
+          return<div key={d} style={{padding:"12px 0",borderBottom:`1px solid ${T.border}`}}>
+            <div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:T.muted,marginBottom:8}}>{fmtArchDate(d)}</div>
+            <div style={{display:"flex",gap:24}}>
+              {col(ea,doc.names.a,T.red)}
+              {col(eb,doc.names.b,T.mint)}
+            </div>
+          </div>;
+        })}
+      </div>}
+
     </div>
     <PaperFooter/>
   </div>;
@@ -7712,7 +8006,7 @@ function App(){
   const [showAppleCal,setShowAppleCal]=useState(false);
 
   // Page + UI state
-  const [page,setPage]=useState(()=>lg("plo3_page","today"));
+  const [page,setPage]=useState(()=>{const p=lg("plo3_page","today");return(p==="wk"||p==="review")?"today":p;});
   const [modal,setModal]=useState(null);
   const [focusDay,setFocusDay]=useState(null);
   const [searchOpen,setSearchOpen]=useState(false);
@@ -7969,8 +8263,7 @@ function App(){
       {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey} budgetCats={budgetCats} envelopes={envelopes}/>}
       {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal}/>}
       {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats}/>}
-      {page==="review"&&<ReviewPage tasks={tasks} setTasks={setTasks} goals={goals} apiKey={apiKey} setModal={setModal} pushUndo={pushUndo}/>}
-      {page==="wk"&&<WkPage tasks={tasks} completions={completions} setCompletions={setCompletions} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay}/>}
+      {page==="praline"&&<PralinePage supaUrl={supaUrl} supaKey={supaKey}/>}
       {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal} imgbbApiKey={imgbbApiKey} setImgbbApiKey={setImgbbApiKey} removeBgKey={removeBgKey} setRemoveBgKey={setRemoveBgKey}/>}
       {page==="wardrobe"&&<WardrobePage wardrobeItems={wardrobeItems} setWardrobeItems={setWardrobeItems} wardrobeWears={wardrobeWears} setWardrobeWears={setWardrobeWears} wardrobeOutfits={wardrobeOutfits} setWardrobeOutfits={setWardrobeOutfits} imgbbApiKey={imgbbApiKey} removeBgKey={removeBgKey} pushUndo={pushUndo}/>}
 
