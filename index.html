@@ -6890,10 +6890,47 @@ const DEFAULT_PRALINE={
   reunionDate:"",
   names:{a:"Pratham",b:"Elina"},
   places:{a:{label:"Leiden",tz:"Europe/Amsterdam"},b:{label:"Delhi",tz:"Asia/Kolkata"}},
-  entries:{}
+  entries:{},
+  watchlist:[]
 };
 const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
-function blankEnt(){return{good:["","",""],note:"",q:""};}
+const PRALINE_MOODS=[{v:1,label:"rough"},{v:2,label:"low"},{v:3,label:"ok"},{v:4,label:"good"},{v:5,label:"great"}];
+function blankEnt(){return{good:["","",""],note:"",q:"",song:"",mood:0};}
+function TallyMarks({count,color,size=1}){
+  if(count<=0)return null;
+  const groups=Math.floor(count/5),rem=count%5,W=24*size,H=28*size,xs=[3,8,13,18].map(x=>x*size),y0=3*size,y1=25*size;
+  const grp=(full,n,k)=>(
+    <svg key={k} width={W} height={H} viewBox={`0 0 24 28`} style={{display:"block"}} preserveAspectRatio="none">
+      {[0,1,2,3].slice(0,full?4:n).map(i=><line key={i} x1={3+i*5} y1={3} x2={3+i*5} y2={25} stroke={color} strokeWidth={2} strokeLinecap="round"/>)}
+      {full&&<line x1={0.5} y1={26} x2={23.5} y2={2} stroke={color} strokeWidth={2} strokeLinecap="round"/>}
+    </svg>
+  );
+  const out=[];
+  for(let g=0;g<groups;g++)out.push(grp(true,5,"g"+g));
+  if(rem>0)out.push(grp(false,rem,"r"));
+  return <div style={{display:"flex",flexWrap:"wrap",gap:`${10*size}px ${9*size}px`,alignItems:"center"}}>{out}</div>;
+}
+function PralineMoodChart({dates,doc,nameA,nameB,colA,colB}){
+  const T=useT();
+  const pts=dates.map((d,i)=>({d,a:((doc.entries[d]||{}).a||{}).mood||0,b:((doc.entries[d]||{}).b||{}).mood||0}));
+  const W=600,H=150,padL=26,padR=14,padT=12,padB=22,n=pts.length;
+  const xAt=i=>n<=1?padL:padL+i*((W-padL-padR)/(n-1));
+  const yAt=v=>padT+(5-v)*((H-padT-padB)/4);
+  const series=key=>pts.map((p,i)=>p[key]?`${xAt(i)},${yAt(p[key])}`:null).filter(Boolean).join(" ");
+  const lineA=series("a"),lineB=series("b");
+  return(
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto",display:"block"}} preserveAspectRatio="none">
+      {[1,2,3,4,5].map(v=><g key={v}>
+        <line x1={padL} y1={yAt(v)} x2={W-padR} y2={yAt(v)} stroke={T.border} strokeWidth={0.6}/>
+        <text x={2} y={yAt(v)+3} fontSize={8} fontFamily="monospace" fill={T.muted}>{v}</text>
+      </g>)}
+      {lineB&&<polyline points={lineB} fill="none" stroke={colB} strokeWidth={1.6} strokeLinejoin="round"/>}
+      {lineA&&<polyline points={lineA} fill="none" stroke={colA} strokeWidth={1.6} strokeLinejoin="round"/>}
+      {pts.map((p,i)=>p.b?<circle key={"b"+i} cx={xAt(i)} cy={yAt(p.b)} r={2.4} fill={colB}/>:null)}
+      {pts.map((p,i)=>p.a?<circle key={"a"+i} cx={xAt(i)} cy={yAt(p.a)} r={2.4} fill={colA}/>:null)}
+    </svg>
+  );
+}
 function PralineClock({label,name,tz,accent}){
   const T=useT();
   const[now,setNow]=useState(new Date());
@@ -6942,11 +6979,16 @@ function PralinePage({supaUrl,supaKey}){
       if(Date.now()-typingRef.current<6000&&prev.entries?.[todayStr]?.[me]){
         entries[todayStr]={...(entries[todayStr]||{}),[me]:prev.entries[todayStr][me]};
       }
+      let watchlist=prev.watchlist||[];
+      if(Array.isArray(remote.watchlist)){
+        const rIds=new Set(remote.watchlist.map(x=>x.id));
+        watchlist=[...remote.watchlist,...(prev.watchlist||[]).filter(x=>!rIds.has(x.id))];
+      }
       return{
         reunionDate:remote.reunionDate!==undefined?remote.reunionDate:prev.reunionDate,
         names:{...prev.names,...(remote.names||{})},
         places:{a:{...prev.places.a,...(remote.places?.a||{})},b:{...prev.places.b,...(remote.places?.b||{})}},
-        entries
+        entries,watchlist
       };
     });
   }
@@ -6997,6 +7039,20 @@ function PralinePage({supaUrl,supaKey}){
     typingRef.current=Date.now();
     schedulePush();
   }
+  const [watchDraft,setWatchDraft]=useState("");
+  function addWatch(){
+    const t=watchDraft.trim();if(!t)return;
+    setDoc(prev=>({...prev,watchlist:[...(prev.watchlist||[]),{id:uid(),title:t,by:me,watched:false}]}));
+    setWatchDraft("");typingRef.current=Date.now();schedulePush();
+  }
+  function toggleWatch(id){
+    setDoc(prev=>({...prev,watchlist:(prev.watchlist||[]).map(w=>w.id===id?{...w,watched:!w.watched}:w)}));
+    typingRef.current=Date.now();schedulePush();
+  }
+  function delWatch(id){
+    setDoc(prev=>({...prev,watchlist:(prev.watchlist||[]).filter(w=>w.id!==id)}));
+    typingRef.current=Date.now();schedulePush();
+  }
 
   const myName=doc.names[me]||(me==="a"?"Pratham":"Elina");
   const theirName=doc.names[other]||(other==="a"?"Pratham":"Elina");
@@ -7018,6 +7074,16 @@ function PralinePage({supaUrl,supaKey}){
     const e=doc.entries[d];if(!e)return false;
     return["a","b"].some(s=>e[s]&&((e[s].good||[]).some(g=>g&&g.trim())||(e[s].note||"").trim()||(e[s].q||"").trim()));
   }).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+
+  // mood-line dates (any mood logged, oldest→newest)
+  const moodDates=Object.keys(doc.entries||{}).filter(d=>{
+    const e=doc.entries[d]||{};return(e.a&&e.a.mood)||(e.b&&e.b.mood);
+  }).sort((a,b)=>a.localeCompare(b));
+  // soundtrack: every day with a song, newest first
+  const soundDates=Object.keys(doc.entries||{}).filter(d=>{
+    const e=doc.entries[d]||{};return(e.a&&(e.a.song||"").trim())||(e.b&&(e.b.song||"").trim());
+  }).sort((a,b)=>b.localeCompare(a));
+  const watchlist=doc.watchlist||[];
 
   const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
   const inp={width:"100%",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,color:T.text,fontFamily:PP_S,fontSize:15,padding:"5px 0",outline:"none"};
@@ -7069,22 +7135,24 @@ function PralinePage({supaUrl,supaKey}){
         <datalist id="praline-tzs">{PRALINE_TZS.map(z=><option key={z} value={z}/>)}</datalist>
       </div>}
 
-      {/* reunion countdown + clocks */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1.4fr",gap:16,marginBottom:22}}>
-        <div style={{background:T.ink||T.text,border:`1px solid ${T.text}`,borderRadius:4,padding:"18px 20px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
-          <div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",color:T.bg,opacity:0.7,textTransform:"uppercase"}}>DAYS UNTIL WE'RE TOGETHER</div>
-          {daysLeft!==null?
-            <div style={{display:"flex",alignItems:"baseline",gap:10,marginTop:4}}>
-              <span style={{fontFamily:PP_S,fontSize:56,fontWeight:400,color:T.bg,lineHeight:0.9,letterSpacing:"-0.03em"}}>{daysLeft>0?daysLeft:daysLeft===0?"♥":"+"+Math.abs(daysLeft)}</span>
-              <span style={{fontFamily:PP_M,fontSize:9,letterSpacing:"0.16em",color:T.bg,opacity:0.65,textTransform:"uppercase"}}>{daysLeft>0?"DAYS TO GO":daysLeft===0?"TODAY!":"DAYS SINCE"}</span>
-            </div>
-            :<button onClick={()=>setShowSetup(true)} style={{marginTop:8,background:"transparent",border:`1px solid ${T.bg}55`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.bg,padding:"7px 12px",alignSelf:"flex-start"}}>SET REUNION DATE →</button>}
+      {/* reunion countdown — tally marks */}
+      <div style={{background:T.ink||T.text,border:`1px solid ${T.text}`,borderRadius:4,padding:"20px 24px",marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:daysLeft>0?16:4}}>
+          <div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",color:T.bg,opacity:0.7,textTransform:"uppercase"}}>DAYS UNTIL WE'RE TOGETHER {doc.reunionDate?`· ${fmtArchDate(doc.reunionDate)}`:""}</div>
+          {daysLeft!==null&&<div style={{display:"flex",alignItems:"baseline",gap:8}}>
+            <span style={{fontFamily:PP_S,fontSize:38,fontWeight:400,color:T.bg,lineHeight:0.9,letterSpacing:"-0.03em"}}>{daysLeft>0?daysLeft:daysLeft===0?"♥":"+"+Math.abs(daysLeft)}</span>
+            <span style={{fontFamily:PP_M,fontSize:8.5,letterSpacing:"0.16em",color:T.bg,opacity:0.65,textTransform:"uppercase"}}>{daysLeft>0?"TO GO":daysLeft===0?"TODAY!":"SINCE"}</span>
+          </div>}
         </div>
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,display:"flex",alignItems:"center"}}>
-          <PralineClock name={doc.names.a} label={doc.places.a.label} tz={doc.places.a.tz} accent={T.red}/>
-          <div style={{width:1,alignSelf:"stretch",background:T.border,margin:"14px 0"}}/>
-          <PralineClock name={doc.names.b} label={doc.places.b.label} tz={doc.places.b.tz} accent={T.mint}/>
-        </div>
+        {daysLeft>0?<TallyMarks count={daysLeft} color={T.bg} size={1}/>
+          :daysLeft===null?<button onClick={()=>setShowSetup(true)} style={{background:"transparent",border:`1px solid ${T.bg}55`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.bg,padding:"7px 12px"}}>SET REUNION DATE →</button>:null}
+      </div>
+
+      {/* two clocks */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,display:"flex",alignItems:"center",marginBottom:22}}>
+        <PralineClock name={doc.names.a} label={doc.places.a.label} tz={doc.places.a.tz} accent={T.red}/>
+        <div style={{width:1,alignSelf:"stretch",background:T.border,margin:"14px 0"}}/>
+        <PralineClock name={doc.names.b} label={doc.places.b.label} tz={doc.places.b.tz} accent={T.mint}/>
       </div>
 
       {/* question of the day */}
@@ -7111,11 +7179,17 @@ function PralinePage({supaUrl,supaKey}){
             <div style={{fontFamily:PP_S,fontSize:20,fontWeight:400,color:T.text}}>{myName} <span style={{fontSize:11,fontFamily:PP_M,color:T.red,letterSpacing:"0.1em"}}>· YOU</span></div>
             <div style={eye}>{todayStr}</div>
           </div>
+          <div style={{...eye,marginBottom:8}}>TODAY'S MOOD</div>
+          <div style={{display:"flex",gap:6,marginBottom:18}}>
+            {PRALINE_MOODS.map(mo=><button key={mo.v} onClick={()=>editMine(m=>{m.mood=m.mood===mo.v?0:mo.v;})} style={{flex:1,background:myEnt.mood===mo.v?T.red:"transparent",border:`1px solid ${myEnt.mood===mo.v?T.red:T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:myEnt.mood===mo.v?T.card:T.muted,padding:"7px 0"}}>{mo.label}</button>)}
+          </div>
           <div style={{...eye,marginBottom:12}}>THREE GOOD THINGS TODAY</div>
           {[0,1,2].map(i=><div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
             <span style={{fontFamily:PP_S,fontSize:24,color:T.red,fontStyle:"italic",width:26,flexShrink:0}}>{i+1}</span>
             <input value={myEnt.good[i]} onChange={e=>editMine(m=>{m.good[i]=e.target.value;})} placeholder="…" style={inp}/>
           </div>)}
+          <div style={{...eye,margin:"18px 0 8px"}}>SONG ON REPEAT TODAY</div>
+          <input value={myEnt.song} onChange={e=>editMine(m=>{m.song=e.target.value;})} placeholder="artist — track…" style={inp}/>
           <div style={{...eye,margin:"18px 0 8px"}}>A NOTE TO {theirName.toUpperCase()}</div>
           <textarea value={myEnt.note} onChange={e=>editMine(m=>{m.note=e.target.value;})} placeholder="write something for them…" rows={3} style={{...inp,borderBottom:"none",border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",resize:"vertical",fontSize:14,lineHeight:1.5}}/>
         </div>
@@ -7125,15 +7199,72 @@ function PralinePage({supaUrl,supaKey}){
             <div style={{fontFamily:PP_S,fontSize:20,fontWeight:400,color:T.text}}>{theirName}</div>
             <div style={eye}>{connected?"LIVE":"—"}</div>
           </div>
+          <div style={{...eye,marginBottom:8}}>TODAY'S MOOD</div>
+          <div style={{display:"flex",gap:6,marginBottom:18}}>
+            {PRALINE_MOODS.map(mo=><div key={mo.v} style={{flex:1,background:theirEnt.mood===mo.v?T.mint:"transparent",border:`1px solid ${theirEnt.mood===mo.v?T.mint:T.border}`,borderRadius:3,fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:theirEnt.mood===mo.v?T.card:T.muted,padding:"7px 0",textAlign:"center"}}>{mo.label}</div>)}
+          </div>
           <div style={{...eye,marginBottom:12}}>THREE GOOD THINGS TODAY</div>
           {[0,1,2].map(i=><div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
             <span style={{fontFamily:PP_S,fontSize:24,color:T.mint,fontStyle:"italic",width:26,flexShrink:0}}>{i+1}</span>
             <div style={{flex:1,fontFamily:PP_S,fontSize:15,color:theirEnt.good[i]?T.text:T.muted,fontStyle:theirEnt.good[i]?"normal":"italic",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>{theirEnt.good[i]||"—"}</div>
           </div>)}
+          <div style={{...eye,margin:"18px 0 8px"}}>SONG ON REPEAT TODAY</div>
+          <div style={{fontFamily:PP_S,fontSize:15,color:theirEnt.song?T.text:T.muted,fontStyle:theirEnt.song?"normal":"italic",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>{theirEnt.song||"— not yet —"}</div>
           <div style={{...eye,margin:"18px 0 8px"}}>A NOTE TO {myName.toUpperCase()}</div>
           <div style={{border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",minHeight:62,fontFamily:PP_S,fontSize:14,lineHeight:1.5,color:theirEnt.note?T.text:T.muted,fontStyle:theirEnt.note?"normal":"italic"}}>{theirEnt.note||"— nothing yet —"}</div>
         </div>
       </div>
+
+      {/* watch-together queue */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={eye}>WATCH TOGETHER · QUEUE</div>
+          <div style={{...eye,color:T.muted}}>{watchlist.filter(w=>!w.watched).length} TO WATCH · {watchlist.filter(w=>w.watched).length} DONE</div>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <input value={watchDraft} onChange={e=>setWatchDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addWatch();}} placeholder="add a film or show…" style={{...inp,flex:1}}/>
+          <button onClick={addWatch} style={{background:T.text,border:"none",borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.bg,padding:"0 16px"}}>ADD</button>
+        </div>
+        <div style={{marginTop:watchlist.length?16:0}}>
+          {watchlist.map(w=><div key={w.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderTop:`1px solid ${T.border}`}}>
+            <button onClick={()=>toggleWatch(w.id)} style={{width:18,height:18,flexShrink:0,borderRadius:3,border:`1.5px solid ${w.watched?T.mint:T.muted}`,background:w.watched?T.mint:"transparent",color:T.card,cursor:"pointer",fontSize:11,lineHeight:1,fontWeight:700,padding:0}}>{w.watched?"✓":""}</button>
+            <span style={{flex:1,fontFamily:PP_S,fontSize:15,color:w.watched?T.muted:T.text,textDecoration:w.watched?"line-through":"none"}}>{w.title}</span>
+            <span style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.12em",color:w.by==="a"?T.red:T.mint,textTransform:"uppercase"}}>{doc.names[w.by]||""}</span>
+            <button onClick={()=>delWatch(w.id)} title="Remove" style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:16,lineHeight:1,padding:"0 2px"}}>×</button>
+          </div>)}
+        </div>
+      </div>
+
+      {/* mood line */}
+      {moodDates.length>0&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={eye}>MOOD LINE · ACROSS THE DISTANCE</div>
+          <div style={{display:"flex",gap:14}}>
+            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.12em",color:T.red}}>● {(doc.names.a||"").toUpperCase()}</span>
+            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.12em",color:T.mint}}>● {(doc.names.b||"").toUpperCase()}</span>
+          </div>
+        </div>
+        <PralineMoodChart dates={moodDates} doc={doc} nameA={doc.names.a} nameB={doc.names.b} colA={T.red} colB={T.mint}/>
+        <div style={{display:"flex",justifyContent:"space-between",fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em",color:T.muted,marginTop:4}}>
+          <span>{fmtArchDate(moodDates[0])}</span>{moodDates.length>1&&<span>{fmtArchDate(moodDates[moodDates.length-1])}</span>}
+        </div>
+      </div>}
+
+      {/* soundtrack */}
+      {soundDates.length>0&&<div style={{marginTop:30}}>
+        <div style={{...eye,marginBottom:14,borderTop:`1px solid ${T.text}`,paddingTop:14}}>OUR SOUNDTRACK · {soundDates.length} {soundDates.length===1?"DAY":"DAYS"}</div>
+        {soundDates.map(d=>{
+          const sa=((doc.entries[d]||{}).a||{}).song||"";
+          const sb=((doc.entries[d]||{}).b||{}).song||"";
+          return<div key={d} style={{display:"flex",alignItems:"baseline",gap:14,padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
+            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.12em",color:T.muted,width:96,flexShrink:0}}>{fmtArchDate(d)}</span>
+            <div style={{flex:1}}>
+              {sa&&<div style={{fontFamily:PP_S,fontSize:14,color:T.text,marginBottom:sb?3:0}}><span style={{color:T.red,fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em"}}>{(doc.names.a||"A").toUpperCase()} </span>{sa}</div>}
+              {sb&&<div style={{fontFamily:PP_S,fontSize:14,color:T.text}}><span style={{color:T.mint,fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em"}}>{(doc.names.b||"B").toUpperCase()} </span>{sb}</div>}
+            </div>
+          </div>;
+        })}
+      </div>}
 
       {/* archive */}
       {archive.length>0&&<div style={{marginTop:30}}>
