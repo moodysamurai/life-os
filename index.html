@@ -5213,8 +5213,11 @@ async function supaPush(url,key,id,payload,ts){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
-function supaRealtime(url,key,id,onData){
-  // Connect to Supabase Realtime and listen for UPDATE on this row
+function supaRealtime(url,key,id,onData,evt){
+  // Connect to Supabase Realtime and listen for changes on this row.
+  // evt defaults to "UPDATE"; pass "*" to also catch the first INSERT (new shared rows).
+  const event=evt||"UPDATE";
+  const topic="realtime:"+id;
   const wsUrl=url.replace(/^https/,"wss").replace(/^http/,"ws")+`/realtime/v1/websocket?apikey=${key}&vsn=1.0.0`;
   let ws,hb,dead=false;
   function connect(){
@@ -5224,9 +5227,9 @@ function supaRealtime(url,key,id,onData){
     ws.onopen=()=>{
       hb=setInterval(()=>ws.readyState===1&&ws.send(JSON.stringify({topic:"phoenix",event:"heartbeat",payload:{},ref:String(++ref)})),25000);
       ws.send(JSON.stringify({
-        topic:"realtime:lifeos",event:"phx_join",ref:String(++ref),
+        topic:topic,event:"phx_join",ref:String(++ref),
         payload:{config:{broadcast:{self:false},presence:{key:""},
-          postgres_changes:[{event:"UPDATE",schema:"public",table:"lifeos_sync",filter:`id=eq.${id}`}]}}
+          postgres_changes:[{event:event,schema:"public",table:"lifeos_sync",filter:`id=eq.${id}`}]}}
       }));
     };
     ws.onmessage=e=>{
@@ -6895,7 +6898,7 @@ const DEFAULT_PRALINE={
 };
 const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
 const PRALINE_MOODS=[{v:1,label:"rough"},{v:2,label:"low"},{v:3,label:"ok"},{v:4,label:"good"},{v:5,label:"great"}];
-function blankEnt(){return{good:["","",""],note:"",q:"",song:"",mood:0};}
+function blankEnt(){return{good:["","",""],note:"",q:"",mood:0};}
 function TallyMarks({count,color,size=1}){
   if(count<=0)return null;
   const groups=Math.floor(count/5),rem=count%5,W=24*size,H=28*size,xs=[3,8,13,18].map(x=>x*size),y0=3*size,y1=25*size;
@@ -6955,6 +6958,8 @@ function PralinePage({supaUrl,supaKey}){
   const dayIdx=Math.floor((today-new Date(today.getFullYear(),0,1))/86400000);
   const [code,setCode]=useState(()=>lg("plo3_praline_code",""));
   const [me,setMe]=useState(()=>lg("plo3_praline_me","a"));
+  const [pUrl,setPUrl]=useState(()=>lg("plo3_praline_url",""));
+  const [pKey,setPKey]=useState(()=>lg("plo3_praline_key",""));
   const [doc,setDoc]=useState(()=>{const d=lg("plo3_praline_doc",null);return d&&d.entries?{...DEFAULT_PRALINE,...d}:{...DEFAULT_PRALINE};});
   const [status,setStatus]=useState("idle");
   const [showSetup,setShowSetup]=useState(false);
@@ -6965,9 +6970,15 @@ function PralinePage({supaUrl,supaKey}){
   useEffect(()=>ls("plo3_praline_code",code),[code]);
   useEffect(()=>ls("plo3_praline_me",me),[me]);
   useEffect(()=>ls("plo3_praline_doc",doc),[doc]);
+  useEffect(()=>ls("plo3_praline_url",pUrl),[pUrl]);
+  useEffect(()=>ls("plo3_praline_key",pKey),[pKey]);
 
+  // Praline uses its own credentials if set, else falls back to your main sync project
+  const url=(pUrl||"").trim()||supaUrl;
+  const key=(pKey||"").trim()||supaKey;
+  const usingDedicated=!!((pUrl||"").trim()&&(pKey||"").trim());
   const rowId=code.trim()?`praline_${code.trim().toLowerCase()}`:"";
-  const connected=!!(supaUrl&&supaKey&&rowId);
+  const connected=!!(url&&key&&rowId);
   const other=me==="a"?"b":"a";
 
   function mergeIncoming(remote){
@@ -6997,20 +7008,27 @@ function PralinePage({supaUrl,supaKey}){
     setStatus("loading");
     clearTimeout(pushTimerRef.current);
     pushTimerRef.current=setTimeout(()=>{
-      supaPush(supaUrl,supaKey,rowId,docRef.current,new Date().toISOString())
+      supaPush(url,key,rowId,docRef.current,new Date().toISOString())
         .then(()=>setStatus("ok")).catch(()=>setStatus("err"));
     },1200);
+  }
+  function pullNow(){
+    if(!connected){setStatus("idle");return;}
+    setStatus("loading");
+    supaFetch(url,key,rowId)
+      .then(d=>{mergeIncoming(d);setStatus("ok");})
+      .catch(()=>setStatus("err"));
   }
   useEffect(()=>{
     if(!connected){setStatus("idle");return;}
     let rt=null;
     setStatus("loading");
-    supaFetch(supaUrl,supaKey,rowId)
+    supaFetch(url,key,rowId)
       .then(d=>{mergeIncoming(d);setStatus("ok");})
       .catch(()=>setStatus("err"));
-    rt=supaRealtime(supaUrl,supaKey,rowId,(d)=>mergeIncoming(d));
+    rt=supaRealtime(url,key,rowId,(d)=>mergeIncoming(d),"*");
     return()=>{if(rt)rt.close();};
-  },[supaUrl,supaKey,rowId]);// eslint-disable-line
+  },[url,key,rowId]);// eslint-disable-line
 
   function editMine(producer){
     setDoc(prev=>{
@@ -7079,10 +7097,6 @@ function PralinePage({supaUrl,supaKey}){
   const moodDates=Object.keys(doc.entries||{}).filter(d=>{
     const e=doc.entries[d]||{};return(e.a&&e.a.mood)||(e.b&&e.b.mood);
   }).sort((a,b)=>a.localeCompare(b));
-  // soundtrack: every day with a song, newest first
-  const soundDates=Object.keys(doc.entries||{}).filter(d=>{
-    const e=doc.entries[d]||{};return(e.a&&(e.a.song||"").trim())||(e.b&&(e.b.song||"").trim());
-  }).sort((a,b)=>b.localeCompare(a));
   const watchlist=doc.watchlist||[];
 
   const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
@@ -7095,6 +7109,7 @@ function PralinePage({supaUrl,supaKey}){
     <PaperPageHdr title="Praline Corner." sub="PRATHAM + ELINA · THREE GOOD THINGS"
       action={<div style={{display:"flex",alignItems:"center",gap:14}}>
         <span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:statusCol}}>{statusTxt}</span>
+        {connected&&<button onClick={pullNow} title="Pull latest from your partner" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:T.muted,padding:"5px 10px"}}>↻ PULL</button>}
         <button onClick={()=>setShowSetup(s=>!s)} title="Setup" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:T.muted,padding:"5px 10px"}}>⚙ SETUP</button>
       </div>}/>
 
@@ -7107,7 +7122,7 @@ function PralinePage({supaUrl,supaKey}){
           <div>
             <div style={{...eye,marginBottom:6}}>Praline code (share with Elina)</div>
             <input value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. praline-23" style={{...inp,fontFamily:PP_M,fontSize:13}}/>
-            <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginTop:6,lineHeight:1.5}}>{supaUrl&&supaKey?"Both enter the SAME code to share this page. Uses your existing sync — your tasks/money stay private.":"Set up Supabase sync in ⚙ Settings first, then add a code here to share with Elina."}</div>
+            <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginTop:6,lineHeight:1.5}}>Both of you enter the SAME code. It only shares THIS page — your own tasks/money stay private.</div>
           </div>
           <div>
             <div style={{...eye,marginBottom:6}}>I am</div>
@@ -7130,6 +7145,24 @@ function PralinePage({supaUrl,supaKey}){
           <div>
             <div style={{...eye,marginBottom:6}}>Reunion date</div>
             <input type="date" value={doc.reunionDate} onChange={e=>setTop({reunionDate:e.target.value})} style={{...inp,fontFamily:PP_M,fontSize:13}}/>
+          </div>
+        </div>
+
+        <div style={{borderTop:`1px solid ${T.border}`,marginTop:18,paddingTop:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+            <div style={eye}>SHARED SYNC PROJECT</div>
+            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:usingDedicated?T.mint:T.muted}}>{usingDedicated?"● DEDICATED":connected?"● USING MAIN SYNC":"○ NOT SET"}</span>
+          </div>
+          <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginBottom:12,lineHeight:1.6}}>For sharing to work, both laptops must point at the <b>same</b> Supabase project. Paste the SAME URL + anon key on both — independent of your personal sync. Leave blank to reuse your main sync project from ⚙ Settings.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 24px"}}>
+            <div>
+              <div style={{...eye,marginBottom:6}}>Supabase URL</div>
+              <input value={pUrl} onChange={e=>setPUrl(e.target.value)} placeholder={supaUrl?`(blank → ${supaUrl.replace(/^https?:\/\//,"").slice(0,28)}…)`:"https://xxxx.supabase.co"} style={{...inp,fontFamily:PP_M,fontSize:11}}/>
+            </div>
+            <div>
+              <div style={{...eye,marginBottom:6}}>Anon key</div>
+              <input value={pKey} onChange={e=>setPKey(e.target.value)} type="password" placeholder={supaKey?"(blank → main sync key)":"eyJhbGci…"} style={{...inp,fontFamily:PP_M,fontSize:11}}/>
+            </div>
           </div>
         </div>
         <datalist id="praline-tzs">{PRALINE_TZS.map(z=><option key={z} value={z}/>)}</datalist>
@@ -7188,8 +7221,6 @@ function PralinePage({supaUrl,supaKey}){
             <span style={{fontFamily:PP_S,fontSize:24,color:T.red,fontStyle:"italic",width:26,flexShrink:0}}>{i+1}</span>
             <input value={myEnt.good[i]} onChange={e=>editMine(m=>{m.good[i]=e.target.value;})} placeholder="…" style={inp}/>
           </div>)}
-          <div style={{...eye,margin:"18px 0 8px"}}>SONG ON REPEAT TODAY</div>
-          <input value={myEnt.song} onChange={e=>editMine(m=>{m.song=e.target.value;})} placeholder="artist — track…" style={inp}/>
           <div style={{...eye,margin:"18px 0 8px"}}>A NOTE TO {theirName.toUpperCase()}</div>
           <textarea value={myEnt.note} onChange={e=>editMine(m=>{m.note=e.target.value;})} placeholder="write something for them…" rows={3} style={{...inp,borderBottom:"none",border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",resize:"vertical",fontSize:14,lineHeight:1.5}}/>
         </div>
@@ -7208,8 +7239,6 @@ function PralinePage({supaUrl,supaKey}){
             <span style={{fontFamily:PP_S,fontSize:24,color:T.mint,fontStyle:"italic",width:26,flexShrink:0}}>{i+1}</span>
             <div style={{flex:1,fontFamily:PP_S,fontSize:15,color:theirEnt.good[i]?T.text:T.muted,fontStyle:theirEnt.good[i]?"normal":"italic",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>{theirEnt.good[i]||"—"}</div>
           </div>)}
-          <div style={{...eye,margin:"18px 0 8px"}}>SONG ON REPEAT TODAY</div>
-          <div style={{fontFamily:PP_S,fontSize:15,color:theirEnt.song?T.text:T.muted,fontStyle:theirEnt.song?"normal":"italic",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>{theirEnt.song||"— not yet —"}</div>
           <div style={{...eye,margin:"18px 0 8px"}}>A NOTE TO {myName.toUpperCase()}</div>
           <div style={{border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",minHeight:62,fontFamily:PP_S,fontSize:14,lineHeight:1.5,color:theirEnt.note?T.text:T.muted,fontStyle:theirEnt.note?"normal":"italic"}}>{theirEnt.note||"— nothing yet —"}</div>
         </div>
@@ -7248,22 +7277,6 @@ function PralinePage({supaUrl,supaKey}){
         <div style={{display:"flex",justifyContent:"space-between",fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em",color:T.muted,marginTop:4}}>
           <span>{fmtArchDate(moodDates[0])}</span>{moodDates.length>1&&<span>{fmtArchDate(moodDates[moodDates.length-1])}</span>}
         </div>
-      </div>}
-
-      {/* soundtrack */}
-      {soundDates.length>0&&<div style={{marginTop:30}}>
-        <div style={{...eye,marginBottom:14,borderTop:`1px solid ${T.text}`,paddingTop:14}}>OUR SOUNDTRACK · {soundDates.length} {soundDates.length===1?"DAY":"DAYS"}</div>
-        {soundDates.map(d=>{
-          const sa=((doc.entries[d]||{}).a||{}).song||"";
-          const sb=((doc.entries[d]||{}).b||{}).song||"";
-          return<div key={d} style={{display:"flex",alignItems:"baseline",gap:14,padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
-            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.12em",color:T.muted,width:96,flexShrink:0}}>{fmtArchDate(d)}</span>
-            <div style={{flex:1}}>
-              {sa&&<div style={{fontFamily:PP_S,fontSize:14,color:T.text,marginBottom:sb?3:0}}><span style={{color:T.red,fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em"}}>{(doc.names.a||"A").toUpperCase()} </span>{sa}</div>}
-              {sb&&<div style={{fontFamily:PP_S,fontSize:14,color:T.text}}><span style={{color:T.mint,fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em"}}>{(doc.names.b||"B").toUpperCase()} </span>{sb}</div>}
-            </div>
-          </div>;
-        })}
       </div>}
 
       {/* archive */}
