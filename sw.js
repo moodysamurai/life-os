@@ -1,4 +1,4 @@
-const CACHE = "life-os-v5";
+const CACHE = "life-os-v6";
 const CDN_CACHE = "life-os-cdn-v1";
 
 // CDN assets that never change — cache-first is fine

@@ -6778,11 +6778,13 @@ function PaperFooter(){
 // ── Page Header ───────────────────────────────────────────────────────────
 function PaperPageHdr({title,sub,action}){
   const T=useT();
+  const [isMobile,setIsMobile]=useState(()=>window.innerWidth<768);
+  useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
   return(
-    <div style={{padding:'24px 2rem 20px',borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+    <div style={{padding:isMobile?'16px 16px 14px':'24px 2rem 20px',borderBottom:`1px solid ${T.border}`,background:T.bg}}>
       {sub&&<div style={{fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted,marginBottom:8}}>{sub}</div>}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
-        <h2 style={{fontFamily:PP_S,fontSize:44,fontWeight:400,color:T.text,letterSpacing:'-0.025em',lineHeight:0.95,margin:0}}>{title}</h2>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:isMobile?'center':'flex-end',gap:12,flexWrap:'wrap'}}>
+        <h2 style={{fontFamily:PP_S,fontSize:isMobile?32:44,fontWeight:400,color:T.text,letterSpacing:'-0.025em',lineHeight:0.95,margin:0}}>{title}</h2>
         {action}
       </div>
     </div>
@@ -6790,7 +6792,7 @@ function PaperPageHdr({title,sub,action}){
 }
 
 // ── Sub-pages ─────────────────────────────────────────────────────────────
-function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trips,appleEvents,setModal,setFocusDay,pushUndo,bingo,setBingo,apiKey,budgetCats=[],envelopes=[]}){
+function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trips,appleEvents,setModal,setFocusDay,pushUndo,bingo,setBingo,apiKey,budgetCats=[],envelopes=[],isMobile}){
   const T=useT();
   const now=new Date();
   const y=now.getFullYear(),m=now.getMonth();
@@ -6809,18 +6811,18 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
     <PaperPageHdr title="Plan." sub="CALENDAR · GOALS · TASKS" action={<div style={{display:'flex',gap:8}}><PpBtn onClick={()=>setModal({type:'task'})}>+ TASK</PpBtn><PpBtn onClick={()=>setModal({type:'goal'})}>+ GOAL</PpBtn></div>}/>
 
     {/* Row 1 — Calendar column (mini cal + this-month list) | Goals column */}
-    <div style={{padding:'20px 2rem 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
+    <div style={{padding:isMobile?'16px 16px 0':'20px 2rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16,alignItems:'start'}}>
       {/* Calendar section */}
       <div style={{display:'flex',flexDirection:'column',gap:16,minWidth:0}}>
         <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} setModal={setModal} expanded={true} budgetCats={budgetCats} envelopes={envelopes}/>
 
         {/* Tasks + Trips this month — at the bottom of the calendar section */}
-        <div style={{...cardStyle,padding:'18px 26px 22px'}}>
+        <div style={{...cardStyle,padding:isMobile?'16px 16px 18px':'18px 26px 22px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,gap:10,flexWrap:'wrap'}}>
             <div style={{...eye,color:T.mint,fontSize:10}}>THIS MONTH · {monthLabel}</div>
             <div style={{...eye,color:T.muted,fontSize:9}}>{mT.length} TASK{mT.length!==1?'S':''} · {mTr.length} TRIP{mTr.length!==1?'S':''}</div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:isMobile?14:24}}>
             <div style={{minWidth:0}}>
               <div style={{...eye,color:T.muted,fontSize:8,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${T.border}`}}>TASKS</div>
               {mT.length===0
@@ -6847,7 +6849,7 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
         </div>
 
         {/* Tasks — beneath the calendar section, same column */}
-        <div style={{...cardStyle,padding:'22px 26px'}}>
+        <div style={{...cardStyle,padding:isMobile?'18px 16px':'22px 26px'}}>
           <TasksWidget tasks={tasks} setTasks={setTasks} onAddTask={()=>setModal({type:"task"})} onEditTask={t=>setModal({type:"task",data:t})} pushUndo={pushUndo} pageMode={true}/>
         </div>
       </div>
@@ -6863,21 +6865,21 @@ function PlanPage({tasks,setTasks,goals,setGoals,completions,setCompletions,trip
     <PaperFooter/>
   </div>;
 }
-function TripsPage({trips,setTrips,photos,setPhotos,tripSugg,getTripSugg,loadingSugg,pushUndo,setModal}){
+function TripsPage({trips,setTrips,photos,setPhotos,tripSugg,getTripSugg,loadingSugg,pushUndo,setModal,isMobile}){
   return<div>
     <PaperPageHdr title="Trips." sub="HORIZON · TRAVEL" action={<PpBtn onClick={()=>setModal({type:'trip'})}>+ ADD TRIP</PpBtn>}/>
-    <div style={{padding:'24px 2rem'}}>
+    <div style={{padding:isMobile?'18px 16px':'24px 2rem'}}>
       <TripsWidget trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onAddTrip={()=>setModal({type:'trip'})} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} pageMode={true}/>
     </div>
     <PaperFooter/>
   </div>;
 }
-function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats}){
+function MoneyPage({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBudgetCats,isMobile}){
   const T=useT();
   return<div>
     <PaperPageHdr title="Money." sub="BUDGET · ENVELOPES · LEDGER"/>
-    <div style={{padding:'24px 2rem'}}>
-      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'18px 20px',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
+    <div style={{padding:isMobile?'18px 16px':'24px 2rem'}}>
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:isMobile?'16px 14px':'18px 20px',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
         <BudgetWidget budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} pageMode={true}/>
       </div>
     </div>
@@ -6979,8 +6981,9 @@ function PralineClock({label,name,tz,accent}){
     </div>
   );
 }
-function PralinePage({supaUrl,supaKey}){
+function PralinePage({supaUrl,supaKey,isMobile}){
   const T=useT();
+  const twoCol=isMobile?"1fr":"1fr 1fr";
   const today=new Date();
   const todayStr=toStr(today);
   const dayIdx=Math.floor((today-new Date(today.getFullYear(),0,1))/86400000);
@@ -7141,12 +7144,12 @@ function PralinePage({supaUrl,supaKey}){
         <button onClick={()=>setShowSetup(s=>!s)} title="Setup" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:T.muted,padding:"5px 10px"}}>⚙ SETUP</button>
       </div>}/>
 
-    <div style={{padding:"24px 2rem",maxWidth:1040,margin:"0 auto"}}>
+    <div style={{padding:isMobile?"18px 16px":"24px 2rem",maxWidth:1040,margin:"0 auto"}}>
 
       {/* setup panel */}
       {showSetup&&<div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 20px",marginBottom:22}}>
         <div style={{...eye,marginBottom:14}}>CONNECTION & DETAILS</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 24px"}}>
+        <div style={{display:"grid",gridTemplateColumns:twoCol,gap:"14px 24px"}}>
           <div>
             <div style={{...eye,marginBottom:6}}>Praline code (share with Elina)</div>
             <input value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. praline-23" style={{...inp,fontFamily:PP_M,fontSize:13}}/>
@@ -7182,7 +7185,7 @@ function PralinePage({supaUrl,supaKey}){
             <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:usingDedicated?T.mint:T.muted}}>{usingDedicated?"● DEDICATED":connected?"● USING MAIN SYNC":"○ NOT SET"}</span>
           </div>
           <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginBottom:12,lineHeight:1.6}}>For sharing to work, both laptops must point at the <b>same</b> Supabase project. Paste the SAME URL + anon key on both — independent of your personal sync. Leave blank to reuse your main sync project from ⚙ Settings.</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 24px"}}>
+          <div style={{display:"grid",gridTemplateColumns:twoCol,gap:"10px 24px"}}>
             <div>
               <div style={{...eye,marginBottom:6}}>Supabase URL</div>
               <input value={pUrl} onChange={e=>setPUrl(e.target.value)} placeholder={supaUrl?`(blank → ${supaUrl.replace(/^https?:\/\//,"").slice(0,28)}…)`:"https://xxxx.supabase.co"} style={{...inp,fontFamily:PP_M,fontSize:11}}/>
@@ -7220,7 +7223,7 @@ function PralinePage({supaUrl,supaKey}){
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginBottom:22}}>
         <div style={{...eye,marginBottom:8,color:T.red}}>QUESTION OF THE DAY · NO. {String(dayIdx%PRALINE_QUESTIONS.length+1).padStart(2,"0")}</div>
         <div style={{fontFamily:PP_S,fontSize:22,fontWeight:400,color:T.text,fontStyle:"italic",letterSpacing:"-0.01em",marginBottom:14}}>{question}</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+        <div style={{display:"grid",gridTemplateColumns:twoCol,gap:24}}>
           <div>
             <div style={{...eye,marginBottom:6,color:T.muted}}>{myName} (you)</div>
             <input value={myEnt.q} onChange={e=>editMine(m=>{m.q=e.target.value;})} placeholder="your answer…" style={inp}/>
@@ -7233,7 +7236,7 @@ function PralinePage({supaUrl,supaKey}){
       </div>
 
       {/* three good things — two cards */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:twoCol,gap:16}}>
         {/* mine */}
         <div style={{background:T.card,border:`1px solid ${T.red}`,borderRadius:4,padding:"20px 22px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
@@ -7336,15 +7339,15 @@ function PralinePage({supaUrl,supaKey}){
     <PaperFooter/>
   </div>;
 }
-function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exportJSON,importJSON,exportICS,setModal,imgbbApiKey,setImgbbApiKey,removeBgKey,setRemoveBgKey}){
+function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exportJSON,importJSON,exportICS,setModal,imgbbApiKey,setImgbbApiKey,removeBgKey,setRemoveBgKey,isMobile}){
   const T=useT();
   const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:T.muted};
   const [imgbbDraft,setImgbbDraft]=useState(imgbbApiKey);
   const [removeBgDraft,setRemoveBgDraft]=useState(removeBgKey);
   return<div>
     <PaperPageHdr title="Settings." sub="SYSTEM · INTEGRATIONS"/>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:'28px 2rem',borderBottom:`1px solid ${T.border}`}}>
-      <div style={{paddingRight:40,borderRight:`1px solid ${T.border}`}}>
+    <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',padding:isMobile?'18px 16px':'28px 2rem',borderBottom:`1px solid ${T.border}`}}>
+      <div style={{paddingRight:isMobile?0:40,borderRight:isMobile?'none':`1px solid ${T.border}`,borderBottom:isMobile?`1px solid ${T.border}`:'none',paddingBottom:isMobile?24:0,marginBottom:isMobile?24:0}}>
         {[
           {label:'CLOUD SYNC',status:syncStatus==='ok'?'CONNECTED':syncStatus==='err'?'ERROR':'NOT CONNECTED',ok:syncStatus==='ok',action:onOpenSync,btn:'CONFIGURE'},
           {label:'APPLE CALENDAR',status:appleCal.enabled?'CONNECTED':'NOT CONNECTED',ok:appleCal.enabled,action:()=>setShowAppleCal(true),btn:'CONFIGURE'},
@@ -7381,7 +7384,7 @@ function SettingsPage({apiKey,syncStatus,onOpenSync,appleCal,setShowAppleCal,exp
           </div>
         </div>
       </div>
-      <div style={{paddingLeft:40}}>
+      <div style={{paddingLeft:isMobile?0:40}}>
         <div style={{...eye,marginBottom:12}}>DATA</div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:28}}>
           <PpBtn onClick={exportJSON}>⬇ EXPORT</PpBtn>
@@ -8116,7 +8119,7 @@ Respond with ONLY valid JSON (no markdown), keys exactly:
   );
 }
 
-function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeWears,wardrobeOutfits,setWardrobeOutfits,imgbbApiKey,removeBgKey,pushUndo}){
+function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeWears,wardrobeOutfits,setWardrobeOutfits,imgbbApiKey,removeBgKey,pushUndo,isMobile}){
   const T=useT();
   const [subTab,setSubTab]=useState('grid');
   const [filters,setFilters]=useState({category:'',status:'active'});
@@ -8130,8 +8133,8 @@ function WardrobePage({wardrobeItems,setWardrobeItems,wardrobeWears,setWardrobeW
   });
   const tabBtn=(id,label)=>(<button key={id} onClick={()=>setSubTab(id)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:subTab===id?T.text:T.muted,padding:'0 0 8px',borderBottom:subTab===id?`2px solid ${T.text}`:'2px solid transparent',transition:'color 0.12s',marginRight:24}}>{label}</button>);
   return(
-    <div style={{maxWidth:1200,margin:'0 auto',padding:'0 2rem 4rem'}}>
-      <div style={{padding:'22px 0 0',borderBottom:`1px solid ${T.border}`,marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+    <div style={{maxWidth:1200,margin:'0 auto',padding:isMobile?'0 16px 3rem':'0 2rem 4rem'}}>
+      <div style={{padding:'22px 0 0',borderBottom:`1px solid ${T.border}`,marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:8,flexWrap:'wrap'}}>
         <div>{tabBtn('grid','WARDROBE')}{tabBtn('outfits','OUTFITS')}{tabBtn('analytics','ANALYTICS')}</div>
         {subTab==='grid'&&<button onClick={()=>setShowAddItem(true)} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.15em',background:T.text,border:'none',padding:'6px 14px',cursor:'pointer',color:T.bg,borderRadius:2,marginBottom:8}}>+ ADD ITEM</button>}
       </div>
@@ -8432,12 +8435,12 @@ function App(){
         <PaperFooter/>
       </>}
 
-      {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey} budgetCats={budgetCats} envelopes={envelopes}/>}
-      {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal}/>}
-      {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats}/>}
-      {page==="praline"&&<PralinePage supaUrl={supaUrl} supaKey={supaKey}/>}
-      {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal} imgbbApiKey={imgbbApiKey} setImgbbApiKey={setImgbbApiKey} removeBgKey={removeBgKey} setRemoveBgKey={setRemoveBgKey}/>}
-      {page==="wardrobe"&&<WardrobePage wardrobeItems={wardrobeItems} setWardrobeItems={setWardrobeItems} wardrobeWears={wardrobeWears} setWardrobeWears={setWardrobeWears} wardrobeOutfits={wardrobeOutfits} setWardrobeOutfits={setWardrobeOutfits} imgbbApiKey={imgbbApiKey} removeBgKey={removeBgKey} pushUndo={pushUndo}/>}
+      {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey} budgetCats={budgetCats} envelopes={envelopes} isMobile={isMobile}/>}
+      {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal} isMobile={isMobile}/>}
+      {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} isMobile={isMobile}/>}
+      {page==="praline"&&<PralinePage supaUrl={supaUrl} supaKey={supaKey} isMobile={isMobile}/>}
+      {page==="settings"&&<SettingsPage apiKey={apiKey} syncStatus={syncStatus} onOpenSync={()=>setShowSyncModal(true)} appleCal={appleCal} setShowAppleCal={setShowAppleCal} exportJSON={exportJSON} importJSON={importJSON} exportICS={exportICS} setModal={setModal} imgbbApiKey={imgbbApiKey} setImgbbApiKey={setImgbbApiKey} removeBgKey={removeBgKey} setRemoveBgKey={setRemoveBgKey} isMobile={isMobile}/>}
+      {page==="wardrobe"&&<WardrobePage wardrobeItems={wardrobeItems} setWardrobeItems={setWardrobeItems} wardrobeWears={wardrobeWears} setWardrobeWears={setWardrobeWears} wardrobeOutfits={wardrobeOutfits} setWardrobeOutfits={setWardrobeOutfits} imgbbApiKey={imgbbApiKey} removeBgKey={removeBgKey} pushUndo={pushUndo} isMobile={isMobile}/>}
 
       {/* CAPTURE OVERLAY */}
       {showCapture&&<div onClick={e=>e.target===e.currentTarget&&setShowCapture(false)} className="overlay-in" style={{position:"fixed",inset:0,zIndex:300,backdropFilter:"blur(14px) brightness(0.9)",WebkitBackdropFilter:"blur(14px) brightness(0.9)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:"22vh"}}>
