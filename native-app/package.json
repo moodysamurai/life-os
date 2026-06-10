@@ -1,0 +1,17 @@
+{
+  "name": "lifeos-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor native wrapper for Life OS (loads the live PWA).",
+  "scripts": {
+    "ios": "cap open ios",
+    "sync": "cap sync"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6",
+    "@capacitor/ios": "^6"
+  }
+}

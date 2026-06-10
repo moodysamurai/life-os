@@ -1,0 +1,13 @@
+{
+  "appId": "com.pratham.lifeos",
+  "appName": "Life OS",
+  "webDir": "www",
+  "server": {
+    "url": "https://moodysamurai.github.io/life-os",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#f1ede5"
+  }
+}
