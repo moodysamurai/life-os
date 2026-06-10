@@ -2766,8 +2766,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
       const DAY_W=46;
       const ACT_W=62;
       const TABLE_W=LBL_W+DAY_W+COL_W*12+ACT_W;
+      const isNarrow=rootW<TABLE_W+40||(typeof window!=="undefined"&&window.innerWidth<900);
       // Only float the category-mix donut into the right gutter when the table won't be crowded.
-      const wideEnough=rootW>=TABLE_W+360;
+      const wideEnough=!isNarrow&&rootW>=TABLE_W+360;
       const eye={fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.24em",textTransform:"uppercase",color:T.muted};
       const numF={fontFamily:PP_M,fontVariantNumeric:"tabular-nums"};
 
@@ -3124,7 +3125,7 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
         }
 
         {/* ── Year overview strip ── */}
-        <div style={{display:"flex",alignItems:"baseline",gap:24,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:isNarrow?"6px 18px":24,flexWrap:isNarrow?"wrap":"nowrap",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
             <span style={{...eye,fontSize:9,color:OLIVE,opacity:0.85}}>12-Month Income</span>
             <span style={{...numF,fontSize:22,color:OLIVE,fontWeight:600,letterSpacing:"-0.5px"}}>€{incTotal.toFixed(0)}</span>
@@ -3144,9 +3145,12 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <span style={{...numF,fontSize:22,color:yearNet>=0?OLIVE:RED,fontWeight:600,letterSpacing:"-0.5px"}}>{yearNet>=0?"+":"−"}€{Math.abs(yearNet).toFixed(0)}</span>
           </div>
           <div style={{flex:1}}/>
-          <span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:13,color:T.muted,opacity:0.8,textAlign:"right",maxWidth:240,lineHeight:1.3}}>Click cells to fill · double-click to edit · drag rows to reorder.</span>
+          {!isNarrow&&<span style={{fontFamily:PP_S,fontStyle:"italic",fontSize:13,color:T.muted,opacity:0.8,textAlign:"right",maxWidth:240,lineHeight:1.3}}>Click cells to fill · double-click to edit · drag rows to reorder.</span>}
         </div>
 
+        {/* ── Horizontal scroller wrapping header+table+footer so they stay aligned on narrow screens ── */}
+        <div style={{overflowX:isNarrow?"auto":"visible",WebkitOverflowScrolling:"touch",margin:isNarrow?"0 -2px":0}}>
+        <div style={{minWidth:isNarrow?TABLE_W:"auto",display:"flex",flexDirection:"column",gap:8}}>
         {/* ── Month column header ── */}
         <div style={{display:"flex",alignItems:"flex-end",paddingBottom:5,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:LBL_W,flexShrink:0,...eye,fontSize:9}}>Category</div>
@@ -3285,6 +3289,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
             <div style={{width:ACT_W,flexShrink:0}}/>
           </div>
         </div>
+
+        </div>{/* min-width inner */}
+        </div>{/* horizontal scroller */}
 
         {/* ── CASHFLOW: one continuous calendar spanning the current + next month ── */}
         <CashflowCalendar months={[mon,nextCalMon]} ym0={ym0} incCats={incCats} expCats={expCats} envelopes={envelopes} savingsStart={savingsStart} today={today}/>
