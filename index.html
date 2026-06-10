@@ -21,6 +21,9 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body,#root{height:100%;min-height:100vh;}
+html,body{max-width:100%;overflow-x:hidden;}
+.nav-scroll{scrollbar-width:none;-ms-overflow-style:none;}
+.nav-scroll::-webkit-scrollbar{display:none;height:0;}
 body{font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace;}
 input,textarea,button,select{font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace;}
 ::-webkit-scrollbar{width:4px;height:4px;}
@@ -5740,18 +5743,33 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
     {id:'settings',label:'⚙',title:'Settings'},
   ];
   const isDark=mode==='dark';
+  const navBtn=(item,fs)=>(
+    <button key={item.id} onClick={()=>setPage(item.id)} title={item.title||item.label} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:fs,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:page===item.id?T.mint:T.muted,padding:0,lineHeight:1,transition:'color 0.12s',whiteSpace:'nowrap',flexShrink:0}}>{item.label}</button>
+  );
+  const themeBtn=(ml)=>setMode&&<button onClick={()=>setMode(isDark?'light':'dark')} title={isDark?'Switch to light':'Switch to dark'} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:13,fontWeight:500,color:T.muted,padding:0,lineHeight:1,transition:'color 0.12s',marginLeft:ml,flexShrink:0}}>{isDark?'☼':'☾'}</button>;
+  if(isMobile){
+    return(
+      <header style={{background:T.bg,padding:'0 16px',position:'sticky',top:0,zIndex:100}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',height:44}}>
+          <button onClick={()=>setPage('today')} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_S,fontSize:19,fontWeight:600,color:T.text,letterSpacing:'-0.01em',padding:0,whiteSpace:'nowrap'}}>受付係</button>
+          {themeBtn(0)}
+        </div>
+        <div className="nav-scroll" style={{display:'flex',alignItems:'center',gap:20,overflowX:'auto',padding:'2px 0 10px',borderBottom:`1px solid ${T.text}`,WebkitOverflowScrolling:'touch'}}>
+          {NAV.map(item=>navBtn(item,11))}
+        </div>
+      </header>
+    );
+  }
   return(
     <header style={{background:T.bg,padding:'0 2rem',position:'sticky',top:0,zIndex:100}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',height:42,borderBottom:`1px solid ${T.text}`}}>
         <div style={{display:'flex',alignItems:'center'}}>
           <button onClick={()=>setPage('today')} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_S,fontSize:18,fontWeight:600,color:T.text,letterSpacing:'-0.01em',padding:'0 16px 0 0'}}>受付係</button>
-          {!isMobile&&<div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',borderLeft:`1px solid ${T.border}`,paddingLeft:16}}>THE RECEPTIONIST'S REPORT · NO. {String(dayOfYear).padStart(4,'0')}</div>}
+          <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',borderLeft:`1px solid ${T.border}`,paddingLeft:16}}>THE RECEPTIONIST'S REPORT · NO. {String(dayOfYear).padStart(4,'0')}</div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:isMobile?14:26}}>
-          {NAV.map(item=>(
-            <button key={item.id} onClick={()=>setPage(item.id)} title={item.title||item.label} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:page===item.id?T.mint:T.muted,padding:0,lineHeight:1,transition:'color 0.12s'}}>{item.label}</button>
-          ))}
-          {setMode&&<button onClick={()=>setMode(isDark?'light':'dark')} title={isDark?'Switch to light':'Switch to dark'} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:13,fontWeight:500,color:T.muted,padding:0,lineHeight:1,transition:'color 0.12s',marginLeft:isMobile?-4:-12}}>{isDark?'☼':'☾'}</button>}
+        <div style={{display:'flex',alignItems:'center',gap:26}}>
+          {NAV.map(item=>navBtn(item,10))}
+          {themeBtn(-12)}
         </div>
       </div>
     </header>
@@ -5765,7 +5783,7 @@ function WeatherMeta(){
   useEffect(()=>{fetch('https://wttr.in/Leiden?format=j1').then(r=>r.json()).then(d=>{const c=d.current_condition?.[0];if(c)setW({t:c.temp_C,desc:(c.weatherDesc?.[0]?.value||'').toUpperCase(),wind:c.windspeedKmph});}).catch(()=>{});},[]);
   return w?<span>{w.t}° · {w.desc}</span>:<span>— · —</span>;
 }
-function PaperMetaStrip({sun}){
+function PaperMetaStrip({sun,isMobile}){
   const T=useT();
   const now=new Date();
   const D3=['SUN','MON','TUE','WED','THU','FRI','SAT'];
@@ -5773,13 +5791,13 @@ function PaperMetaStrip({sun}){
   const dateStr=`${D3[now.getDay()]} · ${String(now.getDate()).padStart(2,'0')} ${M3[now.getMonth()]} ${now.getFullYear()}`;
   const wk=Math.ceil((now-new Date(now.getFullYear(),0,1))/604800000);
   const q=Math.ceil((now.getMonth()+1)/3);
-  const cellSty={fontFamily:PP_M,fontSize:11,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',whiteSpace:'nowrap'};
+  const cellSty={fontFamily:PP_M,fontSize:isMobile?9.5:11,color:T.muted,letterSpacing:isMobile?'0.12em':'0.18em',textTransform:'uppercase',whiteSpace:'nowrap'};
   return(
-    <div style={{background:T.bg,padding:'0 2rem'}}>
-      <div style={{borderBottom:`1px solid ${T.border}`,padding:'14px 0',display:'flex',alignItems:'center',justifyContent:'space-between',gap:24,...cellSty}}>
+    <div style={{background:T.bg,padding:isMobile?'0 16px':'0 2rem'}}>
+      <div style={{borderBottom:`1px solid ${T.border}`,padding:isMobile?'10px 0':'14px 0',display:'flex',alignItems:'center',justifyContent:isMobile?'flex-start':'space-between',flexWrap:isMobile?'wrap':'nowrap',gap:isMobile?'6px 14px':24,...cellSty}}>
         <span>{dateStr}</span>
         <span>WEEK {String(wk).padStart(2,'0')} · Q{q}</span>
-        <span>LEIDEN, NL · 52.16°N 4.54°E</span>
+        {!isMobile&&<span>LEIDEN, NL · 52.16°N 4.54°E</span>}
         <span>{sun?`${sun.rise} ↑ · ${sun.set} ↓`:'— · —'}</span>
         <WeatherMeta/>
       </div>
@@ -5797,7 +5815,7 @@ const PP_QUOTES=[
   {q:"Power is not an institution — it is the name given to a complex strategical situation.",a:"FOUCAULT"},
   {q:"The strong do what they can and the weak suffer what they must.",a:"THUCYDIDES"},
 ];
-function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
+function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx,isMobile}){
   const T=useT();
   const now=new Date();
   const hr=now.getHours();
@@ -5820,26 +5838,28 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
   const eye={fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted};
   const tinyLbl={fontFamily:PP_M,fontSize:10,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:T.muted};
   const Stat=({label,val,sub,accent,first,labelAccent})=>(
-    <div style={{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:24,paddingRight:16}}>
+    <div style={isMobile
+      ?{borderTop:`1px solid ${T.border}`,paddingTop:12,paddingRight:10}
+      :{borderLeft:first?'none':`1px solid ${T.border}`,paddingLeft:first?0:24,paddingRight:16}}>
       <div style={{...eye,color:labelAccent?T.mint:T.muted}}>{label}</div>
-      <div style={{fontFamily:PP_M,fontSize:24,fontWeight:500,color:accent?T.mint:T.text,marginTop:14,lineHeight:1.1,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.01em'}}>{val}</div>
-      {sub&&<div style={{fontFamily:PP_M,fontSize:11,color:T.muted,marginTop:8,letterSpacing:'0.04em',textTransform:'lowercase'}}>{sub}</div>}
+      <div style={{fontFamily:PP_M,fontSize:isMobile?20:24,fontWeight:500,color:accent?T.mint:T.text,marginTop:isMobile?8:14,lineHeight:1.1,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.01em'}}>{val}</div>
+      {sub&&<div style={{fontFamily:PP_M,fontSize:isMobile?10:11,color:T.muted,marginTop:isMobile?6:8,letterSpacing:'0.04em',textTransform:'lowercase'}}>{sub}</div>}
     </div>
   );
   const deepLabel=deepTask?deepTask.title.split('—')[0].split(':')[0].trim():'';
   return(
-    <div style={{background:T.bg,padding:'26px 2rem 0',position:'relative'}}>
+    <div style={{background:T.bg,padding:isMobile?'18px 16px 0':'26px 2rem 0',position:'relative'}}>
       {/* Eyebrow */}
-      <div style={{...tinyLbl,marginBottom:30}}>To the bearer — {DAYS_LONG[now.getDay()].toLowerCase()} {tod}</div>
+      <div style={{...tinyLbl,marginBottom:isMobile?16:30}}>To the bearer — {DAYS_LONG[now.getDay()].toLowerCase()} {tod}</div>
 
       {/* Big headline */}
-      <h1 style={{fontFamily:PP_S,fontSize:'clamp(88px, 11vw, 156px)',fontWeight:400,lineHeight:0.92,letterSpacing:'-0.04em',margin:'0 0 30px',color:T.text}}>
+      <h1 style={{fontFamily:PP_S,fontSize:isMobile?'clamp(38px, 13vw, 60px)':'clamp(88px, 11vw, 156px)',fontWeight:400,lineHeight:isMobile?0.98:0.92,letterSpacing:'-0.04em',margin:isMobile?'0 0 18px':'0 0 30px',color:T.text,wordBreak:'break-word'}}>
         <span style={{display:'block'}}>Good {tod},</span>
         <span style={{display:'block',fontStyle:'italic'}}>Pratham<span style={{color:T.mint,fontStyle:'normal'}}>.</span></span>
       </h1>
 
       {/* Kicker paragraph */}
-      <p style={{fontFamily:PP_S,fontSize:22,color:T.muted,fontWeight:400,fontStyle:'italic',margin:'0 0 40px',maxWidth:920,lineHeight:1.5}}>
+      <p style={{fontFamily:PP_S,fontSize:isMobile?16:22,color:T.muted,fontWeight:400,fontStyle:'italic',margin:isMobile?'0 0 24px':'0 0 40px',maxWidth:920,lineHeight:1.5}}>
         {openToday.length>0
           ?<>{openToday.length} {openToday.length===1?'thing wants':'things want'} your attention.</>
           :<>The day is <span style={{color:T.mint,fontStyle:'italic'}}>clear</span> — draft, walk, or rest.</>}
@@ -5848,20 +5868,22 @@ function PaperHero({tasks,trips,goals,sun,quoteIdx,setQuoteIdx}){
       </p>
 
       {/* Divider rule (dark, matches reference) */}
-      <div style={{borderTop:`1px solid ${T.text}`,margin:'0 0 28px'}}/>
+      <div style={{borderTop:`1px solid ${T.text}`,margin:isMobile?'0 0 4px':'0 0 28px'}}/>
 
       {/* Stat strip */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0,paddingBottom:28}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(5,minmax(0,1fr))',columnGap:isMobile?16:0,rowGap:isMobile?4:0,paddingBottom:isMobile?22:28}}>
         <Stat first label="SUN" val={sun?<span>{sun.rise} ↑  {sun.set} ↓</span>:'—'} sub={sun?`golden · ${sun.golden}`:''}/>
         <Stat label="GOALS" val={goalsTot>0?`${goalsDoneN}/${goalsTot}`:'—'} sub={goalsTot>0?`${yr} · completed`:'none queued'}/>
         <Stat label="AIR" val={wx?`${wx.t}°`:'—'} sub={wx?`${wx.desc} · ${wx.wind}km/h`:'fetching'}/>
         <Stat label="NEXT" labelAccent accent val={nextTrip&&nextTrip.destination?nextTrip.destination.split(',')[0].toUpperCase():'—'} sub={daysToTrip!==null?(daysToTrip===0?'today':`in ${daysToTrip} ${daysToTrip===1?'day':'days'}`):'no trips'}/>
-        <div style={{borderLeft:`1px solid ${T.border}`,paddingLeft:24,paddingRight:0}}>
+        <div style={isMobile
+          ?{gridColumn:'1 / -1',borderTop:`1px solid ${T.border}`,paddingTop:12,marginTop:4}
+          :{borderLeft:`1px solid ${T.border}`,paddingLeft:24,paddingRight:0}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div style={eye}>QUOTE</div>
             <button onClick={()=>setQuoteIdx(i=>(i+1)%PP_QUOTES.length)} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:PP_M,fontSize:10,color:T.muted,letterSpacing:'0.14em',padding:0}}>↺ SHUFFLE</button>
           </div>
-          <div style={{fontFamily:PP_S,fontSize:15,fontStyle:'italic',color:T.text,marginTop:14,lineHeight:1.4}}>"{quote.q}"</div>
+          <div style={{fontFamily:PP_S,fontSize:isMobile?16:15,fontStyle:'italic',color:T.text,marginTop:isMobile?10:14,lineHeight:1.4}}>"{quote.q}"</div>
           <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,marginTop:8,letterSpacing:'0.14em'}}>— {quote.a}</div>
         </div>
       </div>
@@ -6566,7 +6588,7 @@ function PaperSectionCard({label,onExpand,children}){
 }
 
 // ── Today Card ────────────────────────────────────────────────────────────
-function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
+function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[],isMobile}){
   const T=useT();
   const now=new Date(),todayS=toStr(now);
   const parseTV=tb=>{if(!tb)return 9999;if(tb==='am')return 700;if(tb==='pm')return 1300;const[h,m]=tb.split(':').map(Number);return h*100+(m||0);};
@@ -6646,13 +6668,13 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
     if(firstOpenTask&&firstOpenTask._raw){ setModal&&setModal({type:'task',data:firstOpenTask._raw}); return; }
   };
 
-  // 4-col grid: time | item | kind | duration
-  const gridCols='86px minmax(0,1fr) 180px 72px';
+  // 4-col grid: time | item | kind | duration  (mobile: time | item only)
+  const gridCols=isMobile?'52px minmax(0,1fr)':'86px minmax(0,1fr) 180px 72px';
 
   return(
-    <div style={{margin:'24px 2rem 0',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
+    <div style={{margin:isMobile?'20px 16px 0':'24px 2rem 0',background:T.card,border:`1px solid ${T.border}`,borderRadius:4,overflow:'hidden',boxShadow:'0 1px 0 rgba(29,26,20,0.04)'}}>
       {/* Header band */}
-      <div style={{padding:'22px 26px 18px',borderBottom:`1px solid ${T.border}`,display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:24,alignItems:'flex-start'}}>
+      <div style={{padding:isMobile?'16px 16px 14px':'22px 26px 18px',borderBottom:`1px solid ${T.border}`,display:'grid',gridTemplateColumns:isMobile?'1fr':'minmax(0,1fr) auto',gap:isMobile?14:24,alignItems:'flex-start'}}>
         <div>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
             <div style={{...eye,color:T.mint,fontSize:10}}>TODAY</div>
@@ -6663,7 +6685,7 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
             {overdueCount>0&&<><div style={{...eye,color:T.red,fontSize:10}}>·</div><div style={{...eye,color:T.red,fontSize:10}}>{overdueCount} OVERDUE</div></>}
             {unschedCount>0&&<><div style={{...eye,color:T.muted,fontSize:10}}>·</div><div style={{...eye,color:T.muted,fontSize:10}}>{unschedCount} UNSCHEDULED</div></>}
           </div>
-          <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:30,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
+          <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:isMobile?21:30,fontWeight:400,color:T.text,letterSpacing:'-0.015em',lineHeight:1.2}}>
             {todayItems.length===0
               ?<><span>Nothing is scheduled.</span> A clean slate — draft or rest.</>
               :remaining===0&&totalActive>0
@@ -6681,12 +6703,12 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
       </div>
 
       {/* Column heads */}
-      <div style={{padding:'0 26px'}}>
+      <div style={{padding:isMobile?'0 16px':'0 26px'}}>
         <div style={{display:'grid',gridTemplateColumns:gridCols,padding:'11px 0',borderBottom:`1px solid ${T.border}`,columnGap:14}}>
           <div style={{...eye,color:T.muted,fontSize:8}}>TIME</div>
           <div style={{...eye,color:T.muted,fontSize:8}}>ITEM</div>
-          <div style={{...eye,color:T.muted,fontSize:8}}>KIND</div>
-          <div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>DURATION</div>
+          {!isMobile&&<div style={{...eye,color:T.muted,fontSize:8}}>KIND</div>}
+          {!isMobile&&<div style={{...eye,color:T.muted,fontSize:8,textAlign:'right'}}>DURATION</div>}
         </div>
 
         {/* Rows */}
@@ -6707,14 +6729,19 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
                 <div style={{fontFamily:PP_M,fontSize:11,color:timeColor,fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em',fontWeight:isOverdue?700:400}}>{fmtRowTime(row)}</div>
                 <div style={{display:'flex',alignItems:'baseline',gap:12,overflow:'hidden'}}>
                   <span style={{fontFamily:PP_M,fontSize:14,color:glyphColor,lineHeight:1,flexShrink:0}}>{glyph}</span>
-                  <span style={{fontFamily:PP_S,fontSize:17,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                    {row.title}
+                  <span style={{minWidth:0,overflow:'hidden'}}>
+                    <span style={{display:'block',fontFamily:PP_S,fontSize:17,color:T.text,textDecoration:isDone?'line-through':'none',letterSpacing:'-0.01em',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {row.title}
+                    </span>
+                    {isMobile&&<span style={{display:'block',fontFamily:PP_M,fontSize:8.5,color:isEvent?(row.calColor||T.muted):T.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {(isTask?fmtKindTask(row):fmtKindEvent(row))}{row.estimate?` · ${row.estimate}`:''}
+                    </span>}
                   </span>
                 </div>
-                <div style={{fontFamily:PP_M,fontSize:9.5,color:isEvent?(row.calColor||T.muted):T.muted,letterSpacing:'0.12em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textTransform:'uppercase'}}>
+                {!isMobile&&<div style={{fontFamily:PP_M,fontSize:9.5,color:isEvent?(row.calColor||T.muted):T.muted,letterSpacing:'0.12em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textTransform:'uppercase'}}>
                   {isTask?fmtKindTask(row):fmtKindEvent(row)}
-                </div>
-                <div style={{fontFamily:PP_M,fontSize:11,color:T.text,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{row.estimate||'—'}</div>
+                </div>}
+                {!isMobile&&<div style={{fontFamily:PP_M,fontSize:11,color:T.text,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{row.estimate||'—'}</div>}
               </div>
             );
           })
@@ -6722,7 +6749,7 @@ function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[]}){
       </div>
 
       {/* Stub / ticket footer */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'14px 26px',borderTop:`1px solid ${T.border}`,background:T.card,gap:12,alignItems:'center'}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:isMobile?'12px 16px':'14px 26px',borderTop:`1px solid ${T.border}`,background:T.card,gap:isMobile?6:12,alignItems:'center'}}>
         <div style={{...eye,color:T.muted,fontSize:8}}>{done}/{totalActive||0} DONE</div>
         <div style={{...eye,color:T.muted,fontSize:8,textAlign:'center'}}>
           {remaining>0?`${remaining} REMAINING · ${hoursStr}`:totalActive>0?'ALL SETTLED':'CLEAN SLATE'}
@@ -7980,7 +8007,7 @@ function OutfitBuilder({items,outfits,setOutfits,wears,setWears}){
     </div>
   );
 }
-function PaperOutfitTodayCard({wardrobeItems,setWardrobeOutfits,apiKey,appleEvents=[],tasks=[]}){
+function PaperOutfitTodayCard({wardrobeItems,setWardrobeOutfits,apiKey,appleEvents=[],tasks=[],isMobile}){
   const T=useT();
   const todayStr=new Date().toISOString().split('T')[0];
   const [data,setData]=useState(()=>{const c=lg("plo3_outfit_today",null);return c&&c.date===todayStr?c:null;});
@@ -8051,8 +8078,8 @@ Respond with ONLY valid JSON (no markdown), keys exactly:
   const btn={fontFamily:PP_M,fontSize:9,letterSpacing:'0.15em',textTransform:'uppercase',background:'transparent',border:`1px solid ${T.border}`,borderRadius:2,padding:'5px 11px',cursor:'pointer',color:T.muted};
 
   return(
-    <div style={{padding:'4px 2rem 28px'}}>
-      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:'18px 22px'}}>
+    <div style={{padding:isMobile?'4px 16px 24px':'4px 2rem 28px'}}>
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:isMobile?'16px 16px':'18px 22px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14,gap:12,flexWrap:'wrap'}}>
           <div>
             <div style={eye}>OUTFIT OF THE DAY</div>
@@ -8384,24 +8411,24 @@ function App(){
   return <TC.Provider value={T}>
     <div className={"theme-paper"+(mode==='dark'?' theme-dark':'')} style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:PP_M,position:"relative"}}>
       <DispatchNavbar page={page} setPage={setPage} dayOfYear={dayOfYear} isMobile={isMobile} mode={mode} setMode={setMode}/>
-      <PaperMetaStrip sun={sun}/>
+      <PaperMetaStrip sun={sun} isMobile={isMobile}/>
 
       {page==="today"&&<>
-        <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx}/>
-        <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents}/>
+        <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx} isMobile={isMobile}/>
+        <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents} isMobile={isMobile}/>
 
         {/* CALENDAR + GOALS — editorial self-contained cards */}
-        <div style={{padding:'20px 2rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
+        <div style={{padding:isMobile?'16px 16px 0':'20px 2rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
           <PaperCalendarTodayCard tasks={tasks} trips={trips} goals={goals} completions={completions} appleEvents={appleEvents} onExpand={()=>setPage('plan')} setModal={setModal} budgetCats={budgetCats} envelopes={envelopes}/>
           <PaperGoalsTodayCard goals={goals} setGoals={setGoals} onExpand={()=>setPage('plan')}/>
         </div>
 
         {/* TRIPS + MONEY — inequal columns for editorial asymmetry */}
-        <div style={{padding:'16px 2rem 12px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
+        <div style={{padding:isMobile?'14px 16px 12px':'16px 2rem 12px',display:'grid',gridTemplateColumns:isMobile?'1fr':'1.15fr 1fr',gap:16}}>
           <PaperTripsTodayCard trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} onExpand={()=>setPage('trips')} onAddTrip={()=>setModal({type:'trip'})}/>
           <PaperMoneyTodayCard envelopes={envelopes} budgetCats={budgetCats} onExpand={()=>setPage('money')}/>
         </div>
-        <PaperOutfitTodayCard wardrobeItems={wardrobeItems} setWardrobeOutfits={setWardrobeOutfits} apiKey={apiKey} appleEvents={appleEvents} tasks={tasks}/>
+        <PaperOutfitTodayCard wardrobeItems={wardrobeItems} setWardrobeOutfits={setWardrobeOutfits} apiKey={apiKey} appleEvents={appleEvents} tasks={tasks} isMobile={isMobile}/>
         <PaperFooter/>
       </>}
 
