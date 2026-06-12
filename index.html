@@ -6999,12 +6999,22 @@ function PralinePostcardCard({p,r2u,me,doc,markSeen,delPostcard,isMobile}){
   const isNew=p.by!==me&&!((p.seen||{})[me]);
   const n=(p.clips||[]).length;
   const clip=(p.clips||[])[ci];
+  useEffect(()=>{
+    const el=vidRef.current; if(!el)return;
+    el.muted=true;
+    const io=new IntersectionObserver(([e])=>{
+      if(e.isIntersecting){const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});}
+      else{try{el.pause();}catch(_){}}
+    },{threshold:0.4});
+    io.observe(el);
+    return ()=>io.disconnect();
+  },[clip&&clip.key]);
   return(
-    <div style={{flex:isMobile?"1 1 100%":"0 0 230px",width:isMobile?"100%":230,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:8,position:"relative"}}>
-      {clip&&<video key={clip.key} ref={vidRef} controls playsInline preload="metadata"
+    <div style={{width:"100%",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:8,position:"relative"}}>
+      {clip&&<video key={clip.key} ref={vidRef} controls playsInline muted preload="metadata" loop={n===1}
         src={`${r2u}/f/${encodeURIComponent(clip.key)}`}
         onPlay={()=>{if(isNew)markSeen(p.id);}}
-        onEnded={()=>{if(ci<n-1){setCi(ci+1);setTimeout(()=>{try{vidRef.current&&vidRef.current.play();}catch(e){}},150);}}}
+        onEnded={()=>{if(n>1)setCi((ci+1)%n);}}
         style={{width:"100%",aspectRatio:"16/9",background:T.text,borderRadius:2,display:"block",objectFit:"contain"}}/>}
       {n>1&&<div style={{display:"flex",gap:4,marginTop:6}}>
         {(p.clips||[]).map((c,i)=><button key={c.key} onClick={()=>setCi(i)} title={`Clip ${i+1}`} style={{flex:1,height:4,border:"none",borderRadius:2,cursor:"pointer",padding:0,background:i===ci?T.red:T.border}}/>)}
@@ -7092,7 +7102,7 @@ function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isM
           const label=who===me?"YOU":(doc.names[who]||(who==="a"?"A":"B"));
           return(<div key={who}>
             <div style={{...eye,marginBottom:8,color:who===me?T.red:T.mint}}>{label.toUpperCase()} · {grp.length} POSTCARD{grp.length===1?"":"S"}</div>
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:12}}>
               {grp.map(p=><PralinePostcardCard key={p.id} p={p} r2u={r2u} me={me} doc={doc} markSeen={markSeen} delPostcard={delPostcard} isMobile={isMobile}/>)}
             </div>
           </div>);
