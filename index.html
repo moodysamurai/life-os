@@ -7001,18 +7001,21 @@ function PralinePostcardCard({p,r2u,me,doc,markSeen,delPostcard,isMobile}){
   const clip=(p.clips||[])[ci];
   useEffect(()=>{
     const el=vidRef.current; if(!el)return;
-    el.muted=true;
+    el.muted=true; el.defaultMuted=true;
+    const tryPlay=()=>{try{const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});}catch(_){}};
     const io=new IntersectionObserver(([e])=>{
-      if(e.isIntersecting){const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});}
-      else{try{el.pause();}catch(_){}}
-    },{threshold:0.4});
+      if(e.isIntersecting){el.muted=true;if(el.paused)tryPlay();}
+      else if(!el.paused){try{el.pause();}catch(_){}}
+    },{threshold:0.25});
     io.observe(el);
+    tryPlay();
     return ()=>io.disconnect();
   },[clip&&clip.key]);
   return(
     <div style={{width:"100%",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:8,position:"relative"}}>
-      {clip&&<video key={clip.key} ref={vidRef} controls playsInline muted preload="metadata" loop={n===1}
+      {clip&&<video key={clip.key} ref={vidRef} controls playsInline muted autoPlay preload="auto" loop={n===1}
         src={`${r2u}/f/${encodeURIComponent(clip.key)}`}
+        onLoadedData={e=>{e.target.muted=true;const pr=e.target.play();if(pr&&pr.catch)pr.catch(()=>{});}}
         onPlay={()=>{if(isNew)markSeen(p.id);}}
         onEnded={()=>{if(n>1)setCi((ci+1)%n);}}
         style={{width:"100%",aspectRatio:"16/9",background:T.text,borderRadius:2,display:"block",objectFit:"contain"}}/>}
