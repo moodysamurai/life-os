@@ -6931,7 +6931,8 @@ const DEFAULT_PRALINE={
   names:{a:"Pratham",b:"Elina"},
   places:{a:{label:"Leiden",tz:"Europe/Amsterdam"},b:{label:"Delhi",tz:"Asia/Kolkata"}},
   entries:{},
-  watchlist:[]
+  watchlist:[],
+  postcards:[]
 };
 const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
 const PRALINE_MOODS=[{v:1,label:"rough"},{v:2,label:"low"},{v:3,label:"ok"},{v:4,label:"good"},{v:5,label:"great"}];
@@ -6988,6 +6989,125 @@ function PralineClock({label,name,tz,accent}){
     </div>
   );
 }
+function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isMobile,openSetup}){
+  const T=useT();
+  const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
+  const r2ok=!!(r2u&&(r2Tok||"").trim());
+  const cards=[...(doc.postcards||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const [selId,setSelId]=useState(null);
+  const sel=cards.find(p=>p.id===selId)||cards[0]||null;
+  const [clipIdx,setClipIdx]=useState(0);
+  useEffect(()=>{setClipIdx(0);},[sel?sel.id:null]);
+  const [files,setFiles]=useState([]);
+  const [caption,setCaption]=useState("");
+  const [sendState,setSendState]=useState("");
+  const fileRef=useRef(null);
+  const vidRef=useRef(null);
+  const fmtD=iso=>{try{return new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",year:"numeric"}).format(new Date(iso)).toUpperCase();}catch(e){return(iso||"").slice(0,10);}};
+  const senderName=p=>doc.names[p.by]||(p.by==="a"?"A":"B");
+  const recvName=p=>doc.names[p.by==="a"?"b":"a"]||"";
+  const stampPlace=p=>((doc.places||{})[p.by]||{}).label||"";
+  const isNew=p=>p&&p.by!==me&&!((p.seen||{})[me]);
+
+  function pickFiles(e){
+    const all=Array.from(e.target.files||[]).filter(f=>(f.type||"").startsWith("video/"));
+    const errs=[];
+    const ok=all.slice(0,3).filter(f=>{if(f.size>25*1024*1024){errs.push(f.name+" >25MB");return false;}return true;});
+    if(all.length>3)errs.push("max 3 clips");
+    setFiles(ok);
+    setSendState(errs.length?("SKIPPED: "+errs.join(" · ")):"");
+    e.target.value="";
+  }
+  async function send(){
+    if(!files.length||!r2ok)return;
+    try{
+      const clips=[];
+      for(let i=0;i<files.length;i++){
+        setSendState(`UPLOADING ${i+1}/${files.length}…`);
+        const f=files[i];
+        const ext=((f.name.split(".").pop()||"mp4").toLowerCase().replace(/[^a-z0-9]/g,""))||"mp4";
+        const key=`${uid()}-${Date.now()}.${ext}`;
+        const res=await fetch(`${r2u}/up/${encodeURIComponent(key)}`,{method:"PUT",headers:{Authorization:`Bearer ${r2Tok.trim()}`,"Content-Type":f.type||"video/mp4"},body:f});
+        if(!res.ok)throw new Error("upload failed ("+res.status+")");
+        clips.push({key,size:f.size,type:f.type||"video/mp4"});
+      }
+      addPostcard({id:uid(),no:(doc.postcards||[]).length+1,by:me,date:new Date().toISOString(),caption:caption.trim(),clips,seen:{[me]:true}});
+      setFiles([]);setCaption("");setSelId(null);setSendState("SENT ✓");
+      setTimeout(()=>setSendState(s=>s==="SENT ✓"?"":s),4000);
+    }catch(err){setSendState("ERROR: "+(err.message||"upload failed"));}
+  }
+  const clip=sel&&(sel.clips||[])[clipIdx];
+  const fmtMB=n=>(n/1048576).toFixed(1)+"MB";
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,borderBottom:`1px solid ${T.text}`,paddingBottom:10}}>
+        <div style={{...eye,color:T.red}}>VIDEO POSTCARDS{sel?` · NO. ${String(sel.no||cards.length).padStart(3,"0")}`:""}</div>
+        <div style={eye}>{cards.length} SENT</div>
+      </div>
+
+      {!r2ok&&<div style={{border:`1px dashed ${T.muted}`,borderRadius:3,padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <span style={{fontFamily:PP_M,fontSize:9.5,letterSpacing:"0.1em",color:T.muted,lineHeight:1.6}}>STORAGE NOT CONNECTED — paste your worker URL + token in setup. See POSTCARDS_SETUP.md.</span>
+        <button onClick={openSetup} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.text,padding:"6px 12px"}}>⚙ SETUP →</button>
+      </div>}
+
+      {sel&&r2ok&&<div style={{display:"flex",gap:18,flexWrap:isMobile?"wrap":"nowrap",marginBottom:18}}>
+        <div style={{flex:"1.4 1 280px",minWidth:0}}>
+          <div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:"10px 10px 8px"}}>
+            {clip&&<video key={clip.key} ref={vidRef} controls playsInline preload="metadata"
+              src={`${r2u}/f/${encodeURIComponent(clip.key)}`}
+              onPlay={()=>{if(isNew(sel))markSeen(sel.id);}}
+              onEnded={()=>{if(clipIdx<(sel.clips||[]).length-1){setClipIdx(clipIdx+1);setTimeout(()=>{try{vidRef.current&&vidRef.current.play();}catch(e){}},150);}}}
+              style={{width:"100%",aspectRatio:"16/9",background:T.text,borderRadius:2,display:"block",objectFit:"contain"}}/>}
+            {(sel.clips||[]).length>1&&<div style={{display:"flex",gap:8,marginTop:8}}>
+              {(sel.clips||[]).map((c,i)=><button key={c.key} onClick={()=>setClipIdx(i)} style={{flex:1,background:T.text,opacity:i===clipIdx?0.95:0.45,border:i===clipIdx?`1.5px solid ${T.red}`:"1.5px solid transparent",borderRadius:2,cursor:"pointer",padding:"10px 6px",textAlign:"left"}}>
+                <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,color:T.bg}}>{String(i+1).padStart(2,"0")}</span>
+              </button>)}
+            </div>}
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.16em",color:T.muted}}>
+              <span>CLIP {clipIdx+1} / {(sel.clips||[]).length}</span>
+              {(sel.clips||[]).length>1&&<span>PLAYS IN SEQUENCE ▸</span>}
+            </div>
+          </div>
+        </div>
+        <div style={{flex:"1 1 200px",minWidth:0,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px dashed ${T.border}`,paddingLeft:isMobile?0:18}}>
+          <div style={{alignSelf:"flex-end",border:`1px solid ${T.red}`,color:T.red,fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.14em",padding:"6px 7px",transform:"rotate(4deg)",borderRadius:2,textAlign:"center",lineHeight:1.5}}>
+              {(stampPlace(sel)||"—").toUpperCase()}<br/>{fmtD(sel.date)}
+          </div>
+          {sel.caption&&<div style={{fontFamily:PP_S,fontSize:18,fontStyle:"italic",lineHeight:1.45,color:T.text,margin:"8px 0 0"}}>“{sel.caption}<span style={{color:T.red}}>.</span>”</div>}
+          <div style={{marginTop:"auto",paddingTop:14}}>
+            <div style={eye}>FROM</div>
+            <div style={{fontFamily:PP_S,fontSize:16,fontWeight:600,color:T.text}}>{senderName(sel)} {isNew(sel)&&<span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,color:T.mint}}>● NEW</span>}</div>
+          </div>
+        </div>
+      </div>}
+
+      {r2ok&&<div>
+        <input ref={fileRef} type="file" accept="video/*" multiple onChange={pickFiles} style={{display:"none"}}/>
+        <div onClick={()=>fileRef.current&&fileRef.current.click()} style={{border:`1.5px dashed ${T.muted}`,borderRadius:3,padding:"14px 16px",textAlign:"center",cursor:"pointer"}}>
+          <span style={{fontFamily:PP_M,fontSize:9.5,fontWeight:700,letterSpacing:"0.18em",color:files.length?T.text:T.muted}}>
+            {files.length?files.map(f=>`${f.name} (${fmtMB(f.size)})`).join(" · "):"SEND A POSTCARD — PICK UP TO 3 CLIPS · 5–10S EACH · ≤25MB"}
+          </span>
+        </div>
+        {files.length>0&&<div style={{display:"flex",gap:10,marginTop:10}}>
+          <input value={caption} onChange={e=>setCaption(e.target.value)} placeholder="a line for the back of the postcard…" style={{flex:1,background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,color:T.text,fontFamily:PP_S,fontSize:15,padding:"5px 0",outline:"none",fontStyle:"italic"}}/>
+          <button onClick={send} disabled={(sendState||"").startsWith("UPLOADING")} style={{background:T.red,border:"none",borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.card,padding:"0 16px"}}>SEND ▸</button>
+        </div>}
+        {sendState&&<div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:sendState.startsWith("ERROR")||sendState.startsWith("SKIPPED")?T.red:T.mint,marginTop:8}}>{sendState}</div>}
+      </div>}
+
+      {cards.length>0&&<div style={{marginTop:18}}>
+        <div style={{...eye,marginBottom:8}}>SENT LOG</div>
+        {cards.map(p=><div key={p.id} onClick={()=>setSelId(p.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"7px 0",borderTop:`1px solid ${T.border}`,cursor:"pointer"}}>
+          <span style={{fontFamily:PP_M,fontSize:10,color:sel&&sel.id===p.id?T.red:T.text}}>NO. {String(p.no||0).padStart(3,"0")} · {senderName(p).toUpperCase()} → {recvName(p).toUpperCase()}{isNew(p)?"  ●":""}</span>
+          <span style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>{(p.clips||[]).length} CLIP{(p.clips||[]).length===1?"":"S"} · {fmtD(p.date)}</span>
+            <button onClick={e=>{e.stopPropagation();if(window.confirm("Delete this postcard and its clips?"))delPostcard(p.id);}} title="Delete" style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
+          </span>
+        </div>)}
+      </div>}
+    </div>
+  );
+}
 function PralinePage({supaUrl,supaKey,isMobile}){
   const T=useT();
   const twoCol=isMobile?"1fr":"1fr 1fr";
@@ -6998,6 +7118,8 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   const [me,setMe]=useState(()=>lg("plo3_praline_me","a"));
   const [pUrl,setPUrl]=useState(()=>lg("plo3_praline_url",""));
   const [pKey,setPKey]=useState(()=>lg("plo3_praline_key",""));
+  const [r2Url,setR2Url]=useState(()=>lg("plo3_praline_r2url",""));
+  const [r2Tok,setR2Tok]=useState(()=>lg("plo3_praline_r2tok",""));
   const [doc,setDoc]=useState(()=>{const d=lg("plo3_praline_doc",null);return d&&d.entries?{...DEFAULT_PRALINE,...d}:{...DEFAULT_PRALINE};});
   const [status,setStatus]=useState("idle");
   const [showSetup,setShowSetup]=useState(false);
@@ -7010,6 +7132,8 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   useEffect(()=>ls("plo3_praline_doc",doc),[doc]);
   useEffect(()=>ls("plo3_praline_url",pUrl),[pUrl]);
   useEffect(()=>ls("plo3_praline_key",pKey),[pKey]);
+  useEffect(()=>ls("plo3_praline_r2url",r2Url),[r2Url]);
+  useEffect(()=>ls("plo3_praline_r2tok",r2Tok),[r2Tok]);
 
   // Praline uses its own credentials if set, else falls back to your main sync project
   const url=(pUrl||"").trim()||supaUrl;
@@ -7033,11 +7157,20 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         const rIds=new Set(remote.watchlist.map(x=>x.id));
         watchlist=[...remote.watchlist,...(prev.watchlist||[]).filter(x=>!rIds.has(x.id))];
       }
+      let postcards=prev.postcards||[];
+      if(Array.isArray(remote.postcards)){
+        const locP={};(prev.postcards||[]).forEach(p=>{locP[p.id]=p;});
+        const rPIds=new Set(remote.postcards.map(p=>p.id));
+        postcards=[
+          ...remote.postcards.map(p=>({...p,seen:{...((locP[p.id]||{}).seen||{}),...(p.seen||{})}})),
+          ...(prev.postcards||[]).filter(p=>!rPIds.has(p.id))
+        ];
+      }
       return{
         reunionDate:remote.reunionDate!==undefined?remote.reunionDate:prev.reunionDate,
         names:{...prev.names,...(remote.names||{})},
         places:{a:{...prev.places.a,...(remote.places?.a||{})},b:{...prev.places.b,...(remote.places?.b||{})}},
-        entries,watchlist
+        entries,watchlist,postcards
       };
     });
   }
@@ -7107,6 +7240,25 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   }
   function delWatch(id){
     setDoc(prev=>({...prev,watchlist:(prev.watchlist||[]).filter(w=>w.id!==id)}));
+    typingRef.current=Date.now();schedulePush();
+  }
+  const r2u=(r2Url||"").trim().replace(/\/+$/,"");
+  function addPostcard(card){
+    setDoc(prev=>({...prev,postcards:[...(prev.postcards||[]),card]}));
+    typingRef.current=Date.now();schedulePush();
+  }
+  function markPostcardSeen(id){
+    setDoc(prev=>({...prev,postcards:(prev.postcards||[]).map(p=>p.id===id&&!((p.seen||{})[me])?{...p,seen:{...(p.seen||{}),[me]:true}}:p)}));
+    schedulePush();
+  }
+  function delPostcard(id){
+    const card=(docRef.current.postcards||[]).find(p=>p.id===id);
+    if(card&&r2u&&(r2Tok||"").trim()){
+      (card.clips||[]).forEach(c=>{
+        fetch(`${r2u}/f/${encodeURIComponent(c.key)}`,{method:"DELETE",headers:{Authorization:`Bearer ${r2Tok.trim()}`}}).catch(()=>{});
+      });
+    }
+    setDoc(prev=>({...prev,postcards:(prev.postcards||[]).filter(p=>p.id!==id)}));
     typingRef.current=Date.now();schedulePush();
   }
 
@@ -7200,6 +7352,23 @@ function PralinePage({supaUrl,supaKey,isMobile}){
             <div>
               <div style={{...eye,marginBottom:6}}>Anon key</div>
               <input value={pKey} onChange={e=>setPKey(e.target.value)} type="password" placeholder={supaKey?"(blank → main sync key)":"eyJhbGci…"} style={{...inp,fontFamily:PP_M,fontSize:11}}/>
+            </div>
+          </div>
+        </div>
+        <div style={{borderTop:`1px solid ${T.border}`,marginTop:18,paddingTop:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+            <div style={eye}>VIDEO POSTCARDS STORAGE (CLOUDFLARE R2)</div>
+            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:(r2u&&(r2Tok||"").trim())?T.mint:T.muted}}>{(r2u&&(r2Tok||"").trim())?"● CONNECTED":"○ NOT SET"}</span>
+          </div>
+          <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginBottom:12,lineHeight:1.6}}>One-time setup in POSTCARDS_SETUP.md. Both of you paste the SAME worker URL + token. Stored only in this browser — never synced.</div>
+          <div style={{display:"grid",gridTemplateColumns:twoCol,gap:"10px 24px"}}>
+            <div>
+              <div style={{...eye,marginBottom:6}}>Worker URL</div>
+              <input value={r2Url} onChange={e=>setR2Url(e.target.value)} placeholder="https://praline-postcards.xxx.workers.dev" style={{...inp,fontFamily:PP_M,fontSize:11}}/>
+            </div>
+            <div>
+              <div style={{...eye,marginBottom:6}}>Auth token</div>
+              <input value={r2Tok} onChange={e=>setR2Tok(e.target.value)} type="password" placeholder="the AUTH_TOKEN secret" style={{...inp,fontFamily:PP_M,fontSize:11}}/>
             </div>
           </div>
         </div>
@@ -7301,6 +7470,9 @@ function PralinePage({supaUrl,supaKey,isMobile}){
           </div>)}
         </div>
       </div>
+
+      {/* video postcards */}
+      <PralinePostcards doc={doc} me={me} r2u={r2u} r2Tok={r2Tok} addPostcard={addPostcard} markSeen={markPostcardSeen} delPostcard={delPostcard} isMobile={isMobile} openSetup={()=>setShowSetup(true)}/>
 
       {/* mood line */}
       {moodDates.length>0&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
