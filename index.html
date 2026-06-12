@@ -6989,6 +6989,41 @@ function PralineClock({label,name,tz,accent}){
     </div>
   );
 }
+function PralinePostcardCard({p,r2u,me,doc,markSeen,delPostcard,isMobile}){
+  const T=useT();
+  const [ci,setCi]=useState(0);
+  const vidRef=useRef(null);
+  const eye={fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted};
+  const fmtD=iso=>{try{return new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(iso)).toUpperCase();}catch(e){return(iso||"").slice(0,10);}};
+  const place=((doc.places||{})[p.by]||{}).label||"";
+  const isNew=p.by!==me&&!((p.seen||{})[me]);
+  const n=(p.clips||[]).length;
+  const clip=(p.clips||[])[ci];
+  return(
+    <div style={{flex:isMobile?"1 1 100%":"0 0 230px",width:isMobile?"100%":230,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:8,position:"relative"}}>
+      {clip&&<video key={clip.key} ref={vidRef} controls playsInline preload="metadata"
+        src={`${r2u}/f/${encodeURIComponent(clip.key)}`}
+        onPlay={()=>{if(isNew)markSeen(p.id);}}
+        onEnded={()=>{if(ci<n-1){setCi(ci+1);setTimeout(()=>{try{vidRef.current&&vidRef.current.play();}catch(e){}},150);}}}
+        style={{width:"100%",aspectRatio:"16/9",background:T.text,borderRadius:2,display:"block",objectFit:"contain"}}/>}
+      {n>1&&<div style={{display:"flex",gap:4,marginTop:6}}>
+        {(p.clips||[]).map((c,i)=><button key={c.key} onClick={()=>setCi(i)} title={`Clip ${i+1}`} style={{flex:1,height:4,border:"none",borderRadius:2,cursor:"pointer",padding:0,background:i===ci?T.red:T.border}}/>)}
+      </div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6,marginTop:8}}>
+        <div style={{flex:1,minWidth:0}}>
+          {p.caption&&<div style={{fontFamily:PP_S,fontSize:12.5,fontStyle:"italic",lineHeight:1.35,color:T.text}}>“{p.caption}<span style={{color:T.red}}>.</span>”</div>}
+        </div>
+        <div style={{flex:"0 0 auto",border:`1px solid ${T.red}`,color:T.red,fontFamily:PP_M,fontSize:6.5,fontWeight:700,letterSpacing:"0.08em",padding:"3px 4px",transform:"rotate(3deg)",borderRadius:2,textAlign:"center",lineHeight:1.4,whiteSpace:"nowrap"}}>
+          {(place||"—").toUpperCase()}<br/>{fmtD(p.date)}
+        </div>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
+        <span style={eye}>NO. {String(p.no||0).padStart(3,"0")}{isNew&&<span style={{color:T.mint}}> ● NEW</span>}</span>
+        <button onClick={()=>{if(window.confirm("Delete this postcard and its clips?"))delPostcard(p.id);}} title="Delete" style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:13,lineHeight:1,padding:0}}>×</button>
+      </div>
+    </div>
+  );
+}
 function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isMobile,openSetup}){
   const T=useT();
   const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
@@ -7041,7 +7076,7 @@ function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isM
   return(
     <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,borderBottom:`1px solid ${T.text}`,paddingBottom:10}}>
-        <div style={{...eye,color:T.red}}>VIDEO POSTCARDS{sel?` · NO. ${String(sel.no||cards.length).padStart(3,"0")}`:""}</div>
+        <div style={{...eye,color:T.red}}>VIDEO POSTCARDS</div>
         <div style={eye}>{cards.length} SENT</div>
       </div>
 
@@ -7050,35 +7085,18 @@ function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isM
         <button onClick={openSetup} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.text,padding:"6px 12px"}}>⚙ SETUP →</button>
       </div>}
 
-      {sel&&r2ok&&<div style={{display:"flex",gap:18,flexWrap:isMobile?"wrap":"nowrap",marginBottom:18}}>
-        <div style={{flex:"1.4 1 280px",minWidth:0}}>
-          <div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:"10px 10px 8px"}}>
-            {clip&&<video key={clip.key} ref={vidRef} controls playsInline preload="metadata"
-              src={`${r2u}/f/${encodeURIComponent(clip.key)}`}
-              onPlay={()=>{if(isNew(sel))markSeen(sel.id);}}
-              onEnded={()=>{if(clipIdx<(sel.clips||[]).length-1){setClipIdx(clipIdx+1);setTimeout(()=>{try{vidRef.current&&vidRef.current.play();}catch(e){}},150);}}}
-              style={{width:"100%",aspectRatio:"16/9",background:T.text,borderRadius:2,display:"block",objectFit:"contain"}}/>}
-            {(sel.clips||[]).length>1&&<div style={{display:"flex",gap:8,marginTop:8}}>
-              {(sel.clips||[]).map((c,i)=><button key={c.key} onClick={()=>setClipIdx(i)} style={{flex:1,background:T.text,opacity:i===clipIdx?0.95:0.45,border:i===clipIdx?`1.5px solid ${T.red}`:"1.5px solid transparent",borderRadius:2,cursor:"pointer",padding:"10px 6px",textAlign:"left"}}>
-                <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,color:T.bg}}>{String(i+1).padStart(2,"0")}</span>
-              </button>)}
-            </div>}
-            <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.16em",color:T.muted}}>
-              <span>CLIP {clipIdx+1} / {(sel.clips||[]).length}</span>
-              {(sel.clips||[]).length>1&&<span>PLAYS IN SEQUENCE ▸</span>}
+      {r2ok&&cards.length>0&&<div style={{marginBottom:18,display:"flex",flexDirection:"column",gap:16}}>
+        {[me,(me==="a"?"b":"a")].map(who=>{
+          const grp=cards.filter(p=>p.by===who);
+          if(!grp.length)return null;
+          const label=who===me?"YOU":(doc.names[who]||(who==="a"?"A":"B"));
+          return(<div key={who}>
+            <div style={{...eye,marginBottom:8,color:who===me?T.red:T.mint}}>{label.toUpperCase()} · {grp.length} POSTCARD{grp.length===1?"":"S"}</div>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              {grp.map(p=><PralinePostcardCard key={p.id} p={p} r2u={r2u} me={me} doc={doc} markSeen={markSeen} delPostcard={delPostcard} isMobile={isMobile}/>)}
             </div>
-          </div>
-        </div>
-        <div style={{flex:"1 1 200px",minWidth:0,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px dashed ${T.border}`,paddingLeft:isMobile?0:18}}>
-          <div style={{alignSelf:"flex-end",border:`1px solid ${T.red}`,color:T.red,fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.14em",padding:"6px 7px",transform:"rotate(4deg)",borderRadius:2,textAlign:"center",lineHeight:1.5}}>
-              {(stampPlace(sel)||"—").toUpperCase()}<br/>{fmtD(sel.date)}
-          </div>
-          {sel.caption&&<div style={{fontFamily:PP_S,fontSize:18,fontStyle:"italic",lineHeight:1.45,color:T.text,margin:"8px 0 0"}}>“{sel.caption}<span style={{color:T.red}}>.</span>”</div>}
-          <div style={{marginTop:"auto",paddingTop:14}}>
-            <div style={eye}>FROM</div>
-            <div style={{fontFamily:PP_S,fontSize:16,fontWeight:600,color:T.text}}>{senderName(sel)} {isNew(sel)&&<span style={{fontFamily:PP_M,fontSize:9,fontWeight:700,color:T.mint}}>● NEW</span>}</div>
-          </div>
-        </div>
+          </div>);
+        })}
       </div>}
 
       {r2ok&&<div>
@@ -7095,16 +7113,6 @@ function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isM
         {sendState&&<div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:sendState.startsWith("ERROR")||sendState.startsWith("SKIPPED")?T.red:T.mint,marginTop:8}}>{sendState}</div>}
       </div>}
 
-      {cards.length>0&&<div style={{marginTop:18}}>
-        <div style={{...eye,marginBottom:8}}>SENT LOG</div>
-        {cards.map(p=><div key={p.id} onClick={()=>setSelId(p.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"7px 0",borderTop:`1px solid ${T.border}`,cursor:"pointer"}}>
-          <span style={{fontFamily:PP_M,fontSize:10,color:sel&&sel.id===p.id?T.red:T.text}}>NO. {String(p.no||0).padStart(3,"0")} · {senderName(p).toUpperCase()} → {recvName(p).toUpperCase()}{isNew(p)?"  ●":""}</span>
-          <span style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontFamily:PP_M,fontSize:10,color:T.muted}}>{(p.clips||[]).length} CLIP{(p.clips||[]).length===1?"":"S"} · {fmtD(p.date)}</span>
-            <button onClick={e=>{e.stopPropagation();if(window.confirm("Delete this postcard and its clips?"))delPostcard(p.id);}} title="Delete" style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
-          </span>
-        </div>)}
-      </div>}
     </div>
   );
 }
