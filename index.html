@@ -7160,7 +7160,7 @@ function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isM
         <input ref={fileRef} type="file" accept="video/*" multiple onChange={pickFiles} style={{display:"none"}}/>
         <div onClick={()=>fileRef.current&&fileRef.current.click()} style={{border:`1.5px dashed ${T.muted}`,borderRadius:3,padding:"14px 16px",textAlign:"center",cursor:"pointer"}}>
           <span style={{fontFamily:PP_M,fontSize:9.5,fontWeight:700,letterSpacing:"0.18em",color:files.length?T.text:T.muted}}>
-            {files.length?files.map(f=>`${f.name} (${fmtMB(f.size)})`).join(" · "):"SEND A POSTCARD — PICK UP TO 3 CLIPS · 5–10S EACH · AUTO-COMPRESSED TO 1080P"}
+            {files.length?files.map(f=>`${f.name} (${fmtMB(f.size)})`).join(" · "):"SEND A POSTCARD — PICK UP TO 3 CLIPS · 5–10S EACH · AUTO-COMPRESSED TO 720P"}
           </span>
         </div>
         {files.length>0&&<div style={{display:"flex",gap:10,marginTop:10}}>
