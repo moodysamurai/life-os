@@ -7331,7 +7331,7 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         <button onClick={()=>setShowSetup(s=>!s)} title="Setup" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.16em",color:T.muted,padding:"5px 10px"}}>⚙ SETUP</button>
       </div>}/>
 
-    <div style={{padding:isMobile?"18px 16px":"24px 2rem",maxWidth:1040,margin:"0 auto"}}>
+    <div style={{padding:isMobile?"18px 16px":"24px 2rem"}}>
 
       {/* setup panel */}
       {showSetup&&<div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 20px",marginBottom:22}}>
@@ -7396,6 +7396,9 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         <datalist id="praline-tzs">{PRALINE_TZS.map(z=><option key={z} value={z}/>)}</datalist>
       </div>}
 
+      {/* ── 2-col layout: left = main content, right = compact sidebar ── */}
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,1fr) 340px",gap:"0 20px",alignItems:"start"}}>
+      <div style={{minWidth:0}}>{/* left column */}
       {/* reunion countdown — tally marks */}
       <div style={{background:T.ink||T.text,border:`1px solid ${T.text}`,borderRadius:4,padding:"20px 24px",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:daysLeft>0?16:4}}>
@@ -7467,9 +7470,11 @@ function PralinePage({supaUrl,supaKey,isMobile}){
           <div style={{border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 10px",minHeight:62,fontFamily:PP_S,fontSize:14,lineHeight:1.5,color:theirEnt.note?T.text:T.muted,fontStyle:theirEnt.note?"normal":"italic"}}>{theirEnt.note||"— nothing yet —"}</div>
         </div>
       </div>
+      </div>{/* end left column */}
 
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>{/* right column */}
       {/* watch-together queue */}
-      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={eye}>WATCH TOGETHER · QUEUE</div>
           <div style={{...eye,color:T.muted}}>{watchlist.filter(w=>!w.watched).length} TO WATCH · {watchlist.filter(w=>w.watched).length} DONE</div>
@@ -7490,7 +7495,7 @@ function PralinePage({supaUrl,supaKey,isMobile}){
 
 
       {/* mood line */}
-      {moodDates.length>0&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
+      {moodDates.length>0&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={eye}>MOOD LINE · ACROSS THE DISTANCE</div>
           <div style={{display:"flex",gap:14}}>
@@ -7503,6 +7508,9 @@ function PralinePage({supaUrl,supaKey,isMobile}){
           <span>{fmtArchDate(moodDates[0])}</span>{moodDates.length>1&&<span>{fmtArchDate(moodDates[moodDates.length-1])}</span>}
         </div>
       </div>}
+
+      </div>{/* end right column */}
+      </div>{/* end 2-col grid */}
 
       {/* archive */}
       {archive.length>0&&<div style={{marginTop:30}}>
