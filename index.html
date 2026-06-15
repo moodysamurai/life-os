@@ -6950,6 +6950,43 @@ function TallyMarks({count,color,size=1}){
   if(rem>0)out.push(grp(false,rem,"r"));
   return <div style={{display:"flex",flexWrap:"wrap",gap:`${10*size}px ${9*size}px`,alignItems:"center"}}>{out}</div>;
 }
+// Reunion countdown grouped by month. Office days render faint; free days bold/accent.
+// "Days pass faster when working" → office days are visually de-emphasised.
+function ReunionTally({fromStr,toReunion,officeDays,base,accent}){
+  const MN=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const office=officeDays&&officeDays.length?officeDays:[1,2,3,4,5];
+  const isOff=dt=>office.includes(dt.getDay());
+  // build day list: tomorrow .. reunion (inclusive)
+  const days=[];const d=new Date(fromStr+"T00:00:00");const end=new Date(toReunion+"T00:00:00");
+  d.setDate(d.getDate()+1);
+  while(d<=end){days.push(new Date(d));d.setDate(d.getDate()+1);}
+  if(!days.length)return null;
+  const months=[];let cur=null;
+  days.forEach(dt=>{const k=dt.getFullYear()+"-"+dt.getMonth();
+    if(!cur||cur.k!==k){cur={k,m:dt.getMonth(),arr:[]};months.push(cur);}cur.arr.push(dt);});
+  const stroke=dt=>isOff(dt)?{c:base,o:0.3,w:2}:{c:accent,o:1,w:2.4};
+  const group=(chunk,key)=>(
+    <svg key={key} width={26} height={30} viewBox="0 0 26 30" style={{display:"block"}}>
+      {chunk.map((dt,i)=>{const s=stroke(dt);
+        return i<4
+          ?<line key={i} x1={4+i*5} y1={4} x2={4+i*5} y2={26} stroke={s.c} strokeOpacity={s.o} strokeWidth={s.w} strokeLinecap="round"/>
+          :<line key={i} x1={1} y1={27} x2={24} y2={3} stroke={s.c} strokeOpacity={s.o} strokeWidth={s.w} strokeLinecap="round"/>;
+      })}
+    </svg>
+  );
+  return <div>
+    {months.map((mo,mi)=>{
+      const grps=[];for(let i=0;i<mo.arr.length;i+=5)grps.push(group(mo.arr.slice(i,i+5),mi+"-"+i));
+      return <div key={mo.k} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"10px 0",borderTop:mi>0?`1px solid ${base}1a`:"none"}}>
+        <div style={{minWidth:54,paddingTop:2}}>
+          <div style={{fontFamily:PP_S,fontSize:18,color:base,lineHeight:1}}>{MN[mo.m]}</div>
+          <div style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.1em",color:base,opacity:0.5,marginTop:3}}>{mo.arr.length} DAYS</div>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"9px 8px",alignItems:"center",flex:1,minWidth:0}}>{grps}</div>
+      </div>;
+    })}
+  </div>;
+}
 function PralineMoodChart({dates,doc,nameA,nameB,colA,colB}){
   const T=useT();
   const pts=dates.map((d,i)=>({d,a:((doc.entries[d]||{}).a||{}).mood||0,b:((doc.entries[d]||{}).b||{}).mood||0}));
@@ -7299,10 +7336,17 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   const question=PRALINE_QUESTIONS[dayIdx%PRALINE_QUESTIONS.length];
 
   // reunion countdown
-  let daysLeft=null;
+  let daysLeft=null,freeLeft=null,weightedLeft=null;
   if(doc.reunionDate){
     const t0=new Date(todayStr+"T00:00:00");const t1=new Date(doc.reunionDate+"T00:00:00");
     daysLeft=Math.round((t1-t0)/86400000);
+    if(daysLeft>0){
+      const office=(officeDays&&officeDays.length)?officeDays:[1,2,3,4,5];
+      const d=new Date(todayStr+"T00:00:00");let f=0,w=0;
+      d.setDate(d.getDate()+1);
+      while(d<=t1){const off=office.includes(d.getDay());if(!off)f++;w+=off?0.5:1;d.setDate(d.getDate()+1);}
+      freeLeft=f;weightedLeft=Math.round(w);
+    }
   }
 
   // archive: past days (not today) that have any content, newest first
@@ -7401,15 +7445,22 @@ function PralinePage({supaUrl,supaKey,isMobile}){
       <div style={{minWidth:0}}>{/* left column */}
       {/* reunion countdown — tally marks */}
       <div style={{background:T.ink||T.text,border:`1px solid ${T.text}`,borderRadius:4,padding:"20px 24px",marginBottom:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:daysLeft>0?16:4}}>
-          <div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",color:T.bg,opacity:0.7,textTransform:"uppercase"}}>DAYS UNTIL WE'RE TOGETHER {doc.reunionDate?`· ${fmtArchDate(doc.reunionDate)}`:""}</div>
-          {daysLeft!==null&&<div style={{display:"flex",alignItems:"baseline",gap:8}}>
-            <span style={{fontFamily:PP_S,fontSize:38,fontWeight:400,color:T.bg,lineHeight:0.9,letterSpacing:"-0.03em"}}>{daysLeft>0?daysLeft:daysLeft===0?"♥":"+"+Math.abs(daysLeft)}</span>
-            <span style={{fontFamily:PP_M,fontSize:8.5,letterSpacing:"0.16em",color:T.bg,opacity:0.65,textTransform:"uppercase"}}>{daysLeft>0?"TO GO":daysLeft===0?"TODAY!":"SINCE"}</span>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:daysLeft>0?16:4}}>
+          <div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",color:T.bg,opacity:0.7,textTransform:"uppercase",maxWidth:200,lineHeight:1.5}}>DAYS UNTIL WE'RE TOGETHER {doc.reunionDate?`· ${fmtArchDate(doc.reunionDate)}`:""}</div>
+          {daysLeft!==null&&<div style={{textAlign:"right"}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"flex-end"}}>
+              <span style={{fontFamily:PP_S,fontSize:38,fontWeight:400,color:T.bg,lineHeight:0.9,letterSpacing:"-0.03em"}}>{daysLeft>0?daysLeft:daysLeft===0?"♥":"+"+Math.abs(daysLeft)}</span>
+              <span style={{fontFamily:PP_M,fontSize:8.5,letterSpacing:"0.16em",color:T.bg,opacity:0.65,textTransform:"uppercase"}}>{daysLeft>0?"TO GO":daysLeft===0?"TODAY!":"SINCE"}</span>
+            </div>
+            {daysLeft>0&&weightedLeft!==null&&<div style={{fontFamily:PP_M,fontSize:8.5,letterSpacing:"0.12em",color:T.red,marginTop:7}}>FEELS LIKE ~{weightedLeft} · {freeLeft} FREE DAYS</div>}
           </div>}
         </div>
-        {daysLeft>0?<TallyMarks count={daysLeft} color={T.bg} size={1}/>
+        {daysLeft>0?<ReunionTally fromStr={todayStr} toReunion={doc.reunionDate} officeDays={officeDays} base={T.bg} accent={T.red}/>
           :daysLeft===null?<button onClick={()=>setShowSetup(true)} style={{background:"transparent",border:`1px solid ${T.bg}55`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.bg,padding:"7px 12px"}}>SET REUNION DATE →</button>:null}
+        {daysLeft>0&&<div style={{display:"flex",gap:18,marginTop:16,paddingTop:14,borderTop:`1px solid ${T.bg}26`,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}><svg width={11} height={16}><line x1={5.5} y1={2} x2={5.5} y2={14} stroke={T.bg} strokeOpacity={0.3} strokeWidth={2} strokeLinecap="round"/></svg><span style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.12em",color:T.bg,opacity:0.55}}>WORK DAY (FLIES BY)</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}><svg width={11} height={16}><line x1={5.5} y1={2} x2={5.5} y2={14} stroke={T.red} strokeWidth={2.4} strokeLinecap="round"/></svg><span style={{fontFamily:PP_M,fontSize:8,letterSpacing:"0.12em",color:T.bg,opacity:0.55}}>FREE DAY</span></div>
+        </div>}
       </div>
 
       {/* dual-timezone day timeline */}
