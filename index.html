@@ -7023,10 +7023,20 @@ function calcSunTimesForTz(lat,lon,date,tz){
   const fmt=h=>`${String(Math.floor(h)).padStart(2,"0")}:${String(Math.floor((h%1)*60)).padStart(2,"0")}`;
   return{riseH:rise,setH:set,riseStr:fmt(rise),setStr:fmt(set)};
 }
-function PralineTimeline({doc}){
+function PralineTimeline({doc,officeDays}){
   const T=useT();
   const[now,setNow]=useState(new Date());
   useEffect(()=>{const id=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(id);},[]);
+
+  const tzA=doc.places.a.tz, tzB=doc.places.b.tz;
+
+  // How many whole hours B is ahead of A (rounded — handles 30-min zones gracefully)
+  const diff=useMemo(()=>{
+    try{
+      const off=tz=>(new Date(now.toLocaleString("en-US",{timeZone:tz}))-new Date(now.toLocaleString("en-US",{timeZone:"UTC"})))/3600000;
+      return Math.round(off(tzB)-off(tzA));
+    }catch{return 0;}
+  },[tzA,tzB,now]);
 
   function getLocalHFloat(tz){
     try{
@@ -7038,53 +7048,103 @@ function PralineTimeline({doc}){
     try{return new Intl.DateTimeFormat("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:tz}).format(now);}catch{return"—:—";}
   }
 
-  const NIGHT="#1a1713"; const GOLDEN="#2c1e0d";
+  // Reference column = A's current integer hour. Both rows highlight the same column.
+  const curHiA=Math.floor(getLocalHFloat(tzA));
 
-  function renderRow(name,tz,label,accent){
-    const[lat,lon]=PRALINE_TZ_COORDS[tz]||[0,0];
-    const sun=calcSunTimesForTz(lat,lon,now,tz);
-    const riseH=sun?sun.riseH:6, setH=sun?sun.setH:18;
-    const riseStr=sun?sun.riseStr:"06:00", setStr=sun?sun.setStr:"18:00";
-    const curH=getLocalHFloat(tz), curHi=Math.floor(curH);
-    const timeStr=getLocalTimeStr(tz);
+  const [latA,lonA]=PRALINE_TZ_COORDS[tzA]||[0,0];
+  const sunA=calcSunTimesForTz(latA,lonA,now,tzA)||{riseH:6,setH:18,riseStr:"06:00",setStr:"18:00"};
+  const [latB,lonB]=PRALINE_TZ_COORDS[tzB]||[0,0];
+  const sunB=calcSunTimesForTz(latB,lonB,now,tzB)||{riseH:6,setH:18,riseStr:"06:00",setStr:"18:00"};
 
-    function cellBg(h){
-      if(h===curHi)return accent;
-      // deep night
-      if(h<Math.floor(riseH)-1||h>Math.ceil(setH))return NIGHT;
-      // pre-sunrise golden (1h window)
-      if(h>=Math.floor(riseH)-1&&h<Math.ceil(riseH))return GOLDEN;
-      // post-sunset golden
-      if(h>Math.floor(setH)-1&&h<=Math.ceil(setH))return GOLDEN;
-      // day
-      return T.bg;
-    }
-    function cellTxt(h){
-      const bg=cellBg(h);
-      if(h===curHi)return"#f8f4ea";
-      if(bg===NIGHT)return"rgba(255,255,255,0.22)";
-      if(bg===GOLDEN)return"rgba(200,148,68,0.7)";
-      return T.text;
-    }
+  // Is today an office day in A's timezone?
+  const isOfficeToday=useMemo(()=>{
+    try{
+      const wd=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const name=new Intl.DateTimeFormat("en-US",{weekday:"short",timeZone:tzA}).format(now);
+      return(officeDays||[]).includes(wd.indexOf(name));
+    }catch{return false;}
+  },[officeDays,tzA,now]);
 
+  const NIGHT="#1a1713", GOLDEN="#2c1e0d";
+
+  function sunBg(localH,rise,set){
+    if(localH<Math.floor(rise)-1||localH>Math.ceil(set))return NIGHT;
+    if((localH>=Math.floor(rise)-1&&localH<Math.ceil(rise))||(localH>Math.floor(set)-1&&localH<=Math.ceil(set)))return GOLDEN;
+    return T.bg;
+  }
+  function sunTxt(bg){
+    if(bg===NIGHT)return"rgba(255,255,255,0.22)";
+    if(bg===GOLDEN)return"rgba(200,148,68,0.7)";
+    return T.text;
+  }
+
+  function renderRowA(){
+    const{riseH,setH,riseStr,setStr}=sunA;
+    const name=doc.names.a,label=doc.places.a.label,accent=T.red;
     return(
       <div style={{marginBottom:18}}>
         <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:6}}>
           <div style={{display:"flex",alignItems:"baseline",gap:10}}>
             <span style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.22em",color:accent,textTransform:"uppercase"}}>{name}</span>
-            <span style={{fontFamily:PP_S,fontSize:26,fontWeight:400,color:T.text,lineHeight:1,letterSpacing:"-0.02em"}}>{timeStr}</span>
+            <span style={{fontFamily:PP_S,fontSize:26,fontWeight:400,color:T.text,lineHeight:1,letterSpacing:"-0.02em"}}>{getLocalTimeStr(tzA)}</span>
+            <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:"0.14em",textTransform:"uppercase"}}>{label}</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            {isOfficeToday&&<span style={{fontFamily:PP_M,fontSize:7.5,fontWeight:700,letterSpacing:"0.14em",color:accent,textTransform:"uppercase",opacity:0.75}}>▐ 9–5 OFFICE</span>}
+            <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:"0.1em",whiteSpace:"nowrap"}}>↑ {riseStr} · ↓ {setStr}</span>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:2,overflowX:"auto",paddingBottom:3}}>
+          {Array.from({length:24},(_,h)=>{
+            const isCurr=h===curHiA;
+            const isOff=isOfficeToday&&h>=9&&h<=16;
+            const base=sunBg(h,riseH,setH);
+            const finalBg=isCurr?accent:(isOff&&base===T.bg?"rgba(200,65,46,0.11)":base);
+            const txt=isCurr?"#f8f4ea":sunTxt(base);
+            const hr12=h===0?12:h>12?h-12:h; const ampm=h<12?"a":"p";
+            return(
+              <div key={h} title={`${String(h).padStart(2,"0")}:00 ${label}`} style={{
+                flex:"0 0 auto",width:33,borderRadius:3,background:finalBg,
+                boxShadow:isCurr?`inset 0 0 0 1.5px ${accent}`:"none",
+                borderTop:(!isCurr&&isOff&&base===T.bg)?"2.5px solid rgba(200,65,46,0.45)":"none",
+                textAlign:"center",padding:"7px 0 5px",boxSizing:"border-box",
+              }}>
+                <div style={{fontFamily:PP_M,fontSize:9,fontWeight:isCurr?700:400,color:txt,lineHeight:1.2}}>{hr12}</div>
+                <div style={{fontFamily:PP_M,fontSize:6,color:isCurr?"rgba(248,244,234,0.7)":txt,letterSpacing:"0.04em"}}>{ampm}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderRowB(){
+    // Column h = A's hour h. B's local hour at that moment = (h + diff + 24) % 24.
+    const{riseH,setH,riseStr,setStr}=sunB;
+    const name=doc.names.b,label=doc.places.b.label,accent=T.mint;
+    return(
+      <div>
+        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:6}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+            <span style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.22em",color:accent,textTransform:"uppercase"}}>{name}</span>
+            <span style={{fontFamily:PP_S,fontSize:26,fontWeight:400,color:T.text,lineHeight:1,letterSpacing:"-0.02em"}}>{getLocalTimeStr(tzB)}</span>
             <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:"0.14em",textTransform:"uppercase"}}>{label}</span>
           </div>
           <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:"0.1em",whiteSpace:"nowrap"}}>↑ {riseStr} · ↓ {setStr}</span>
         </div>
         <div style={{display:"flex",gap:2,overflowX:"auto",paddingBottom:3}}>
           {Array.from({length:24},(_,h)=>{
-            const bg=cellBg(h); const txt=cellTxt(h); const isCurr=h===curHi;
-            const hr12=h===0?12:h>12?h-12:h; const ampm=h<12?"a":"p";
+            const bH=((h+diff)%24+24)%24;
+            const isCurr=h===curHiA;
+            const bg=sunBg(bH,riseH,setH);
+            const finalBg=isCurr?accent:bg;
+            const txt=isCurr?"#f8f4ea":sunTxt(bg);
+            const hr12=bH===0?12:bH>12?bH-12:bH; const ampm=bH<12?"a":"p";
             return(
-              <div key={h} title={`${String(h).padStart(2,"0")}:00 local`} style={{
-                flex:"0 0 auto",width:33,borderRadius:3,background:bg,
-                border:isCurr?`1.5px solid ${accent}`:"1px solid transparent",
+              <div key={h} title={`${String(bH).padStart(2,"0")}:00 ${label}`} style={{
+                flex:"0 0 auto",width:33,borderRadius:3,background:finalBg,
+                boxShadow:isCurr?`inset 0 0 0 1.5px ${accent}`:"none",
                 textAlign:"center",padding:"7px 0 5px",boxSizing:"border-box",
               }}>
                 <div style={{fontFamily:PP_M,fontSize:9,fontWeight:isCurr?700:400,color:txt,lineHeight:1.2}}>{hr12}</div>
@@ -7099,9 +7159,9 @@ function PralineTimeline({doc}){
 
   return(
     <div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:4,padding:"20px 22px",marginBottom:22,overflowX:"hidden"}}>
-      {renderRow(doc.names.a,doc.places.a.tz,doc.places.a.label,T.red)}
+      {renderRowA()}
       <div style={{height:1,background:T.lineSoft||T.border,margin:"0 0 18px"}}/>
-      {renderRow(doc.names.b,doc.places.b.tz,doc.places.b.label,T.mint)}
+      {renderRowB()}
     </div>
   );
 }
@@ -7119,6 +7179,7 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   const [doc,setDoc]=useState(()=>{const d=lg("plo3_praline_doc",null);return d&&d.entries?{...DEFAULT_PRALINE,...d}:{...DEFAULT_PRALINE};});
   const [status,setStatus]=useState("idle");
   const [showSetup,setShowSetup]=useState(false);
+  const [officeDays,setOfficeDays]=useState(()=>lg("plo3_office_days",[1,2,3,4,5]));
   const docRef=useRef(doc);
   const typingRef=useRef(0);
   const pushTimerRef=useRef(null);
@@ -7128,6 +7189,7 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   useEffect(()=>ls("plo3_praline_doc",doc),[doc]);
   useEffect(()=>ls("plo3_praline_url",pUrl),[pUrl]);
   useEffect(()=>ls("plo3_praline_key",pKey),[pKey]);
+  useEffect(()=>ls("plo3_office_days",officeDays),[officeDays]);
 
   // Praline uses its own credentials if set, else falls back to your main sync project
   const url=(pUrl||"").trim()||supaUrl;
@@ -7302,6 +7364,16 @@ function PralinePage({supaUrl,supaKey,isMobile}){
             <div style={{...eye,marginBottom:6}}>Reunion date</div>
             <input type="date" value={doc.reunionDate} onChange={e=>setTop({reunionDate:e.target.value})} style={{...inp,fontFamily:PP_M,fontSize:13}}/>
           </div>
+          <div>
+            <div style={{...eye,marginBottom:8}}>Your office days (9–5 shown on timeline)</div>
+            <div style={{display:"flex",gap:5}}>
+              {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d,i)=>{
+                const on=(officeDays||[]).includes(i);
+                const toggle=()=>setOfficeDays(prev=>{const s=new Set(prev||[]);s.has(i)?s.delete(i):s.add(i);return[...s].sort();});
+                return<button key={i} onClick={toggle} style={{width:30,padding:"5px 0",borderRadius:3,border:`1px solid ${on?T.red:T.border}`,background:on?"rgba(200,65,46,0.15)":"transparent",color:on?T.red:T.muted,fontFamily:PP_M,fontSize:9,fontWeight:on?700:400,letterSpacing:"0.06em",cursor:"pointer"}}>{d}</button>;
+              })}
+            </div>
+          </div>
         </div>
 
         <div style={{borderTop:`1px solid ${T.border}`,marginTop:18,paddingTop:16}}>
@@ -7338,7 +7410,7 @@ function PralinePage({supaUrl,supaKey,isMobile}){
       </div>
 
       {/* dual-timezone day timeline */}
-      <PralineTimeline doc={doc}/>
+      <PralineTimeline doc={doc} officeDays={officeDays}/>
 
       {/* question of the day */}
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginBottom:22}}>
