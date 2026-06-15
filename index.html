@@ -6988,6 +6988,124 @@ function PralineClock({label,name,tz,accent}){
     </div>
   );
 }
+
+// ── PRALINE TIMELINE ─────────────────────────────────────────────────────────
+const PRALINE_TZ_COORDS={
+  "Europe/Amsterdam":[52.37,4.90],"Asia/Kolkata":[28.61,77.21],
+  "Europe/London":[51.51,-0.13],"America/New_York":[40.71,-74.01],
+  "America/Los_Angeles":[34.05,-118.24],"Asia/Dubai":[25.20,55.27],
+  "Asia/Singapore":[1.35,103.82],"Asia/Tokyo":[35.68,139.69],
+  "Australia/Sydney":[-33.87,151.21],"America/Chicago":[41.88,-87.63],
+};
+function calcSunTimesForTz(lat,lon,date,tz){
+  const rad=Math.PI/180;
+  const N=Math.floor((date-new Date(date.getFullYear(),0,0))/86400000);
+  const lngH=lon/15;
+  let off=0;
+  try{const u=new Date(date.toLocaleString("en-US",{timeZone:"UTC"}));const z=new Date(date.toLocaleString("en-US",{timeZone:tz}));off=(z-u)/3600000;}catch(e){}
+  const calc=(isRise)=>{
+    const t=N+(((isRise?6:18)-lngH)/24);
+    const M=(0.9856*t)-3.289;
+    let L=M+(1.916*Math.sin(M*rad))+(0.020*Math.sin(2*M*rad))+282.634;
+    L=((L%360)+360)%360;
+    let RA=Math.atan(0.91764*Math.tan(L*rad))/rad;
+    RA=((RA%360)+360)%360;
+    RA=(RA+(Math.floor(L/90)*90-Math.floor(RA/90)*90))/15;
+    const sinD=0.39782*Math.sin(L*rad);const cosD=Math.cos(Math.asin(sinD));
+    const cosH=(Math.cos(90.833*rad)-(sinD*Math.sin(lat*rad)))/(cosD*Math.cos(lat*rad));
+    if(cosH>1||cosH<-1)return null;
+    const H=(isRise?360-Math.acos(cosH)/rad:Math.acos(cosH)/rad)/15;
+    const Tv=H+RA-(0.06571*t)-6.622;
+    return(((Tv-lngH)%24+24)%24+off+24)%24;
+  };
+  const rise=calc(true),set=calc(false);
+  if(rise==null||set==null)return null;
+  const fmt=h=>`${String(Math.floor(h)).padStart(2,"0")}:${String(Math.floor((h%1)*60)).padStart(2,"0")}`;
+  return{riseH:rise,setH:set,riseStr:fmt(rise),setStr:fmt(set)};
+}
+function PralineTimeline({doc}){
+  const T=useT();
+  const[now,setNow]=useState(new Date());
+  useEffect(()=>{const id=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(id);},[]);
+
+  function getLocalHFloat(tz){
+    try{
+      const p=new Intl.DateTimeFormat("en-GB",{hour:"numeric",minute:"numeric",hour12:false,timeZone:tz}).formatToParts(now);
+      return parseInt(p.find(x=>x.type==="hour").value)+parseInt(p.find(x=>x.type==="minute").value)/60;
+    }catch{return 12;}
+  }
+  function getLocalTimeStr(tz){
+    try{return new Intl.DateTimeFormat("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:tz}).format(now);}catch{return"—:—";}
+  }
+
+  const NIGHT="#1a1713"; const GOLDEN="#2c1e0d";
+
+  function renderRow(name,tz,label,accent){
+    const[lat,lon]=PRALINE_TZ_COORDS[tz]||[0,0];
+    const sun=calcSunTimesForTz(lat,lon,now,tz);
+    const riseH=sun?sun.riseH:6, setH=sun?sun.setH:18;
+    const riseStr=sun?sun.riseStr:"06:00", setStr=sun?sun.setStr:"18:00";
+    const curH=getLocalHFloat(tz), curHi=Math.floor(curH);
+    const timeStr=getLocalTimeStr(tz);
+
+    function cellBg(h){
+      if(h===curHi)return accent;
+      // deep night
+      if(h<Math.floor(riseH)-1||h>Math.ceil(setH))return NIGHT;
+      // pre-sunrise golden (1h window)
+      if(h>=Math.floor(riseH)-1&&h<Math.ceil(riseH))return GOLDEN;
+      // post-sunset golden
+      if(h>Math.floor(setH)-1&&h<=Math.ceil(setH))return GOLDEN;
+      // day
+      return T.bg;
+    }
+    function cellTxt(h){
+      const bg=cellBg(h);
+      if(h===curHi)return"#f8f4ea";
+      if(bg===NIGHT)return"rgba(255,255,255,0.22)";
+      if(bg===GOLDEN)return"rgba(200,148,68,0.7)";
+      return T.text;
+    }
+
+    return(
+      <div style={{marginBottom:18}}>
+        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:6}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+            <span style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.22em",color:accent,textTransform:"uppercase"}}>{name}</span>
+            <span style={{fontFamily:PP_S,fontSize:26,fontWeight:400,color:T.text,lineHeight:1,letterSpacing:"-0.02em"}}>{timeStr}</span>
+            <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:"0.14em",textTransform:"uppercase"}}>{label}</span>
+          </div>
+          <span style={{fontFamily:PP_M,fontSize:8,color:T.muted,letterSpacing:"0.1em",whiteSpace:"nowrap"}}>↑ {riseStr} · ↓ {setStr}</span>
+        </div>
+        <div style={{display:"flex",gap:2,overflowX:"auto",paddingBottom:3}}>
+          {Array.from({length:24},(_,h)=>{
+            const bg=cellBg(h); const txt=cellTxt(h); const isCurr=h===curHi;
+            const hr12=h===0?12:h>12?h-12:h; const ampm=h<12?"a":"p";
+            return(
+              <div key={h} title={`${String(h).padStart(2,"0")}:00 local`} style={{
+                flex:"0 0 auto",width:33,borderRadius:3,background:bg,
+                border:isCurr?`1.5px solid ${accent}`:"1px solid transparent",
+                textAlign:"center",padding:"7px 0 5px",boxSizing:"border-box",
+              }}>
+                <div style={{fontFamily:PP_M,fontSize:9,fontWeight:isCurr?700:400,color:txt,lineHeight:1.2}}>{hr12}</div>
+                <div style={{fontFamily:PP_M,fontSize:6,color:isCurr?"rgba(248,244,234,0.7)":txt,letterSpacing:"0.04em"}}>{ampm}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:4,padding:"20px 22px",marginBottom:22,overflowX:"hidden"}}>
+      {renderRow(doc.names.a,doc.places.a.tz,doc.places.a.label,T.red)}
+      <div style={{height:1,background:T.lineSoft||T.border,margin:"0 0 18px"}}/>
+      {renderRow(doc.names.b,doc.places.b.tz,doc.places.b.label,T.mint)}
+    </div>
+  );
+}
+
 function PralinePage({supaUrl,supaKey,isMobile}){
   const T=useT();
   const twoCol=isMobile?"1fr":"1fr 1fr";
@@ -7219,12 +7337,8 @@ function PralinePage({supaUrl,supaKey,isMobile}){
           :daysLeft===null?<button onClick={()=>setShowSetup(true)} style={{background:"transparent",border:`1px solid ${T.bg}55`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.bg,padding:"7px 12px"}}>SET REUNION DATE →</button>:null}
       </div>
 
-      {/* two clocks */}
-      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,display:"flex",alignItems:"center",marginBottom:22}}>
-        <PralineClock name={doc.names.a} label={doc.places.a.label} tz={doc.places.a.tz} accent={T.red}/>
-        <div style={{width:1,alignSelf:"stretch",background:T.border,margin:"14px 0"}}/>
-        <PralineClock name={doc.names.b} label={doc.places.b.label} tz={doc.places.b.tz} accent={T.mint}/>
-      </div>
+      {/* dual-timezone day timeline */}
+      <PralineTimeline doc={doc}/>
 
       {/* question of the day */}
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginBottom:22}}>
