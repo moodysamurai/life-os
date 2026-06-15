@@ -6932,7 +6932,6 @@ const DEFAULT_PRALINE={
   places:{a:{label:"Leiden",tz:"Europe/Amsterdam"},b:{label:"Delhi",tz:"Asia/Kolkata"}},
   entries:{},
   watchlist:[],
-  postcards:[]
 };
 const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
 const PRALINE_MOODS=[{v:1,label:"rough"},{v:2,label:"low"},{v:3,label:"ok"},{v:4,label:"good"},{v:5,label:"great"}];
@@ -6989,190 +6988,6 @@ function PralineClock({label,name,tz,accent}){
     </div>
   );
 }
-// Downscale + re-encode a video clip in-browser before upload (best effort; returns null to use original).
-async function compressClip(file){
-  let url;
-  try{
-    if(!window.MediaRecorder||!document.createElement('canvas').captureStream)return null;
-    url=URL.createObjectURL(file);
-    const v=document.createElement('video');
-    v.src=url;v.muted=true;v.playsInline=true;v.preload='auto';
-    await new Promise((res,rej)=>{v.onloadedmetadata=()=>res();v.onerror=()=>rej(0);});
-    const sw=v.videoWidth,sh=v.videoHeight;
-    if(!sw||!sh||(Math.max(sw,sh)<=1280&&file.size<=6*1048576)){URL.revokeObjectURL(url);return null;}
-    const k=Math.min(1,1280/Math.max(sw,sh));
-    const tw=Math.max(2,Math.round(sw*k/2)*2),th=Math.max(2,Math.round(sh*k/2)*2);
-    const cv=document.createElement('canvas');cv.width=tw;cv.height=th;
-    const cx=cv.getContext('2d',{alpha:false});
-    let actx,aTracks=[];
-    try{actx=new (window.AudioContext||window.webkitAudioContext)();const sn=actx.createMediaElementSource(v);const dn=actx.createMediaStreamDestination();sn.connect(dn);aTracks=dn.stream.getAudioTracks();}catch(_){}
-    const ms=new MediaStream([...cv.captureStream(30).getVideoTracks(),...aTracks]);
-    const cand=['video/mp4;codecs=avc1.4d401f,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
-    const mime=cand.find(t=>{try{return MediaRecorder.isTypeSupported(t);}catch(_){return false;}});
-    if(!mime){URL.revokeObjectURL(url);if(actx)try{actx.close();}catch(_){}return null;}
-    const rec=new MediaRecorder(ms,{mimeType:mime,videoBitsPerSecond:2500000,audioBitsPerSecond:128000});
-    const ch=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)ch.push(e.data);};
-    const done=new Promise(r=>{rec.onstop=r;});
-    rec.start();
-    if(actx&&actx.state==='suspended'){try{await actx.resume();}catch(_){}}
-    v.muted=false;
-    await v.play();
-    let raf;const draw=()=>{try{cx.drawImage(v,0,0,tw,th);}catch(_){}if(!v.ended)raf=requestAnimationFrame(draw);};draw();
-    await new Promise(r=>{v.onended=()=>r();});
-    if(raf)cancelAnimationFrame(raf);
-    rec.stop();await done;
-    try{v.pause();}catch(_){}
-    URL.revokeObjectURL(url);if(actx)try{actx.close();}catch(_){}
-    if(!ch.length)return null;
-    const type=mime.split(';')[0],ext=type.indexOf('mp4')>=0?'mp4':'webm';
-    const blob=new Blob(ch,{type});
-    return blob.size<file.size?{blob,ext,type}:null;
-  }catch(e){try{if(url)URL.revokeObjectURL(url);}catch(_){}return null;}
-}
-function PralinePostcardCard({p,r2u,me,doc,markSeen,delPostcard,isMobile}){
-  const T=useT();
-  const [ci,setCi]=useState(0);
-  const vidRef=useRef(null);
-  const eye={fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:T.muted};
-  const fmtD=iso=>{try{return new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(iso)).toUpperCase();}catch(e){return(iso||"").slice(0,10);}};
-  const place=((doc.places||{})[p.by]||{}).label||"";
-  const isNew=p.by!==me&&!((p.seen||{})[me]);
-  const n=(p.clips||[]).length;
-  const clip=(p.clips||[])[ci];
-  useEffect(()=>{
-    const el=vidRef.current; if(!el)return;
-    el.muted=true; el.defaultMuted=true;
-    const tryPlay=()=>{try{const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});}catch(_){}};
-    const io=new IntersectionObserver(([e])=>{
-      if(e.isIntersecting){el.muted=true;if(el.paused)tryPlay();}
-      else if(!el.paused){try{el.pause();}catch(_){}}
-    },{threshold:0.25});
-    io.observe(el);
-    tryPlay();
-    return ()=>io.disconnect();
-  },[clip&&clip.key]);
-  return(
-    <div style={{width:"100%",background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:3,padding:8,position:"relative"}}>
-      {clip&&<video key={clip.key} ref={vidRef} controls playsInline muted autoPlay preload="auto" loop={n===1}
-        src={`${r2u}/f/${encodeURIComponent(clip.key)}`}
-        onLoadedData={e=>{e.target.muted=true;const pr=e.target.play();if(pr&&pr.catch)pr.catch(()=>{});}}
-        onPlay={()=>{if(isNew)markSeen(p.id);}}
-        onEnded={()=>{if(n>1)setCi((ci+1)%n);}}
-        style={{width:"100%",aspectRatio:"16/9",background:T.text,borderRadius:2,display:"block",objectFit:"contain"}}/>}
-      {n>1&&<div style={{display:"flex",gap:4,marginTop:6}}>
-        {(p.clips||[]).map((c,i)=><button key={c.key} onClick={()=>setCi(i)} title={`Clip ${i+1}`} style={{flex:1,height:4,border:"none",borderRadius:2,cursor:"pointer",padding:0,background:i===ci?T.red:T.border}}/>)}
-      </div>}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6,marginTop:8}}>
-        <div style={{flex:1,minWidth:0}}>
-          {p.caption&&<div style={{fontFamily:PP_S,fontSize:12.5,fontStyle:"italic",lineHeight:1.35,color:T.text}}>“{p.caption}<span style={{color:T.red}}>.</span>”</div>}
-        </div>
-        <div style={{flex:"0 0 auto",border:`1px solid ${T.red}`,color:T.red,fontFamily:PP_M,fontSize:6.5,fontWeight:700,letterSpacing:"0.08em",padding:"3px 4px",transform:"rotate(3deg)",borderRadius:2,textAlign:"center",lineHeight:1.4,whiteSpace:"nowrap"}}>
-          {(place||"—").toUpperCase()}<br/>{fmtD(p.date)}
-        </div>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
-        <span style={eye}>NO. {String(p.no||0).padStart(3,"0")}{isNew&&<span style={{color:T.mint}}> ● NEW</span>}</span>
-        <button onClick={()=>{if(window.confirm("Delete this postcard and its clips?"))delPostcard(p.id);}} title="Delete" style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:13,lineHeight:1,padding:0}}>×</button>
-      </div>
-    </div>
-  );
-}
-function PralinePostcards({doc,me,r2u,r2Tok,addPostcard,markSeen,delPostcard,isMobile,openSetup}){
-  const T=useT();
-  const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
-  const r2ok=!!(r2u&&(r2Tok||"").trim());
-  const cards=[...(doc.postcards||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  const [selId,setSelId]=useState(null);
-  const sel=cards.find(p=>p.id===selId)||cards[0]||null;
-  const [clipIdx,setClipIdx]=useState(0);
-  useEffect(()=>{setClipIdx(0);},[sel?sel.id:null]);
-  const [files,setFiles]=useState([]);
-  const [caption,setCaption]=useState("");
-  const [sendState,setSendState]=useState("");
-  const fileRef=useRef(null);
-  const vidRef=useRef(null);
-  const fmtD=iso=>{try{return new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",year:"numeric"}).format(new Date(iso)).toUpperCase();}catch(e){return(iso||"").slice(0,10);}};
-  const senderName=p=>doc.names[p.by]||(p.by==="a"?"A":"B");
-  const recvName=p=>doc.names[p.by==="a"?"b":"a"]||"";
-  const stampPlace=p=>((doc.places||{})[p.by]||{}).label||"";
-  const isNew=p=>p&&p.by!==me&&!((p.seen||{})[me]);
-
-  function pickFiles(e){
-    const all=Array.from(e.target.files||[]).filter(f=>(f.type||"").startsWith("video/"));
-    const errs=[];
-    const ok=all.slice(0,3).filter(f=>{if(f.size>200*1024*1024){errs.push(f.name+" >200MB");return false;}return true;});
-    if(all.length>3)errs.push("max 3 clips");
-    setFiles(ok);
-    setSendState(errs.length?("SKIPPED: "+errs.join(" · ")):"");
-    e.target.value="";
-  }
-  async function send(){
-    if(!files.length||!r2ok)return;
-    try{
-      const clips=[];
-      for(let i=0;i<files.length;i++){
-        const f=files[i];
-        setSendState(`COMPRESSING ${i+1}/${files.length}…`);
-        let body=f,type=f.type||"video/mp4",ext=((f.name.split(".").pop()||"mp4").toLowerCase().replace(/[^a-z0-9]/g,""))||"mp4";
-        const c=await compressClip(f);
-        if(c){body=c.blob;type=c.type;ext=c.ext;}
-        if(body.size>25*1024*1024)throw new Error("clip still >25MB after compression");
-        setSendState(`UPLOADING ${i+1}/${files.length}…`);
-        const key=`${uid()}-${Date.now()}.${ext}`;
-        const res=await fetch(`${r2u}/up/${encodeURIComponent(key)}`,{method:"PUT",headers:{Authorization:`Bearer ${r2Tok.trim()}`,"Content-Type":type},body});
-        if(!res.ok)throw new Error("upload failed ("+res.status+")");
-        clips.push({key,size:body.size,type});
-      }
-      addPostcard({id:uid(),no:(doc.postcards||[]).length+1,by:me,date:new Date().toISOString(),caption:caption.trim(),clips,seen:{[me]:true}});
-      setFiles([]);setCaption("");setSelId(null);setSendState("SENT ✓");
-      setTimeout(()=>setSendState(s=>s==="SENT ✓"?"":s),4000);
-    }catch(err){setSendState("ERROR: "+(err.message||"upload failed"));}
-  }
-  const clip=sel&&(sel.clips||[])[clipIdx];
-  const fmtMB=n=>(n/1048576).toFixed(1)+"MB";
-  return(
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,borderBottom:`1px solid ${T.text}`,paddingBottom:10}}>
-        <div style={{...eye,color:T.red}}>VIDEO POSTCARDS</div>
-        <div style={eye}>{cards.length} SENT</div>
-      </div>
-
-      {!r2ok&&<div style={{border:`1px dashed ${T.muted}`,borderRadius:3,padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-        <span style={{fontFamily:PP_M,fontSize:9.5,letterSpacing:"0.1em",color:T.muted,lineHeight:1.6}}>STORAGE NOT CONNECTED — paste your worker URL + token in setup. See POSTCARDS_SETUP.md.</span>
-        <button onClick={openSetup} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.text,padding:"6px 12px"}}>⚙ SETUP →</button>
-      </div>}
-
-      {r2ok&&cards.length>0&&<div style={{marginBottom:18,display:"flex",flexDirection:"column",gap:16}}>
-        {[me,(me==="a"?"b":"a")].map(who=>{
-          const grp=cards.filter(p=>p.by===who);
-          if(!grp.length)return null;
-          const label=who===me?"YOU":(doc.names[who]||(who==="a"?"A":"B"));
-          return(<div key={who}>
-            <div style={{...eye,marginBottom:8,color:who===me?T.red:T.mint}}>{label.toUpperCase()} · {grp.length} POSTCARD{grp.length===1?"":"S"}</div>
-            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:12}}>
-              {grp.map(p=><PralinePostcardCard key={p.id} p={p} r2u={r2u} me={me} doc={doc} markSeen={markSeen} delPostcard={delPostcard} isMobile={isMobile}/>)}
-            </div>
-          </div>);
-        })}
-      </div>}
-
-      {r2ok&&<div>
-        <input ref={fileRef} type="file" accept="video/*" multiple onChange={pickFiles} style={{display:"none"}}/>
-        <div onClick={()=>fileRef.current&&fileRef.current.click()} style={{border:`1.5px dashed ${T.muted}`,borderRadius:3,padding:"14px 16px",textAlign:"center",cursor:"pointer"}}>
-          <span style={{fontFamily:PP_M,fontSize:9.5,fontWeight:700,letterSpacing:"0.18em",color:files.length?T.text:T.muted}}>
-            {files.length?files.map(f=>`${f.name} (${fmtMB(f.size)})`).join(" · "):"SEND A POSTCARD — PICK UP TO 3 CLIPS · 5–10S EACH · AUTO-COMPRESSED TO 720P"}
-          </span>
-        </div>
-        {files.length>0&&<div style={{display:"flex",gap:10,marginTop:10}}>
-          <input value={caption} onChange={e=>setCaption(e.target.value)} placeholder="a line for the back of the postcard…" style={{flex:1,background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,color:T.text,fontFamily:PP_S,fontSize:15,padding:"5px 0",outline:"none",fontStyle:"italic"}}/>
-          <button onClick={send} disabled={(sendState||"").startsWith("UPLOADING")} style={{background:T.red,border:"none",borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.card,padding:"0 16px"}}>SEND ▸</button>
-        </div>}
-        {sendState&&<div style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:sendState.startsWith("ERROR")||sendState.startsWith("SKIPPED")?T.red:T.mint,marginTop:8}}>{sendState}</div>}
-      </div>}
-
-    </div>
-  );
-}
 function PralinePage({supaUrl,supaKey,isMobile}){
   const T=useT();
   const twoCol=isMobile?"1fr":"1fr 1fr";
@@ -7183,8 +6998,6 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   const [me,setMe]=useState(()=>lg("plo3_praline_me","a"));
   const [pUrl,setPUrl]=useState(()=>lg("plo3_praline_url",""));
   const [pKey,setPKey]=useState(()=>lg("plo3_praline_key",""));
-  const [r2Url,setR2Url]=useState(()=>lg("plo3_praline_r2url",""));
-  const [r2Tok,setR2Tok]=useState(()=>lg("plo3_praline_r2tok",""));
   const [doc,setDoc]=useState(()=>{const d=lg("plo3_praline_doc",null);return d&&d.entries?{...DEFAULT_PRALINE,...d}:{...DEFAULT_PRALINE};});
   const [status,setStatus]=useState("idle");
   const [showSetup,setShowSetup]=useState(false);
@@ -7197,8 +7010,6 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   useEffect(()=>ls("plo3_praline_doc",doc),[doc]);
   useEffect(()=>ls("plo3_praline_url",pUrl),[pUrl]);
   useEffect(()=>ls("plo3_praline_key",pKey),[pKey]);
-  useEffect(()=>ls("plo3_praline_r2url",r2Url),[r2Url]);
-  useEffect(()=>ls("plo3_praline_r2tok",r2Tok),[r2Tok]);
 
   // Praline uses its own credentials if set, else falls back to your main sync project
   const url=(pUrl||"").trim()||supaUrl;
@@ -7222,20 +7033,11 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         const rIds=new Set(remote.watchlist.map(x=>x.id));
         watchlist=[...remote.watchlist,...(prev.watchlist||[]).filter(x=>!rIds.has(x.id))];
       }
-      let postcards=prev.postcards||[];
-      if(Array.isArray(remote.postcards)){
-        const locP={};(prev.postcards||[]).forEach(p=>{locP[p.id]=p;});
-        const rPIds=new Set(remote.postcards.map(p=>p.id));
-        postcards=[
-          ...remote.postcards.map(p=>({...p,seen:{...((locP[p.id]||{}).seen||{}),...(p.seen||{})}})),
-          ...(prev.postcards||[]).filter(p=>!rPIds.has(p.id))
-        ];
-      }
       return{
         reunionDate:remote.reunionDate!==undefined?remote.reunionDate:prev.reunionDate,
         names:{...prev.names,...(remote.names||{})},
         places:{a:{...prev.places.a,...(remote.places?.a||{})},b:{...prev.places.b,...(remote.places?.b||{})}},
-        entries,watchlist,postcards
+        entries,watchlist
       };
     });
   }
@@ -7305,25 +7107,6 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   }
   function delWatch(id){
     setDoc(prev=>({...prev,watchlist:(prev.watchlist||[]).filter(w=>w.id!==id)}));
-    typingRef.current=Date.now();schedulePush();
-  }
-  const r2u=(r2Url||"").trim().replace(/\/+$/,"");
-  function addPostcard(card){
-    setDoc(prev=>({...prev,postcards:[...(prev.postcards||[]),card]}));
-    typingRef.current=Date.now();schedulePush();
-  }
-  function markPostcardSeen(id){
-    setDoc(prev=>({...prev,postcards:(prev.postcards||[]).map(p=>p.id===id&&!((p.seen||{})[me])?{...p,seen:{...(p.seen||{}),[me]:true}}:p)}));
-    schedulePush();
-  }
-  function delPostcard(id){
-    const card=(docRef.current.postcards||[]).find(p=>p.id===id);
-    if(card&&r2u&&(r2Tok||"").trim()){
-      (card.clips||[]).forEach(c=>{
-        fetch(`${r2u}/f/${encodeURIComponent(c.key)}`,{method:"DELETE",headers:{Authorization:`Bearer ${r2Tok.trim()}`}}).catch(()=>{});
-      });
-    }
-    setDoc(prev=>({...prev,postcards:(prev.postcards||[]).filter(p=>p.id!==id)}));
     typingRef.current=Date.now();schedulePush();
   }
 
@@ -7417,23 +7200,6 @@ function PralinePage({supaUrl,supaKey,isMobile}){
             <div>
               <div style={{...eye,marginBottom:6}}>Anon key</div>
               <input value={pKey} onChange={e=>setPKey(e.target.value)} type="password" placeholder={supaKey?"(blank → main sync key)":"eyJhbGci…"} style={{...inp,fontFamily:PP_M,fontSize:11}}/>
-            </div>
-          </div>
-        </div>
-        <div style={{borderTop:`1px solid ${T.border}`,marginTop:18,paddingTop:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
-            <div style={eye}>VIDEO POSTCARDS STORAGE (CLOUDFLARE R2)</div>
-            <span style={{fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.14em",color:(r2u&&(r2Tok||"").trim())?T.mint:T.muted}}>{(r2u&&(r2Tok||"").trim())?"● CONNECTED":"○ NOT SET"}</span>
-          </div>
-          <div style={{fontFamily:PP_M,fontSize:8.5,color:T.muted,marginBottom:12,lineHeight:1.6}}>One-time setup in POSTCARDS_SETUP.md. Both of you paste the SAME worker URL + token. Stored only in this browser — never synced.</div>
-          <div style={{display:"grid",gridTemplateColumns:twoCol,gap:"10px 24px"}}>
-            <div>
-              <div style={{...eye,marginBottom:6}}>Worker URL</div>
-              <input value={r2Url} onChange={e=>setR2Url(e.target.value)} placeholder="https://praline-postcards.xxx.workers.dev" style={{...inp,fontFamily:PP_M,fontSize:11}}/>
-            </div>
-            <div>
-              <div style={{...eye,marginBottom:6}}>Auth token</div>
-              <input value={r2Tok} onChange={e=>setR2Tok(e.target.value)} type="password" placeholder="the AUTH_TOKEN secret" style={{...inp,fontFamily:PP_M,fontSize:11}}/>
             </div>
           </div>
         </div>
@@ -7536,8 +7302,6 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         </div>
       </div>
 
-      {/* video postcards */}
-      <PralinePostcards doc={doc} me={me} r2u={r2u} r2Tok={r2Tok} addPostcard={addPostcard} markSeen={markPostcardSeen} delPostcard={delPostcard} isMobile={isMobile} openSetup={()=>setShowSetup(true)}/>
 
       {/* mood line */}
       {moodDates.length>0&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:"18px 22px",marginTop:22}}>
