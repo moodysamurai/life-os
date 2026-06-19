@@ -12,17 +12,20 @@ echo "════════════════════════�
 echo "   Praline soundtrack — setup"
 echo "════════════════════════════════════════════"
 
-# 1. Make sure we have the config (with your Supabase keys). The Life OS page
-#    downloads it for you; grab it from Downloads if it's not here yet.
-if [ ! -f "$CONFIG" ]; then
-  if [ -f "$HOME/Downloads/praline_songs_config.json" ]; then
-    echo "→ Moving the config the app downloaded into place…"
-    mv "$HOME/Downloads/praline_songs_config.json" "$CONFIG"
-  else
-    echo "✗ Couldn't find praline_songs_config.json."
-    echo "  In the Life OS Praline page, use the download Claude set up, then run this again."
-    echo; read -n1 -r -p "Press any key to close…"; exit 1
-  fi
+# 1. Make sure we have a REAL config (with your Supabase keys). The Life OS page
+#    downloads one for you. A leftover placeholder file doesn't count, so we
+#    always prefer the freshly downloaded one.
+config_ok() {
+  [ -f "$CONFIG" ] && ! grep -q "YOUR-PROJECT" "$CONFIG" && ! grep -q "YOUR-SUPABASE" "$CONFIG"
+}
+if ! config_ok && [ -f "$HOME/Downloads/praline_songs_config.json" ]; then
+  echo "→ Using the config the app downloaded…"
+  mv -f "$HOME/Downloads/praline_songs_config.json" "$CONFIG"
+fi
+if ! config_ok; then
+  echo "✗ Couldn't find a filled-in praline_songs_config.json."
+  echo "  Ask Claude to re-save the config from the Life OS page, then run this again."
+  echo; read -n1 -r -p "Press any key to close…"; exit 1
 fi
 
 # 2. Full Disk Access check — try to read the Messages DB.
