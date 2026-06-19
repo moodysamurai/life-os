@@ -1,0 +1,14 @@
+# ── Local secrets — NEVER commit (these hold API keys / passwords) ──
+.github_pat
+secrets.local.md
+*.local.md
+secrets/
+life-os-device-setup.md
+
+# ── Praline songs sync — holds Supabase key + Elina's handles ──
+praline_songs_config.json
+.praline_songs_cache.json
+
+# ── OS / scratch ──
+.DS_Store
+.write_test

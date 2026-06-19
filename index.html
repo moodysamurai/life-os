@@ -6932,6 +6932,7 @@ const DEFAULT_PRALINE={
   places:{a:{label:"Leiden",tz:"Europe/Amsterdam"},b:{label:"Delhi",tz:"Asia/Kolkata"}},
   entries:{},
   watchlist:[],
+  songs:[],
 };
 const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
 const PRALINE_MOODS=[{v:1,label:"rough"},{v:2,label:"low"},{v:3,label:"ok"},{v:4,label:"good"},{v:5,label:"great"}];
@@ -7203,6 +7204,62 @@ function PralineTimeline({doc,officeDays}){
   );
 }
 
+// Soundtrack — Spotify tracks auto-collected from the iMessage thread by the
+// praline_songs_sync.py helper (see praline-songs-setup.md). Read-only here;
+// the script owns the data. Tinted by sender: a=Pratham (red), b=Elina (mint).
+function pralineWhen(ts){
+  if(!ts)return"";
+  const d=new Date(ts),now=new Date(),diff=(now-d)/1000;
+  if(diff<3600)return Math.max(1,Math.floor(diff/60))+"m";
+  if(diff<86400)return Math.floor(diff/3600)+"h";
+  if(diff<604800)return Math.floor(diff/86400)+"d";
+  try{return new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"}).format(d).toUpperCase();}catch(e){return"";}
+}
+function PralineSongs({songs,names,isMobile}){
+  const T=useT();
+  const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
+  const [showAll,setShowAll]=useState(false);
+  const list=[...(songs||[])].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const shown=showAll?list:list.slice(0,12);
+  const byA=list.filter(s=>s.by==="a").length,byB=list.filter(s=>s.by==="b").length;
+  return(
+    <div style={{marginTop:30}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderTop:`1px solid ${T.text}`,paddingTop:14,marginBottom:4,flexWrap:"wrap",gap:8}}>
+        <div style={eye}>OUR SOUNDTRACK · FROM iMESSAGE</div>
+        <div style={{display:"flex",gap:14}}>
+          <span style={{...eye,color:T.red}}>● {(names.a||"").toUpperCase()} {byA}</span>
+          <span style={{...eye,color:T.mint}}>● {(names.b||"").toUpperCase()} {byB}</span>
+        </div>
+      </div>
+      <div style={{...eye,color:T.muted,fontSize:8,marginBottom:16,letterSpacing:"0.12em"}}>{list.length} TRACK{list.length===1?"":"S"} · EVERY SPOTIFY LINK YOU TWO HAVE SENT</div>
+      {list.length===0?(
+        <div style={{fontFamily:PP_S,fontSize:14,fontStyle:"italic",color:T.muted,padding:"8px 0"}}>No songs yet — they'll appear here automatically once the sync has run. Send each other a Spotify link on iMessage to start the soundtrack.</div>
+      ):(
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"0 28px"}}>
+          {shown.map(s=>{
+            const acc=s.by==="a"?T.red:T.mint;
+            return(
+              <a key={s.id} href={s.url} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:13,padding:"10px 0",borderBottom:`1px solid ${T.border}`,textDecoration:"none"}}>
+                {s.art
+                  ?<img src={s.art} alt="" width={44} height={44} style={{flexShrink:0,borderRadius:3,objectFit:"cover",border:`1px solid ${T.border}`}}/>
+                  :<div style={{width:44,height:44,flexShrink:0,borderRadius:3,background:T.cardAlt,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:T.muted,fontSize:16}}>♪</div>}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:PP_S,fontSize:15,color:T.text,lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.title||"Unknown track"}</div>
+                  <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:"0.04em"}}>{s.artist||"—"}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.12em",color:acc,textTransform:"uppercase"}}>{names[s.by]||""}</div>
+                  <div style={{fontFamily:PP_M,fontSize:8,color:T.muted,marginTop:3,letterSpacing:"0.08em"}}>{pralineWhen(s.ts)}</div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+      {list.length>12&&<button onClick={()=>setShowAll(s=>!s)} style={{marginTop:14,background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.muted,padding:"6px 14px"}}>{showAll?"SHOW LESS":`SHOW ALL ${list.length}`}</button>}
+    </div>
+  );
+}
 function PralinePage({supaUrl,supaKey,isMobile}){
   const T=useT();
   const twoCol=isMobile?"1fr":"1fr 1fr";
@@ -7250,11 +7307,17 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         const rIds=new Set(remote.watchlist.map(x=>x.id));
         watchlist=[...remote.watchlist,...(prev.watchlist||[]).filter(x=>!rIds.has(x.id))];
       }
+      // songs are pushed in by the iMessage sync script — union by id, keep both sides
+      let songs=prev.songs||[];
+      if(Array.isArray(remote.songs)){
+        const rIds=new Set(remote.songs.map(x=>x.id));
+        songs=[...remote.songs,...(prev.songs||[]).filter(x=>!rIds.has(x.id))];
+      }
       return{
         reunionDate:remote.reunionDate!==undefined?remote.reunionDate:prev.reunionDate,
         names:{...prev.names,...(remote.names||{})},
         places:{a:{...prev.places.a,...(remote.places?.a||{})},b:{...prev.places.b,...(remote.places?.b||{})}},
-        entries,watchlist
+        entries,watchlist,songs
       };
     });
   }
@@ -7562,6 +7625,9 @@ function PralinePage({supaUrl,supaKey,isMobile}){
 
       </div>{/* end right column */}
       </div>{/* end 2-col grid */}
+
+      {/* soundtrack — auto-collected from iMessage */}
+      <PralineSongs songs={doc.songs||[]} names={doc.names} isMobile={isMobile}/>
 
       {/* archive */}
       {archive.length>0&&<div style={{marginTop:30}}>

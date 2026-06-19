@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy this file to praline_songs_config.json and fill in the four values. That real file is gitignored so your keys never get committed.",
+  "supabase_url": "https://YOUR-PROJECT.supabase.co",
+  "supabase_key": "YOUR-SUPABASE-ANON-KEY",
+  "praline_code": "the code you set in the Praline page Setup (e.g. praline-23)",
+  "elina_handles": ["+91XXXXXXXXXX", "elina@example.com"]
+}
