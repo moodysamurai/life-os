@@ -336,11 +336,13 @@ def main():
         print(f"\n(dry run — would push to row {row_id})")
         return
 
-    # merge into the live doc: union by id, existing songs win on conflict
+    # merge into the live doc: union by id, existing songs win on conflict.
+    # Never re-add a track the user deleted in the widget (removedSongs).
     data = supa_get(cfg, row_id)
     existing = data.get("songs") or []
+    removed = set(data.get("removedSongs") or [])
     have = {s.get("id") for s in existing}
-    merged = existing + [s for s in songs if s["id"] not in have]
+    merged = existing + [s for s in songs if s["id"] not in have and s["id"] not in removed]
     new_count = len(merged) - len(existing)
     data["songs"] = merged
     supa_push(cfg, row_id, data)

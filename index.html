@@ -6933,6 +6933,7 @@ const DEFAULT_PRALINE={
   entries:{},
   watchlist:[],
   songs:[],
+  removedSongs:[],
 };
 const PRALINE_TZS=["Europe/Amsterdam","Asia/Kolkata","Europe/London","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","America/Chicago"];
 const PRALINE_MOODS=[{v:1,label:"rough"},{v:2,label:"low"},{v:3,label:"ok"},{v:4,label:"good"},{v:5,label:"great"}];
@@ -7215,48 +7216,55 @@ function pralineWhen(ts){
   if(diff<604800)return Math.floor(diff/86400)+"d";
   try{return new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"}).format(d).toUpperCase();}catch(e){return"";}
 }
-function PralineSongs({songs,names,isMobile}){
+function PralineSongs({songs,names,isMobile,onRemove}){
   const T=useT();
   const eye={fontFamily:PP_M,fontSize:8.5,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:T.muted};
   const [showAll,setShowAll]=useState(false);
-  const list=[...(songs||[])].sort((a,b)=>(b.ts||0)-(a.ts||0));
-  const shown=showAll?list:list.slice(0,12);
-  const byA=list.filter(s=>s.by==="a").length,byB=list.filter(s=>s.by==="b").length;
+  const LIMIT=10;
+  const all=[...(songs||[])].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const hers=all.filter(s=>s.by==="b");   // Elina → left
+  const mine=all.filter(s=>s.by!=="b");   // Pratham → right
+  const row=(s,acc)=>(
+    <div key={s.id} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
+      <a href={s.url} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:11,flex:1,minWidth:0,textDecoration:"none"}}>
+        {s.art
+          ?<img src={s.art} alt="" width={42} height={42} style={{flexShrink:0,borderRadius:3,objectFit:"cover",border:`1px solid ${T.border}`}}/>
+          :<div style={{width:42,height:42,flexShrink:0,borderRadius:3,background:T.cardAlt,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:T.muted,fontSize:15}}>♪</div>}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:PP_S,fontSize:15,color:T.text,lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.title||"Unknown track"}</div>
+          <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:"0.04em"}}>{s.artist||"—"} · {pralineWhen(s.ts)}</div>
+        </div>
+      </a>
+      <button onClick={()=>onRemove&&onRemove(s.id)} title="Remove from soundtrack" style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
+    </div>
+  );
+  const col=(items,name,acc)=>(
+    <div style={{minWidth:0}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6,paddingBottom:6,borderBottom:`1px solid ${T.text}`}}>
+        <span style={{...eye,color:acc,fontSize:9}}>● {(name||"").toUpperCase()}</span>
+        <span style={{...eye,color:T.muted,fontSize:8}}>{items.length}</span>
+      </div>
+      {items.length===0
+        ?<div style={{fontFamily:PP_S,fontSize:13,fontStyle:"italic",color:T.muted,padding:"8px 0"}}>— none yet —</div>
+        :(showAll?items:items.slice(0,LIMIT)).map(s=>row(s,acc))}
+    </div>
+  );
   return(
     <div style={{marginTop:30}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderTop:`1px solid ${T.text}`,paddingTop:14,marginBottom:4,flexWrap:"wrap",gap:8}}>
         <div style={eye}>OUR SOUNDTRACK · FROM iMESSAGE</div>
-        <div style={{display:"flex",gap:14}}>
-          <span style={{...eye,color:T.red}}>● {(names.a||"").toUpperCase()} {byA}</span>
-          <span style={{...eye,color:T.mint}}>● {(names.b||"").toUpperCase()} {byB}</span>
-        </div>
+        <div style={{...eye,color:T.muted}}>{all.length} TRACK{all.length===1?"":"S"}</div>
       </div>
-      <div style={{...eye,color:T.muted,fontSize:8,marginBottom:16,letterSpacing:"0.12em"}}>{list.length} TRACK{list.length===1?"":"S"} · EVERY SPOTIFY LINK YOU TWO HAVE SENT</div>
-      {list.length===0?(
+      <div style={{...eye,color:T.muted,fontSize:8,marginBottom:16,letterSpacing:"0.12em"}}>EVERY SPOTIFY LINK YOU TWO HAVE SENT · TAP TO PLAY · × TO REMOVE</div>
+      {all.length===0?(
         <div style={{fontFamily:PP_S,fontSize:14,fontStyle:"italic",color:T.muted,padding:"8px 0"}}>No songs yet — they'll appear here automatically once the sync has run. Send each other a Spotify link on iMessage to start the soundtrack.</div>
       ):(
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"0 28px"}}>
-          {shown.map(s=>{
-            const acc=s.by==="a"?T.red:T.mint;
-            return(
-              <a key={s.id} href={s.url} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:13,padding:"10px 0",borderBottom:`1px solid ${T.border}`,textDecoration:"none"}}>
-                {s.art
-                  ?<img src={s.art} alt="" width={44} height={44} style={{flexShrink:0,borderRadius:3,objectFit:"cover",border:`1px solid ${T.border}`}}/>
-                  :<div style={{width:44,height:44,flexShrink:0,borderRadius:3,background:T.cardAlt,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:T.muted,fontSize:16}}>♪</div>}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:PP_S,fontSize:15,color:T.text,lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.title||"Unknown track"}</div>
-                  <div style={{fontFamily:PP_M,fontSize:9,color:T.muted,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:"0.04em"}}>{s.artist||"—"}</div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontFamily:PP_M,fontSize:8,fontWeight:700,letterSpacing:"0.12em",color:acc,textTransform:"uppercase"}}>{names[s.by]||""}</div>
-                  <div style={{fontFamily:PP_M,fontSize:8,color:T.muted,marginTop:3,letterSpacing:"0.08em"}}>{pralineWhen(s.ts)}</div>
-                </div>
-              </a>
-            );
-          })}
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?"24px":"0 32px"}}>
+          {col(hers,names.b,T.mint)}
+          {col(mine,names.a,T.red)}
         </div>
       )}
-      {list.length>12&&<button onClick={()=>setShowAll(s=>!s)} style={{marginTop:14,background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.muted,padding:"6px 14px"}}>{showAll?"SHOW LESS":`SHOW ALL ${list.length}`}</button>}
+      {(hers.length>LIMIT||mine.length>LIMIT)&&<button onClick={()=>setShowAll(s=>!s)} style={{marginTop:14,background:"transparent",border:`1px solid ${T.border}`,borderRadius:3,cursor:"pointer",fontFamily:PP_M,fontSize:9,fontWeight:700,letterSpacing:"0.14em",color:T.muted,padding:"6px 14px"}}>{showAll?"SHOW LESS":`SHOW ALL ${all.length}`}</button>}
     </div>
   );
 }
@@ -7313,11 +7321,15 @@ function PralinePage({supaUrl,supaKey,isMobile}){
         const rIds=new Set(remote.songs.map(x=>x.id));
         songs=[...remote.songs,...(prev.songs||[]).filter(x=>!rIds.has(x.id))];
       }
+      // removedSongs = track ids the user deleted; union, and filter them out of songs
+      let removedSongs=[...new Set([...(prev.removedSongs||[]),...(Array.isArray(remote.removedSongs)?remote.removedSongs:[])])];
+      const rm=new Set(removedSongs);
+      songs=songs.filter(s=>!rm.has(s.id));
       return{
         reunionDate:remote.reunionDate!==undefined?remote.reunionDate:prev.reunionDate,
         names:{...prev.names,...(remote.names||{})},
         places:{a:{...prev.places.a,...(remote.places?.a||{})},b:{...prev.places.b,...(remote.places?.b||{})}},
-        entries,watchlist,songs
+        entries,watchlist,songs,removedSongs
       };
     });
   }
@@ -7387,6 +7399,13 @@ function PralinePage({supaUrl,supaKey,isMobile}){
   }
   function delWatch(id){
     setDoc(prev=>({...prev,watchlist:(prev.watchlist||[]).filter(w=>w.id!==id)}));
+    typingRef.current=Date.now();schedulePush();
+  }
+  function removeSong(id){
+    // drop it AND remember the id, so the hourly iMessage sync won't re-add it
+    setDoc(prev=>({...prev,
+      songs:(prev.songs||[]).filter(s=>s.id!==id),
+      removedSongs:[...new Set([...(prev.removedSongs||[]),id])]}));
     typingRef.current=Date.now();schedulePush();
   }
 
@@ -7627,7 +7646,7 @@ function PralinePage({supaUrl,supaKey,isMobile}){
       </div>{/* end 2-col grid */}
 
       {/* soundtrack — auto-collected from iMessage */}
-      <PralineSongs songs={doc.songs||[]} names={doc.names} isMobile={isMobile}/>
+      <PralineSongs songs={doc.songs||[]} names={doc.names} isMobile={isMobile} onRemove={removeSong}/>
 
       {/* archive */}
       {archive.length>0&&<div style={{marginTop:30}}>
