@@ -89,21 +89,108 @@ def decode_attributed_body(blob):
             return ""
 
 
-def list_chats(conn):
-    """Print conversations so you can identify Elina's handle(s)."""
+def top_chats(conn, limit=40):
+    """Conversations sorted by message count: [(handle, count, last_ms), ...]."""
     q = """
     SELECT h.id AS handle, COUNT(m.ROWID) AS n, MAX(m.date) AS last
     FROM message m
     JOIN handle h ON m.handle_id = h.ROWID
-    GROUP BY h.id ORDER BY n DESC LIMIT 40;
+    WHERE h.id IS NOT NULL AND h.id != ''
+    GROUP BY h.id ORDER BY n DESC LIMIT ?;
     """
+    out = []
+    for r in conn.execute(q, (limit,)):
+        out.append((r["handle"], r["n"], apple_date_to_ms(r["last"])))
+    return out
+
+
+def list_chats(conn):
+    """Print conversations so you can identify Elina's handle(s)."""
     print(f"{'MESSAGES':>9}  {'LAST':>12}  HANDLE")
     print("-" * 60)
-    for r in conn.execute(q):
-        ms = apple_date_to_ms(r["last"])
+    for handle, n, ms in top_chats(conn):
         when = time.strftime("%Y-%m-%d", time.localtime(ms / 1000)) if ms else "?"
-        print(f"{r['n']:>9}  {when:>12}  {r['handle']}")
+        print(f"{n:>9}  {when:>12}  {handle}")
     print("\nCopy Elina's handle(s) into elina_handles in praline_songs_config.json.")
+
+
+def detect_contact_handles(name="elina"):
+    """Best-effort: pull phone/email for a contact whose first name matches `name`
+    from the macOS Contacts database. Returns a list (may be empty)."""
+    import glob
+    handles = []
+    pattern = os.path.expanduser(
+        "~/Library/Application Support/AddressBook/Sources/*/AddressBook-v22.abcddb")
+    for db in glob.glob(pattern) + [os.path.expanduser(
+            "~/Library/Application Support/AddressBook/AddressBook-v22.abcddb")]:
+        if not os.path.exists(db):
+            continue
+        try:
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            rows = c.execute("""
+                SELECT p.ZFULLNUMBER, e.ZADDRESS
+                FROM ZABCDRECORD r
+                LEFT JOIN ZABCDPHONENUMBER p ON p.ZOWNER = r.Z_PK
+                LEFT JOIN ZABCDEMAILADDRESS e ON e.ZOWNER = r.Z_PK
+                WHERE LOWER(r.ZFIRSTNAME) = ?
+            """, (name.lower(),)).fetchall()
+            for ph, em in rows:
+                if ph:
+                    handles.append(re.sub(r"[\s()\-]", "", ph))
+                if em:
+                    handles.append(em.strip())
+            c.close()
+        except Exception:
+            pass
+    # dedupe, keep order
+    seen, out = set(), []
+    for h in handles:
+        if h and h not in seen:
+            seen.add(h); out.append(h)
+    return out
+
+
+def interactive_setup(cfg, conn):
+    """Fill in elina_handles with as little typing as possible."""
+    print("\n— Praline soundtrack setup —\n")
+    if not cfg.get("supabase_url") or "YOUR-" in str(cfg.get("supabase_key", "")):
+        print("⚠  Supabase keys aren't filled in yet. Use the config file that the")
+        print("   Life OS page downloaded for you (praline_songs_config.json).")
+        return False
+
+    detected = detect_contact_handles("elina")
+    chats = top_chats(conn, 8)
+    handle_set = {h for h, _, _ in chats}
+
+    chosen = []
+    # If a contact named Elina maps onto an actual conversation, use it automatically.
+    auto = [h for h in detected if h in handle_set] or detected
+    if auto:
+        print("Found Elina in your Contacts:", ", ".join(auto))
+        ans = input("Use these? [Y/n] ").strip().lower()
+        if ans in ("", "y", "yes"):
+            chosen = auto
+
+    if not chosen:
+        print("\nYour most active conversations:")
+        for i, (h, n, ms) in enumerate(chats, 1):
+            when = time.strftime("%Y-%m-%d", time.localtime(ms / 1000)) if ms else "?"
+            print(f"  {i}. {h:30}  {n} msgs   (last {when})")
+        pick = input("\nWhich number is Elina? (or paste her handle) ").strip()
+        if pick.isdigit() and 1 <= int(pick) <= len(chats):
+            chosen = [chats[int(pick) - 1][0]]
+        elif pick:
+            chosen = [pick]
+
+    if not chosen:
+        print("No handle chosen — aborting setup.")
+        return False
+
+    cfg["elina_handles"] = chosen
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print(f"\n✓ Saved Elina's handle(s): {', '.join(chosen)}")
+    return True
 
 
 def fetch_messages_for_handles(conn, handles):
@@ -198,7 +285,18 @@ def main():
         if "--chats" in args:
             list_chats(conn)
             return
-        rows = fetch_messages_for_handles(conn, cfg.get("elina_handles", []))
+        if "--setup" in args:
+            if not interactive_setup(cfg, conn):
+                return
+            cfg = load_config()  # reload with the handles we just saved
+        handles = cfg.get("elina_handles", [])
+        # auto-fallback: if no handle configured, use the single most-active conversation
+        if not handles:
+            chats = top_chats(conn, 1)
+            if chats:
+                handles = [chats[0][0]]
+                print(f"No handle configured — defaulting to most active chat: {handles[0]}")
+        rows = fetch_messages_for_handles(conn, handles)
     finally:
         conn.close()
         shutil.rmtree(tmp, ignore_errors=True)
