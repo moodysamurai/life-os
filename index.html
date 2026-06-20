@@ -2879,6 +2879,7 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
   const T=useT();
   const NAV=[
     {id:'today',label:'TODAY'},
+    {id:'brief',label:'BRIEF'},
     {id:'plan',label:'PLAN'},
     {id:'trips',label:'TRIPS'},
     {id:'money',label:'MONEY'},
@@ -3676,6 +3677,154 @@ function PaperMoneyTodayCard({envelopes,onExpand,budgetCats=[]}){
 }
 
 // ── Section Card (reusable cream shell for calendar/goals/trips/money) ───
+// ── DAILY BRIEFING ────────────────────────────────────────────────────────
+// Read-only view of the digest pushed by the morning-digest scheduled task into
+// the Supabase row `digest_<syncId>`. The app never writes this row.
+function BriefCard({title,right,children,isMobile,T}){
+  return(
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:isMobile?'14px 15px':'16px 18px',marginBottom:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:12}}>
+        <div style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.16em',color:T.muted,textTransform:'uppercase'}}>{title}</div>
+        {right&&<div style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.12em',color:T.faint,textTransform:'uppercase'}}>{right}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+function PaperBriefing({digest,isMobile,onRefresh,syncStatus,style}){
+  const T=useT();
+  const d=digest||{};
+  const has=!!(digest&&((d.agenda&&d.agenda.length)||d.inbox||(d.slack&&d.slack.items)||(d.shipments&&d.shipments.length)||(d.deadlines&&d.deadlines.length)));
+  const wrap={margin:isMobile?'20px 16px 0':'24px 2rem 0',...style};
+  const clock=iso=>{try{return new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false});}catch(e){return'';}};
+  if(!has){
+    return(
+      <div style={wrap}>
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:4,padding:isMobile?'26px 18px':'34px 26px',textAlign:'center'}}>
+          <div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:isMobile?18:22,color:T.text}}>No briefing yet.</div>
+          <div style={{fontFamily:PP_M,fontSize:11,color:T.muted,marginTop:8}}>It prints automatically at 05:31 each morning.</div>
+          {onRefresh&&<div onClick={onRefresh} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.14em',color:T.mint,textTransform:'uppercase',marginTop:14,cursor:'pointer'}}>↻ Check now</div>}
+        </div>
+      </div>
+    );
+  }
+  const ib=d.inbox||{};
+  return(
+    <div style={wrap}>
+      {/* section strip + refresh */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+        <div style={{fontFamily:PP_M,fontSize:11,letterSpacing:'0.2em',color:T.blue,textTransform:'uppercase'}}>▌ The Briefing</div>
+        <div style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.12em',color:T.faint,textTransform:'uppercase'}}>
+          {d.generatedAt?`Pushed ${clock(d.generatedAt)} · `:''}{syncStatus==='loading'?'syncing':'synced ✓'} · <span onClick={onRefresh} style={{color:T.mint,cursor:'pointer'}}>↻ refresh</span>
+        </div>
+      </div>
+
+      {/* AGENDA */}
+      {d.agenda&&d.agenda.length>0&&
+        <BriefCard title="Today · agenda" isMobile={isMobile} T={T}>
+          <div style={{display:'grid',gridTemplateColumns:'56px 1fr',gap:'0 12px'}}>
+            {d.agenda.map((e,i)=>(
+              <React.Fragment key={i}>
+                <div style={{fontFamily:PP_M,fontSize:11,fontWeight:700,color:T.mint,borderRight:`2px solid ${T.cardAlt}`,padding:i===d.agenda.length-1?'2px 10px 0 0':'2px 10px 13px 0'}}>{e.time||'—'}</div>
+                <div style={{paddingBottom:i===d.agenda.length-1?0:13}}>
+                  <div style={{fontFamily:PP_M,fontSize:11.5,fontWeight:500,color:T.text}}>{e.title}</div>
+                  {e.prep&&<div style={{fontFamily:PP_M,fontSize:9.5,color:T.blue,marginTop:3,lineHeight:1.4}}>↳ {e.prep}</div>}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        </BriefCard>}
+
+      {/* INBOX */}
+      {d.inbox&&
+        <BriefCard title={`Inbox · ${ib.needCount||(ib.items?ib.items.length:0)} need you`} right={`${ib.total||0} total · ${ib.noise||0} noise`} isMobile={isMobile} T={T}>
+          <div style={{display:'flex',flexDirection:'column',gap:9}}>
+            {(ib.items||[]).map((m,i)=>(
+              <div key={i} style={{display:'flex',gap:9,alignItems:'flex-start'}}>
+                <span style={{color:T.mint,fontSize:11,lineHeight:'1.4'}}>▸</span>
+                <div style={{flex:1,fontFamily:PP_M,fontSize:11,lineHeight:1.4}}>
+                  <b>{m.from}</b>{m.subject?<> — {m.subject}</>:''}
+                  {m.tag&&<span style={{fontFamily:PP_M,fontSize:8,letterSpacing:'0.06em',textTransform:'uppercase',background:T.mintX,color:T.mint,borderRadius:3,padding:'1px 5px',marginLeft:5}}>{m.tag}</span>}
+                </div>
+                {m.age&&<span style={{fontFamily:PP_M,fontSize:9,color:T.faint,whiteSpace:'nowrap'}}>{m.age}</span>}
+              </div>
+            ))}
+          </div>
+          {ib.later&&ib.later.length>0&&<>
+            <div style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.16em',color:T.muted,textTransform:'uppercase',margin:'14px 0 8px'}}>Later this week</div>
+            <div style={{display:'flex',flexDirection:'column',gap:7}}>
+              {ib.later.map((s,i)=><div key={i} style={{fontFamily:PP_M,fontSize:11,color:T.textMd}}><span style={{color:T.blue}}>○</span> {s}</div>)}
+            </div>
+          </>}
+          <div onClick={()=>window.open('https://mail.google.com','_blank')} style={{fontFamily:PP_M,fontSize:10,letterSpacing:'0.12em',color:T.mint,textTransform:'uppercase',marginTop:12,cursor:'pointer'}}>⌁ Open inbox →</div>
+        </BriefCard>}
+
+      {/* SLACK + SHIPMENTS */}
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14}}>
+        {d.slack&&d.slack.items&&d.slack.items.length>0&&
+          <BriefCard title={`Slack · ${d.slack.mentions||d.slack.items.length} mentions`} isMobile={isMobile} T={T}>
+            <div style={{display:'flex',flexDirection:'column',gap:9}}>
+              {d.slack.items.map((s,i)=>(
+                <div key={i} style={{fontFamily:PP_M,fontSize:11,lineHeight:1.35}}>
+                  <span style={{color:s.mention?T.mint:T.faint}}>{s.mention?'@':'›'}</span> <b>{s.channel}</b>
+                  {s.text&&<div style={{color:T.textMd,marginTop:1}}>{s.who?`${s.who}: `:''}{s.text}</div>}
+                </div>
+              ))}
+            </div>
+          </BriefCard>}
+        {d.shipments&&d.shipments.length>0&&
+          <BriefCard title={`Shipments · ${d.shipments.length} moving`} isMobile={isMobile} T={T}>
+            <div style={{display:'flex',flexDirection:'column',gap:11}}>
+              {d.shipments.map((s,i)=>{
+                const pct=typeof s.pct==='number'?s.pct:[10,40,72,100][Math.max(0,Math.min(3,s.stage||0))];
+                const c=(s.stage||0)>=2?T.mint:T.blue;
+                return(
+                  <div key={i}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                      <span style={{fontFamily:PP_M,fontSize:11}}><b>{s.item}</b>{s.carrier?<span style={{color:T.muted}}> · {s.carrier}</span>:''}</span>
+                      {s.eta&&<span style={{fontFamily:PP_M,fontSize:9,color:c}}>{s.eta}</span>}
+                    </div>
+                    <div style={{height:6,background:T.cardAlt,borderRadius:3,overflow:'hidden',marginTop:4}}><div style={{height:'100%',width:pct+'%',background:c,borderRadius:3}}/></div>
+                    {s.status&&<div style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.1em',color:T.muted,textTransform:'uppercase',marginTop:3}}>{s.status}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </BriefCard>}
+      </div>
+
+      {/* DEADLINES */}
+      {d.deadlines&&d.deadlines.length>0&&
+        <div style={{marginTop:14}}>
+          <BriefCard title="Deadlines · countdown" isMobile={isMobile} T={T}>
+            <div style={{display:'flex',justifyContent:'space-around',textAlign:'center',flexWrap:'wrap',gap:12}}>
+              {d.deadlines.map((dl,i)=>(
+                <div key={i}>
+                  <div style={{fontFamily:PP_M,fontSize:23,fontWeight:700,color:dl.hot?T.mint:T.text}}>{dl.days}</div>
+                  <div style={{fontFamily:PP_M,fontSize:9,letterSpacing:'0.16em',color:T.faint,textTransform:'uppercase'}}>days</div>
+                  <div style={{fontFamily:PP_M,fontSize:9.5,color:T.textMd,marginTop:3}}>{dl.label}</div>
+                </div>
+              ))}
+            </div>
+          </BriefCard>
+        </div>}
+    </div>
+  );
+}
+function BriefPage({digest,isMobile,onRefresh,syncStatus}){
+  const T=useT();
+  const h=new Date().getHours();
+  const greet=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  return(
+    <div style={{padding:isMobile?'8px 16px 40px':'12px 2rem 48px',maxWidth:1200,margin:'0 auto'}}>
+      <div style={{padding:isMobile?'18px 0 6px':'26px 0 6px'}}>
+        <div style={{fontFamily:PP_S,fontStyle:'italic',fontWeight:600,fontSize:isMobile?34:46,color:T.text,lineHeight:1.02,letterSpacing:'-0.01em'}}>{greet}, Pratham<span style={{color:T.mint}}>.</span></div>
+        {digest&&digest.summary&&<div style={{fontFamily:PP_S,fontStyle:'italic',fontSize:isMobile?14:15,color:T.textMd,marginTop:8}}>{digest.summary}</div>}
+      </div>
+      <PaperBriefing digest={digest} isMobile={isMobile} onRefresh={onRefresh} syncStatus={syncStatus} style={{margin:isMobile?'14px 0 0':'18px 0 0'}}/>
+    </div>
+  );
+}
 function PaperTodayCard({tasks,setTasks,onCapture,setModal,appleEvents=[],isMobile}){
   const T=useT();
   const now=new Date(),todayS=toStr(now);
@@ -5559,6 +5708,7 @@ function App(){
   const [appleEvents,setAppleEvents]=useState([]);
   const [appleStatus,setAppleStatus]=useState("idle");
   const [showAppleCal,setShowAppleCal]=useState(false);
+  const [digest,setDigest]=useState(()=>lg("plo3_digest",null));
 
   // Page + UI state
   const [page,setPage]=useState(()=>{const p=lg("plo3_page","today");return(p==="wk"||p==="review")?"today":p;});
@@ -5647,6 +5797,7 @@ function App(){
   useEffect(()=>ls("plo3_supa_url",supaUrl),[supaUrl]);
   useEffect(()=>ls("plo3_supa_key",supaKey),[supaKey]);
   useEffect(()=>ls("plo3_supa_id",supaId),[supaId]);
+  useEffect(()=>ls("plo3_digest",digest),[digest]);
 
   // URL import handler (Apple Shortcuts)
   useEffect(()=>{
@@ -5712,6 +5863,23 @@ function App(){
     },2000);
     return()=>clearTimeout(syncTimerRef.current);
   },[tasks,trips,goals,bingo,completions,notes,scratchpads,budget,envelopes,budgetCats,wardrobeItems,wardrobeWears,wardrobeOutfits]);// eslint-disable-line
+
+  // Daily briefing — read-only digest row (digest_<syncId>), written by the
+  // morning-digest scheduled task. Mirrors the Praline separate-row pattern.
+  const digestRtRef=useRef(null);
+  const applyDigest=d=>{if(d&&typeof d==="object"&&Object.keys(d).length)setDigest(d);};
+  const refreshDigest=React.useCallback(()=>{
+    if(!supaUrl||!supaKey||!supaId)return;
+    supaFetch(supaUrl,supaKey,`digest_${supaId}`).then(applyDigest).catch(()=>{});
+  },[supaUrl,supaKey,supaId]);// eslint-disable-line
+  useEffect(()=>{
+    if(!supaUrl||!supaKey||!supaId)return;
+    const rid=`digest_${supaId}`;
+    supaFetch(supaUrl,supaKey,rid).then(applyDigest).catch(()=>{});
+    if(digestRtRef.current)digestRtRef.current.close();
+    digestRtRef.current=supaRealtime(supaUrl,supaKey,rid,applyDigest,"*");
+    return()=>{if(digestRtRef.current){digestRtRef.current.close();digestRtRef.current=null;}};
+  },[supaUrl,supaKey,supaId]);// eslint-disable-line
 
   // Apple CalDAV auto-fetch
   useEffect(()=>{
@@ -5798,7 +5966,7 @@ function App(){
 
       {page==="today"&&<>
         <PaperHero tasks={tasks} trips={trips} goals={goals} sun={sun} quoteIdx={quoteIdx} setQuoteIdx={setQuoteIdx} isMobile={isMobile}/>
-        <PaperTodayCard tasks={tasks} setTasks={setTasks} onCapture={()=>setShowCapture(true)} setModal={setModal} appleEvents={appleEvents} isMobile={isMobile}/>
+        <PaperBriefing digest={digest} isMobile={isMobile} onRefresh={refreshDigest} syncStatus={syncStatus}/>
 
         {/* CALENDAR + GOALS — editorial self-contained cards */}
         <div style={{padding:isMobile?'16px 16px 0':'20px 2rem 0',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
@@ -5815,6 +5983,7 @@ function App(){
         <PaperFooter/>
       </>}
 
+      {page==="brief"&&<BriefPage digest={digest} isMobile={isMobile} onRefresh={refreshDigest} syncStatus={syncStatus}/>}
       {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey} budgetCats={budgetCats} envelopes={envelopes} isMobile={isMobile}/>}
       {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal} isMobile={isMobile}/>}
       {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} isMobile={isMobile}/>}
