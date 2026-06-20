@@ -193,18 +193,31 @@ def interactive_setup(cfg, conn):
     return True
 
 
+def _norm_handle(h):
+    """Normalize a handle for loose matching: emails lowercased, phones by last 10 digits."""
+    h = (h or "").strip()
+    if "@" in h:
+        return ("email", h.lower())
+    digits = re.sub(r"\D", "", h)
+    return ("phone", digits[-10:] if len(digits) >= 10 else digits)
+
+
 def fetch_messages_for_handles(conn, handles):
-    """All messages (both directions) in any chat that includes one of Elina's handles."""
+    """All messages (both directions) in any chat that includes one of Elina's
+    handles. Phone numbers match loosely (last 10 digits) so +91/ +91 spacing /
+    leading-zero differences between Contacts and Messages don't matter."""
     if not handles:
         sys.exit("No elina_handles configured. Run with --chats to find them.")
-    marks = ",".join("?" * len(handles))
-    # chats that contain any of her handles
-    chat_rows = conn.execute(f"""
-        SELECT DISTINCT chj.chat_id
-        FROM chat_handle_join chj
-        JOIN handle h ON chj.handle_id = h.ROWID
-        WHERE h.id IN ({marks})
-    """, handles).fetchall()
+    targets = {_norm_handle(h) for h in handles}
+    # match every handle row in the DB against the targets
+    match_ids = [r["ROWID"] for r in conn.execute("SELECT ROWID, id FROM handle")
+                 if r["id"] and _norm_handle(r["id"]) in targets]
+    if not match_ids:
+        return []
+    marks = ",".join("?" * len(match_ids))
+    chat_rows = conn.execute(
+        f"SELECT DISTINCT chat_id FROM chat_handle_join WHERE handle_id IN ({marks})",
+        match_ids).fetchall()
     chat_ids = [r["chat_id"] for r in chat_rows]
     if not chat_ids:
         return []
@@ -289,8 +302,13 @@ def main():
             if not interactive_setup(cfg, conn):
                 return
             cfg = load_config()  # reload with the handles we just saved
-        handles = cfg.get("elina_handles", [])
-        # auto-fallback: if no handle configured, use the single most-active conversation
+        handles = list(cfg.get("elina_handles", []))
+        # broaden: also pull every handle (phone + email) Contacts has for "Elina",
+        # so a song sent to her number lands too — not just the one configured address
+        for h in detect_contact_handles("elina"):
+            if h not in handles:
+                handles.append(h)
+        # auto-fallback: if still nothing, use the single most-active conversation
         if not handles:
             chats = top_chats(conn, 1)
             if chats:
