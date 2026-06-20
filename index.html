@@ -2879,7 +2879,6 @@ function DispatchNavbar({page,setPage,dayOfYear,isMobile,mode,setMode}){
   const T=useT();
   const NAV=[
     {id:'today',label:'TODAY'},
-    {id:'brief',label:'BRIEF'},
     {id:'plan',label:'PLAN'},
     {id:'trips',label:'TRIPS'},
     {id:'money',label:'MONEY'},
@@ -5981,7 +5980,6 @@ function App(){
         <PaperFooter/>
       </>}
 
-      {page==="brief"&&<BriefPage digest={digest} isMobile={isMobile} onRefresh={refreshDigest} syncStatus={syncStatus}/>}
       {page==="plan"&&<PlanPage tasks={tasks} setTasks={setTasks} goals={goals} setGoals={setGoals} completions={completions} setCompletions={setCompletions} trips={trips} appleEvents={appleEvents} setModal={setModal} setFocusDay={setFocusDay} pushUndo={pushUndo} bingo={bingo} setBingo={setBingo} apiKey={apiKey} budgetCats={budgetCats} envelopes={envelopes} isMobile={isMobile}/>}
       {page==="trips"&&<TripsPage trips={trips} setTrips={setTrips} photos={photos} setPhotos={setPhotos} tripSugg={tripSugg} getTripSugg={getTripSugg} loadingSugg={loadingSugg} pushUndo={pushUndo} setModal={setModal} isMobile={isMobile}/>}
       {page==="money"&&<MoneyPage budget={budget} setBudget={setBudget} envelopes={envelopes} setEnvelopes={setEnvelopes} budgetCats={budgetCats} setBudgetCats={setBudgetCats} isMobile={isMobile}/>}
