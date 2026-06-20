@@ -114,10 +114,14 @@ def list_chats(conn):
     print("\nCopy Elina's handle(s) into elina_handles in praline_songs_config.json.")
 
 
-def detect_contact_handles(name="elina"):
-    """Best-effort: pull phone/email for a contact whose first name matches `name`
-    from the macOS Contacts database. Returns a list (may be empty)."""
+def detect_contact_handles(names=("elina", "eli")):
+    """Best-effort: pull phone/email for any contact whose first name matches one
+    of `names` from the macOS Contacts database. Returns a list (may be empty)."""
     import glob
+    if isinstance(names, str):
+        names = [names]
+    names = [n.lower() for n in names]
+    marks = ",".join("?" * len(names))
     handles = []
     pattern = os.path.expanduser(
         "~/Library/Application Support/AddressBook/Sources/*/AddressBook-v22.abcddb")
@@ -127,13 +131,13 @@ def detect_contact_handles(name="elina"):
             continue
         try:
             c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-            rows = c.execute("""
+            rows = c.execute(f"""
                 SELECT p.ZFULLNUMBER, e.ZADDRESS
                 FROM ZABCDRECORD r
                 LEFT JOIN ZABCDPHONENUMBER p ON p.ZOWNER = r.Z_PK
                 LEFT JOIN ZABCDEMAILADDRESS e ON e.ZOWNER = r.Z_PK
-                WHERE LOWER(r.ZFIRSTNAME) = ?
-            """, (name.lower(),)).fetchall()
+                WHERE LOWER(r.ZFIRSTNAME) IN ({marks}) OR LOWER(r.ZNICKNAME) IN ({marks})
+            """, names + names).fetchall()
             for ph, em in rows:
                 if ph:
                     handles.append(re.sub(r"[\s()\-]", "", ph))
@@ -303,9 +307,11 @@ def main():
                 return
             cfg = load_config()  # reload with the handles we just saved
         handles = list(cfg.get("elina_handles", []))
-        # broaden: also pull every handle (phone + email) Contacts has for "Elina",
-        # so a song sent to her number lands too — not just the one configured address
-        for h in detect_contact_handles("elina"):
+        # broaden: also pull every handle (phone + email) Contacts has for Elina,
+        # so a song sent to her number lands too — not just the one configured address.
+        # contact_names lets you match whatever you saved her under (e.g. "Eli").
+        names = cfg.get("contact_names") or ["elina", "eli"]
+        for h in detect_contact_handles(names):
             if h not in handles:
                 handles.append(h)
         # auto-fallback: if still nothing, use the single most-active conversation
