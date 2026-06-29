@@ -46,6 +46,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 @keyframes pp-pop{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes pp-grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,0)}75%{transform:translate(0,-1px)}}
 
+/* ── 12M PLAN COLUMN DELETE (hover-reveal) ────── */
+.plan-col-head:hover .plan-col-del{opacity:1 !important;}
+.plan-col-del:hover{background:var(--red,#c8412e) !important;color:#fff !important;}
 /* ── PAPER PANEL MANIFEST ROW HOVER ───────────── */
 .paper-row:hover{background:rgba(29,26,20,0.035);}
 .theme-dark .paper-row:hover{background:rgba(241,237,229,0.04);}
@@ -1131,6 +1134,9 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
   function clearPlanRow(cat){
     setEnvelopes(prev=>prev.filter(e=>!(planMonths.includes(e.month)&&e.category===cat)));
   }
+  function clearPlanMonth(m){
+    setEnvelopes(prev=>prev.filter(e=>e.month!==m));
+  }
 
   const IS={fontSize:11,background:T.inp,border:"1px solid "+T.border,borderRadius:0,color:T.text,padding:"5px 8px",fontFamily:F,outline:"none"};
 
@@ -1894,9 +1900,13 @@ function BudgetWidget({budget,setBudget,envelopes,setEnvelopes,budgetCats,setBud
           {planMonths.map(m=>{
             const lbl=MFULL[parseInt(m.split("-")[1])-1].slice(0,3);
             const isCur=m===ym0;
-            return <div key={m} style={{width:COL_W,flexShrink:0,textAlign:"center"}}>
+            const hasAny=planTotals.find(p=>p.m===m)&&(()=>{const pt=planTotals.find(p=>p.m===m);return pt.inc>0||pt.exp>0||pt.sav>0;})();
+            return <div key={m} className="plan-col-head" style={{width:COL_W,flexShrink:0,textAlign:"center",position:"relative"}}>
               <div style={{...numF,fontSize:10,fontWeight:isCur?700:500,color:isCur?RED:T.text,letterSpacing:"0.05em",textTransform:"uppercase"}}>{lbl}</div>
               <div style={{...numF,fontSize:8,color:T.muted,opacity:0.7,marginTop:1}}>'{m.slice(2,4)}</div>
+              {hasAny&&<button className="plan-col-del" onClick={()=>{if(window.confirm(`Clear all entries for ${MFULL[parseInt(m.split("-")[1])-1]} '${m.slice(2,4)}?`))clearPlanMonth(m);}}
+                title={`Clear all entries for this month`}
+                style={{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",width:14,height:14,borderRadius:0,border:`1px solid ${alpha(RED,.4)}`,background:T.bg,cursor:"pointer",color:RED,display:"flex",alignItems:"center",justifyContent:"center",padding:0,fontSize:10,lineHeight:1,opacity:0}}>×</button>}
             </div>;
           })}
           <div style={{width:ACT_W,flexShrink:0}}/>
